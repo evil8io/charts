@@ -1,0 +1,50 @@
+---
+image:
+
+nodeSelector: {}
+tolerations: []
+
+schedule: "*/5 * * * *"
+timeZone: "Europe/Amsterdam"
+activeDeadlineSeconds: 120
+startingDeadlineSeconds: null
+backoffLimit: 3
+concurrencyPolicy: Forbid
+restartPolicy: OnFailure
+
+script: |
+  echo Hello, World!
+
+rbac:
+  create: false
+  # one of cluster or namespace
+  scope: namespace
+
+serviceAccount:
+  annotations: {}
+
+resources:
+  limits:
+    memory: 200Mi
+  requests:
+    cpu: 100m
+    memory: 200Mi
+
+podSecurityContext:
+  fsGroup: 1001
+  runAsUser: 1001
+  runAsGroup: 1001
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  privileged: false
+
+extraEnv: []
+# - name: foo
+#   value: bar

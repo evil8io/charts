@@ -1,0 +1,51 @@
+---
+image:
+
+# https://helm.sh/docs/topics/charts_hooks/#the-available-hooks
+hook:
+  type: pre-install,pre-upgrade
+  deletePolicy: before-hook-creation,hook-succeeded
+
+podLabels: {}
+podAnnotations: {}
+
+rbac:
+  create: false
+  # one of cluster or namespace
+  scope: namespace
+
+serviceAccount:
+  annotations: {}
+
+backoffLimit: 6
+
+dnsPolicy: ClusterFirst
+
+script: |
+  echo Hello, World!
+
+resources:
+  limits:
+    memory: 512M
+  requests:
+    cpu: 500m
+    memory: 512M
+
+podSecurityContext:
+  fsGroup: 1001
+  runAsUser: 1001
+  runAsGroup: 1001
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  privileged: false
+
+extraEnv: []
+# - name: foo
+#   value: bar

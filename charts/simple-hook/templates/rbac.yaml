@@ -1,0 +1,25 @@
+{{ if .Values.rbac.create -}}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+{{ if eq .Values.rbac.scope "cluster" -}}
+kind: ClusterRoleBinding
+{{ else -}}
+kind: RoleBinding
+{{ end -}}
+metadata:
+  name: '{{ include "simple-hook.fullname" . }}'
+  labels:
+    {{- include "simple-hook.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: {{ .Values.hook.type }}
+    helm.sh/hook-weight: '0'
+    helm.sh/hook-delete-policy: {{ .Values.hook.deletePolicy }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: '{{ include "simple-hook.fullname" . }}'
+    namespace: "{{ .Release.Namespace }}"
+{{ end -}}

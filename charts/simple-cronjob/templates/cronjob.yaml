@@ -1,0 +1,65 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: '{{ include "simple-cronjob.fullname" . }}'
+  labels:
+    {{- include "simple-cronjob.labels" . | nindent 4 }}
+  annotations: {}
+spec:
+  schedule: '{{ .Values.schedule }}'
+  timeZone: '{{ .Values.timeZone }}'
+  concurrencyPolicy: {{ .Values.concurrencyPolicy }}
+  jobTemplate:
+    spec:
+      backoffLimit: {{ .Values.backoffLimit }}
+      activeDeadlineSeconds: {{ .Values.activeDeadlineSeconds }}
+      startingDeadlineSeconds: {{ .Values.startingDeadlineSeconds }}
+      template:
+        spec:
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+           {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccount: '{{ include "simple-cronjob.fullname" . }}'
+          serviceAccountName: '{{ include "simple-cronjob.fullname" . }}'
+          restartPolicy: {{ .Values.restartPolicy }}
+          terminationGracePeriodSeconds: 0
+          securityContext:
+          {{- with .Values.podSecurityContext -}}
+            {{ toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: simple-cronjob
+              image: {{ .Values.image }}
+              imagePullPolicy: Always
+              command:
+                - /scripts/init.sh
+              env:
+                - name: NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                {{- with .Values.extraEnv -}}
+                {{ toYaml . | nindent 16 }}
+                {{- end }}
+              resources:
+              {{- with .Values.resources -}}
+                {{ toYaml . | nindent 16 }}
+              {{- end }}
+              securityContext:
+              {{- with .Values.containerSecurityContext -}}
+                {{ toYaml . | nindent 16 }}
+              {{- end }}
+              volumeMounts:
+                - mountPath: /scripts
+                  name: config-volume
+          volumes:
+            - configMap:
+                defaultMode: 0755
+                name: '{{ include "simple-cronjob.fullname" . }}'
+              name: config-volume

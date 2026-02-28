@@ -1,0 +1,75 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: '{{ include "simple-hook.fullname" . }}'
+  labels:
+    {{- include "simple-hook.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: {{ .Values.hook.type }}
+    helm.sh/hook-weight: '10'
+    helm.sh/hook-delete-policy: {{ .Values.hook.deletePolicy }}
+spec:
+  backoffLimit: {{ .Values.backoffLimit }}
+  template:
+    metadata:
+      name: '{{ include "simple-hook.fullname" . }}'
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "simple-hook.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccount: '{{ include "simple-hook.fullname" . }}'
+      serviceAccountName: '{{ include "simple-hook.fullname" . }}'
+      restartPolicy: OnFailure
+      terminationGracePeriodSeconds: 0
+      dnsPolicy: '{{ .Values.dnsPolicy }}'
+      securityContext:
+      {{- with .Values.podSecurityContext -}}
+        {{ toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: simple-hook
+          image: {{ .Values.image }}
+          imagePullPolicy: Always
+          command:
+            - /scripts/init.sh
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{- with .Values.extraEnv -}}
+            {{ toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+          {{- with .Values.resources -}}
+            {{ toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+          {{- with .Values.containerSecurityContext -}}
+            {{ toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - mountPath: /scripts
+              name: config-volume
+            - mountPath: /.kube
+              name: kube
+          {{- with .Values.extraVolumeMounts -}}
+          {{ toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - configMap:
+            defaultMode: 0755
+            name: '{{ include "simple-hook.fullname" . }}'
+          name: config-volume
+        - emptyDir: {}
+          name: kube
+      {{- with .Values.extraVolumes -}}
+      {{ toYaml . | nindent 8 }}
+      {{- end }}

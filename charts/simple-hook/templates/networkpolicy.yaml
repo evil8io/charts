@@ -1,0 +1,19 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: '{{ include "simple-hook.fullname" . }}'
+  labels:
+    {{- include "simple-hook.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: {{ .Values.hook.type }}
+    helm.sh/hook-weight: '0'
+    helm.sh/hook-delete-policy: {{ .Values.hook.deletePolicy }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "simple-hook.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - {}
