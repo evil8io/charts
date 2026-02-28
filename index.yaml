@@ -2,6 +2,16 @@ apiVersion: v1
 entries:
   simple-cronjob:
   - apiVersion: v2
+    appVersion: 1.1.1
+    created: "2026-02-28T18:21:08.940983183Z"
+    description: Deploy a CronJob that runs a simple job
+    digest: d9374df540ecbdce5c8af8912b3c53229eb6cd4f91ffe6639a14458f67243a8f
+    name: simple-cronjob
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/simple-cronjob-1.1.1/simple-cronjob-1.1.1.tgz
+    version: 1.1.1
+  - apiVersion: v2
     appVersion: 1.1.0
     created: "2026-02-28T14:04:37.427922099Z"
     description: Deploy a CronJob that runs a simple job
@@ -13,6 +23,16 @@ entries:
     version: 1.1.0
   simple-hook:
   - apiVersion: v2
+    appVersion: 1.1.1
+    created: "2026-02-28T18:21:09.088893478Z"
+    description: Run a single helm-hook
+    digest: b44ec12e1e5762b27c3b5c8d37bf069c9fc5cbeb796e0bfede12b1737c7b6df7
+    name: simple-hook
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.1/simple-hook-1.1.1.tgz
+    version: 1.1.1
+  - apiVersion: v2
     appVersion: 1.1.0
     created: "2026-02-28T14:04:37.575721472Z"
     description: Run a single helm-hook
@@ -22,4 +42,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-02-28T14:04:37.575727303Z"
+generated: "2026-02-28T18:21:09.088908105Z"
