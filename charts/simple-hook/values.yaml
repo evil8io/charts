@@ -1,35 +1,28 @@
 ---
 image:
+imagePullPolicy: Always
+imagePullSecrets: []
 
 # https://helm.sh/docs/topics/charts_hooks/#the-available-hooks
 hook:
   type: pre-install,pre-upgrade
   deletePolicy: before-hook-creation,hook-succeeded
 
-podLabels: {}
-podAnnotations: {}
-
-rbac:
-  create: false
-  # one of cluster or namespace
-  scope: namespace
-
-serviceAccount:
-  annotations: {}
-
 backoffLimit: 6
+restartPolicy: OnFailure
+ttlSecondsAfterFinished: null
 
-dnsPolicy: ClusterFirst
-
+command: []
+args: []
 script: |
   echo Hello, World!
 
-resources:
-  limits:
-    memory: 512M
-  requests:
-    cpu: 500m
-    memory: 512M
+nodeSelector: {}
+tolerations: []
+dnsPolicy: ClusterFirst
+terminationGracePeriodSeconds: 0
+podLabels: {}
+podAnnotations: {}
 
 podSecurityContext:
   fsGroup: 1001
@@ -46,6 +39,42 @@ containerSecurityContext:
       - ALL
   privileged: false
 
+resources:
+  limits:
+    memory: 512M
+  requests:
+    cpu: 500m
+    memory: 512M
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+rbac:
+  create: false
+  # one of cluster or namespace
+  scope: namespace
+  # bind to an existing ClusterRole (default: cluster-admin)
+  clusterRole: cluster-admin
+  # define custom rules instead of binding to an existing ClusterRole
+  rules: []
+
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Egress
+  egress:
+    - {}
+
+# Legacy: mounts an emptyDir at /.kube for kubeconfig usage
+kubeVolume: true
+
 extraEnv: []
 # - name: foo
 #   value: bar
+
+extraContainers: []
+initContainers: []
+extraVolumeMounts: []
+extraVolumes: []
+extraManifests: []

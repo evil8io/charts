@@ -1,4 +1,16 @@
 {{ if .Values.rbac.create -}}
+{{- if .Values.rbac.rules }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: '{{ eq .Values.rbac.scope "cluster" | ternary "ClusterRole" "Role" }}'
+metadata:
+  name: '{{ include "simple-cronjob.fullname" . }}'
+  labels:
+    {{- include "simple-cronjob.labels" . | nindent 4 }}
+  annotations: {}
+rules:
+  {{- toYaml .Values.rbac.rules | nindent 2 }}
+{{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: '{{ eq .Values.rbac.scope "cluster" | ternary "ClusterRoleBinding" "RoleBinding" }}'
@@ -9,8 +21,13 @@ metadata:
   annotations: {}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
+  {{- if .Values.rbac.rules }}
+  kind: '{{ eq .Values.rbac.scope "cluster" | ternary "ClusterRole" "Role" }}'
+  name: '{{ include "simple-cronjob.fullname" . }}'
+  {{- else }}
   kind: ClusterRole
-  name: cluster-admin
+  name: {{ .Values.rbac.clusterRole }}
+  {{- end }}
 subjects:
   - kind: ServiceAccount
     name: '{{ include "simple-cronjob.fullname" . }}'

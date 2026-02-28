@@ -1,34 +1,31 @@
 ---
 image:
-
-nodeSelector: {}
-tolerations: []
+imagePullPolicy: Always
+imagePullSecrets: []
 
 schedule: "*/5 * * * *"
 timeZone: "Europe/Amsterdam"
+concurrencyPolicy: Forbid
+successfulJobsHistoryLimit: null
+failedJobsHistoryLimit: null
+
+backoffLimit: 3
+restartPolicy: OnFailure
 activeDeadlineSeconds: 120
 startingDeadlineSeconds: null
-backoffLimit: 3
-concurrencyPolicy: Forbid
-restartPolicy: OnFailure
+ttlSecondsAfterFinished: null
 
+command: []
+args: []
 script: |
   echo Hello, World!
 
-rbac:
-  create: false
-  # one of cluster or namespace
-  scope: namespace
-
-serviceAccount:
-  annotations: {}
-
-resources:
-  limits:
-    memory: 200Mi
-  requests:
-    cpu: 100m
-    memory: 200Mi
+nodeSelector: {}
+tolerations: []
+dnsPolicy: ClusterFirst
+terminationGracePeriodSeconds: 0
+podLabels: {}
+podAnnotations: {}
 
 podSecurityContext:
   fsGroup: 1001
@@ -45,6 +42,39 @@ containerSecurityContext:
       - ALL
   privileged: false
 
+resources:
+  limits:
+    memory: 200Mi
+  requests:
+    cpu: 100m
+    memory: 200Mi
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+rbac:
+  create: false
+  # one of cluster or namespace
+  scope: namespace
+  # bind to an existing ClusterRole (default: cluster-admin)
+  clusterRole: cluster-admin
+  # define custom rules instead of binding to an existing ClusterRole
+  rules: []
+
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Egress
+  egress:
+    - {}
+
 extraEnv: []
 # - name: foo
 #   value: bar
+
+extraContainers: []
+initContainers: []
+extraVolumeMounts: []
+extraVolumes: []
+extraManifests: []

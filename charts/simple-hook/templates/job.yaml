@@ -11,6 +11,9 @@ metadata:
     helm.sh/hook-delete-policy: {{ .Values.hook.deletePolicy }}
 spec:
   backoffLimit: {{ .Values.backoffLimit }}
+  {{- with .Values.ttlSecondsAfterFinished }}
+  ttlSecondsAfterFinished: {{ . }}
+  {{- end }}
   template:
     metadata:
       name: '{{ include "simple-hook.fullname" . }}'
@@ -24,10 +27,22 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccount: '{{ include "simple-hook.fullname" . }}'
       serviceAccountName: '{{ include "simple-hook.fullname" . }}'
-      restartPolicy: OnFailure
-      terminationGracePeriodSeconds: 0
+      restartPolicy: {{ .Values.restartPolicy }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       dnsPolicy: '{{ .Values.dnsPolicy }}'
       securityContext:
       {{- with .Values.podSecurityContext -}}
@@ -36,9 +51,18 @@ spec:
       containers:
         - name: simple-hook
           image: {{ .Values.image }}
-          imagePullPolicy: Always
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          {{- if .Values.command }}
+          command:
+            {{- toYaml .Values.command | nindent 12 }}
+          {{- else }}
           command:
             - /scripts/init.sh
+          {{- end }}
+          {{- with .Values.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           env:
             - name: NAMESPACE
               valueFrom:
@@ -56,20 +80,35 @@ spec:
             {{ toYaml . | nindent 12 }}
           {{- end }}
           volumeMounts:
+            {{- if not .Values.command }}
             - mountPath: /scripts
               name: config-volume
+            {{- end }}
+            {{- if .Values.kubeVolume }}
             - mountPath: /.kube
               name: kube
+            {{- end }}
           {{- with .Values.extraVolumeMounts -}}
           {{ toYaml . | nindent 12 }}
           {{- end }}
+      {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       volumes:
+        {{- if not .Values.command }}
         - configMap:
             defaultMode: 0755
             name: '{{ include "simple-hook.fullname" . }}'
           name: config-volume
+        {{- end }}
+        {{- if .Values.kubeVolume }}
         - emptyDir: {}
           name: kube
+        {{- end }}
       {{- with .Values.extraVolumes -}}
       {{ toYaml . | nindent 8 }}
       {{- end }}

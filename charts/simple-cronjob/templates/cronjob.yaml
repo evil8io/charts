@@ -10,13 +10,36 @@ spec:
   schedule: '{{ .Values.schedule }}'
   timeZone: '{{ .Values.timeZone }}'
   concurrencyPolicy: {{ .Values.concurrencyPolicy }}
+  {{- with .Values.successfulJobsHistoryLimit }}
+  successfulJobsHistoryLimit: {{ . }}
+  {{- end }}
+  {{- with .Values.failedJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ . }}
+  {{- end }}
   jobTemplate:
     spec:
       backoffLimit: {{ .Values.backoffLimit }}
       activeDeadlineSeconds: {{ .Values.activeDeadlineSeconds }}
       startingDeadlineSeconds: {{ .Values.startingDeadlineSeconds }}
+      {{- with .Values.ttlSecondsAfterFinished }}
+      ttlSecondsAfterFinished: {{ . }}
+      {{- end }}
       template:
+        metadata:
+          {{- with .Values.podAnnotations }}
+          annotations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          labels:
+            {{- include "simple-cronjob.selectorLabels" . | nindent 12 }}
+            {{- with .Values.podLabels }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
         spec:
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with .Values.nodeSelector }}
           nodeSelector:
            {{- toYaml . | nindent 12 }}
@@ -28,7 +51,8 @@ spec:
           serviceAccount: '{{ include "simple-cronjob.fullname" . }}'
           serviceAccountName: '{{ include "simple-cronjob.fullname" . }}'
           restartPolicy: {{ .Values.restartPolicy }}
-          terminationGracePeriodSeconds: 0
+          terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+          dnsPolicy: '{{ .Values.dnsPolicy }}'
           securityContext:
           {{- with .Values.podSecurityContext -}}
             {{ toYaml . | nindent 12 }}
@@ -36,9 +60,18 @@ spec:
           containers:
             - name: simple-cronjob
               image: {{ .Values.image }}
-              imagePullPolicy: Always
+              imagePullPolicy: {{ .Values.imagePullPolicy }}
+              {{- if .Values.command }}
+              command:
+                {{- toYaml .Values.command | nindent 16 }}
+              {{- else }}
               command:
                 - /scripts/init.sh
+              {{- end }}
+              {{- with .Values.args }}
+              args:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
               env:
                 - name: NAMESPACE
                   valueFrom:
@@ -56,10 +89,27 @@ spec:
                 {{ toYaml . | nindent 16 }}
               {{- end }}
               volumeMounts:
+                {{- if not .Values.command }}
                 - mountPath: /scripts
                   name: config-volume
+                {{- end }}
+              {{- with .Values.extraVolumeMounts -}}
+              {{ toYaml . | nindent 16 }}
+              {{- end }}
+          {{- with .Values.extraContainers }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.initContainers }}
+          initContainers:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           volumes:
+            {{- if not .Values.command }}
             - configMap:
                 defaultMode: 0755
                 name: '{{ include "simple-cronjob.fullname" . }}'
               name: config-volume
+            {{- end }}
+          {{- with .Values.extraVolumes -}}
+          {{ toYaml . | nindent 12 }}
+          {{- end }}

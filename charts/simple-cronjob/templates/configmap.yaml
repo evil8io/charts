@@ -1,3 +1,4 @@
+{{- if not .Values.command }}
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -9,3 +10,4 @@ metadata:
 data:
   init.sh: |-
   {{- .Values.script | nindent 4 }}
+{{- end }}
