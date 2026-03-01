@@ -1,5 +1,7 @@
 # simple-hook
 
+> **Note:** This chart is automatically synced from a private repository. Do not edit it here directly.
+
 A Helm chart to run a single [Helm hook](https://helm.sh/docs/topics/charts_hooks/) as a Job.
 
 ## Usage

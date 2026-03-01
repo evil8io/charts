@@ -1,5 +1,7 @@
 # simple-cronjob
 
+> **Note:** This chart is automatically synced from a private repository. Do not edit it here directly.
+
 A Helm chart to deploy a CronJob that runs a simple script on a schedule.
 
 ## Usage
