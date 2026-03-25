@@ -429,6 +429,38 @@ serviceMonitor:
   interval: 30s
   labels: {}
 
+# -- loggen: syslog traffic generator using syslog-ng's loggen tool.
+# Deploys a separate pod that sends synthetic syslog messages to the collector.
+# Useful for demos and testing. Disabled by default.
+loggen:
+  enabled: false
+  replicaCount: 1
+  # -- Messages per second
+  rate: 1
+  # -- Run duration in seconds (0 = forever)
+  interval: 0
+  # -- Message payload size in bytes
+  size: 256
+  # -- Number of parallel connections
+  activeConnections: 1
+  # -- Use RFC 5424 format (false = RFC 3164)
+  syslogProto: true
+  # -- Transport protocol: tcp or udp
+  transport: tcp
+  # -- Extra loggen CLI args
+  extraArgs: []
+  target:
+    # -- Target host. Defaults to the chart's tcpudp service if empty.
+    host: ""
+    # -- Target port
+    port: 514
+  resources:
+    limits:
+      memory: 64Mi
+    requests:
+      cpu: 10m
+      memory: 64Mi
+
 # -- ServiceAccount
 serviceAccount:
   create: true

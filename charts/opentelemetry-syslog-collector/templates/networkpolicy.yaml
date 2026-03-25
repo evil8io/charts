@@ -38,4 +38,45 @@ spec:
           protocol: TCP
     - ports:
         - protocol: TCP
+{{- if .Values.loggen.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "opentelemetry-syslog-collector.fullname" . }}-loggen
+  labels:
+    {{- include "opentelemetry-syslog-collector.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "opentelemetry-syslog-collector.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: loggen
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - ports:
+        {{- $seen := dict }}
+        {{- range $name, $svc := .Values.services }}
+        {{- if $svc.enabled }}
+        {{- range $svc.ports }}
+        {{- $tp := (.targetPort | default .port) }}
+        {{- $key := printf "%s-%d" .protocol $tp }}
+        {{- if not (hasKey $seen $key) }}
+        {{- $_ := set $seen $key true }}
+        - port: {{ $tp }}
+          protocol: {{ .protocol }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+      to:
+        - podSelector:
+            matchLabels:
+              {{- include "opentelemetry-syslog-collector.otelOperatorLabels" . | nindent 14 }}
+{{- end }}
 {{- end }}

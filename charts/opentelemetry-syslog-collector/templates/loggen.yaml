@@ -1,0 +1,77 @@
+{{- if .Values.loggen.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "opentelemetry-syslog-collector.fullname" . }}-loggen
+  labels:
+    {{- include "opentelemetry-syslog-collector.labels" . | nindent 4 }}
+    app.kubernetes.io/component: loggen
+spec:
+  replicas: {{ .Values.loggen.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "opentelemetry-syslog-collector.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: loggen
+  template:
+    metadata:
+      labels:
+        {{- include "opentelemetry-syslog-collector.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: loggen
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: loggen
+          image: "{{ .Values.syslogng.image.repository }}:{{ .Values.syslogng.image.tag }}"
+          imagePullPolicy: {{ .Values.syslogng.image.pullPolicy }}
+          command:
+            - /usr/bin/loggen
+          args:
+            - --rate={{ .Values.loggen.rate }}
+            - --interval={{ .Values.loggen.interval }}
+            - --size={{ .Values.loggen.size }}
+            - --active-connections={{ .Values.loggen.activeConnections }}
+            - --permanent
+            {{- if .Values.loggen.syslogProto }}
+            - --syslog-proto
+            {{- end }}
+            {{- if eq .Values.loggen.transport "udp" }}
+            - --dgram
+            {{- else }}
+            - --inet
+            {{- end }}
+            {{- with .Values.loggen.extraArgs }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if .Values.loggen.target.host }}
+            - {{ .Values.loggen.target.host }}
+            {{- else }}
+            - {{ include "opentelemetry-syslog-collector.fullname" . }}-tcpudp
+            {{- end }}
+            - {{ .Values.loggen.target.port | quote }}
+          {{- with .Values.loggen.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
