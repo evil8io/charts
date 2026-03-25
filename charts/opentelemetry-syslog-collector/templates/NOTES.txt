@@ -1,0 +1,18 @@
+Syslog collector deployed: {{ include "opentelemetry-syslog-collector.fullname" . }}
+
+Services:
+{{- range $name, $svc := .Values.services }}
+{{- if $svc.enabled }}
+  {{ $name }}:
+  {{- range $svc.ports }}
+    {{ .name }}: {{ .port }}/{{ .protocol }}
+  {{- end }}
+{{- end }}
+{{- end }}
+
+Get LoadBalancer hostnames:
+{{- range $name, $svc := .Values.services }}
+{{- if $svc.enabled }}
+  kubectl get svc {{ include "opentelemetry-syslog-collector.fullname" $ }}-{{ $name }} -n {{ $.Release.Namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+{{- end }}
+{{- end }}

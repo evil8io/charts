@@ -1,0 +1,24 @@
+{{- if .Values.autoscaling.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "opentelemetry-syslog-collector.fullname" . }}
+  labels:
+    {{- include "opentelemetry-syslog-collector.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: opentelemetry.io/v1beta1
+    kind: OpenTelemetryCollector
+    name: {{ include "opentelemetry-syslog-collector.fullname" . }}
+  minReplicas: {{ .Values.autoscaling.hpa.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.hpa.maxReplicas }}
+  metrics:
+    {{- if .Values.autoscaling.hpa.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.hpa.targetCPUUtilizationPercentage }}
+    {{- end }}
+{{- end }}

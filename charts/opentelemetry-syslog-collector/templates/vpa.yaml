@@ -1,0 +1,23 @@
+{{- if .Values.autoscaling.vpa.enabled }}
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: {{ include "opentelemetry-syslog-collector.fullname" . }}
+  labels:
+    {{- include "opentelemetry-syslog-collector.labels" . | nindent 4 }}
+spec:
+  targetRef:
+    apiVersion: opentelemetry.io/v1beta1
+    kind: OpenTelemetryCollector
+    name: {{ include "opentelemetry-syslog-collector.fullname" . }}
+  updatePolicy:
+    updateMode: {{ .Values.autoscaling.vpa.updateMode }}
+  resourcePolicy:
+    containerPolicies:
+      {{- range $name, $policy := .Values.autoscaling.vpa.containerPolicies }}
+      - containerName: {{ $name }}
+        controlledResources:
+          {{- toYaml $.Values.autoscaling.vpa.controlledResources | nindent 10 }}
+        {{- toYaml $policy | nindent 8 }}
+      {{- end }}
+{{- end }}

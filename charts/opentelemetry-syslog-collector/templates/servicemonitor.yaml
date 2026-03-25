@@ -1,0 +1,23 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "opentelemetry-syslog-collector.fullname" . }}
+  labels:
+    {{- include "opentelemetry-syslog-collector.labels" . | nindent 4 }}
+    {{- with .Values.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  endpoints:
+    - interval: {{ .Values.serviceMonitor.interval }}
+      port: monitoring
+    - interval: {{ .Values.serviceMonitor.interval }}
+      port: sng-metrics
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      {{- include "opentelemetry-syslog-collector.otelOperatorLabels" . | nindent 6 }}
+{{- end }}

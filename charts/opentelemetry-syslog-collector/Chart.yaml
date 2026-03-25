@@ -1,0 +1,6 @@
+apiVersion: v2
+name: opentelemetry-syslog-collector
+description: Syslog collector using syslog-ng and OpenTelemetry Collector, managed by the opentelemetry-operator
+type: application
+version: 0.1.0
+appVersion: "0.148.0"

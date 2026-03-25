@@ -1,0 +1,436 @@
+nameOverride: "syslog"
+fullnameOverride: ""
+
+replicaCount: 3
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Deregistration delay (seconds). preStop sleep must be >= this value.
+deregistrationDelay: 15
+
+# -- terminationGracePeriodSeconds must be > preStop sleep
+terminationGracePeriodSeconds: 25
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+imagePullSecrets: []
+extraVolumes: []
+
+# -- OpenTelemetry Collector (main container)
+collector:
+  # -- Enable debug exporter in the pipeline
+  debug: false
+  image:
+    repository: otel/opentelemetry-collector-contrib
+    tag: "0.148.0"
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      memory: 200Mi
+    requests:
+      cpu: 100m
+      memory: 200Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    privileged: false
+    readOnlyRootFilesystem: true
+  featureGates: ""
+  extraEnv: []
+  extraVolumeMounts: []
+
+# -- syslog-ng (native sidecar)
+syslogng:
+  image:
+    repository: balabit/syslog-ng
+    tag: "4.9.0"
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      memory: 200Mi
+    requests:
+      cpu: 100m
+      memory: 200Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      add:
+        - NET_BIND_SERVICE
+      drop:
+        - ALL
+    privileged: false
+    readOnlyRootFilesystem: true
+  extraEnv: []
+  extraVolumeMounts: []
+  # -- Enable debug output (prints JSON messages to stdout)
+  debug: false
+  config: |
+    @version: 4.6
+    @include "scl.conf"
+
+    options {
+      use-fqdn(yes);
+      keep_hostname(yes);
+      stats(
+        freq(1)
+        level(3)
+        lifetime(1000)
+        max-dynamics(10000)
+        syslog-stats(yes)
+      );
+    };
+
+    source s_default {
+      default-network-drivers();
+    };
+
+    destination d_pipe {
+      pipe(
+        "/var/lib/otel/pipe"
+        template(
+          "$(
+            format-json
+            --scope nv_pairs,selected_macros,rfc5424,sdata
+            --exclude DATE
+            --exclude TAGS
+            --exclude SOURCE
+            --exclude HOST_FROM
+            --exclude R_*
+            --exclude S_*
+            --pair TIMESTAMP=\"$UNIXTIME\"
+            --pair transport=\"$TRANSPORT\"
+            --pair sourceport=\"$SOURCEPORT\"
+            --rekey * --lower
+          )\n"
+        )
+        frac-digits(3)
+      );
+    };
+
+    destination d_stdout {
+      file(
+        "/dev/stdout"
+        template(
+          "$(
+            format-json
+            --scope nv_pairs,selected_macros,rfc5424,sdata
+            --exclude DATE
+            --exclude TAGS
+            --exclude SOURCE
+            --exclude HOST_FROM
+            --exclude R_*
+            --exclude S_*
+            --pair TIMESTAMP=\"$UNIXTIME\"
+            --pair transport=\"$TRANSPORT\"
+            --pair sourceport=\"$SOURCEPORT\"
+            --rekey * --lower
+          )\n"
+        )
+        frac-digits(3)
+      );
+    };
+
+    log {
+      source(s_default);
+      destination(d_pipe);
+      {{ if .Values.syslogng.debug }}destination(d_stdout);{{ end }}
+    };
+
+# -- sng-prometheus-exporter (native sidecar)
+exporter:
+  image:
+    repository: python
+    tag: "3-alpine"
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      memory: 100Mi
+    requests:
+      cpu: 10m
+      memory: 100Mi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    privileged: false
+    readOnlyRootFilesystem: true
+  extraEnv: []
+  extraVolumeMounts: []
+  port: 9577
+
+# -- OpenTelemetry Collector config (plain dict).
+# Deep-merged with configOverrides via mustMergeOverwrite.
+config:
+  receivers:
+    namedpipe:
+      path: /var/lib/otel/pipe
+      mode: 0666
+      operators:
+        - type: json_parser
+          parse_from: body
+          parse_to: attributes.syslog
+          timestamp:
+            parse_from: attributes.syslog.timestamp
+            layout_type: epoch
+            layout: s.ms
+          severity:
+            parse_from: attributes.syslog.priority
+            mapping:
+              info:
+                - notice
+              fatal:
+                - crit
+                - alert
+                - emerg
+
+  processors:
+    memory_limiter:
+      check_interval: 1s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+
+    transform:
+      error_mode: ignore
+      log_statements:
+        - context: log
+          statements:
+            - set(log.cache["syslog"], log.attributes["syslog"])
+            - set(log.cache["sdata"], log.cache["syslog"]["_sdata"]) where log.cache["syslog"]["_sdata"] != nil
+            - delete_key(log.cache["syslog"], "_sdata")
+            - flatten(log.cache["syslog"], "syslog")
+            - set(log.attributes, log.cache["syslog"])
+            - flatten(log.cache["sdata"]) where log.cache["sdata"] != nil
+            - merge_maps(log.attributes, log.cache["sdata"], "insert") where log.cache["sdata"] != nil
+
+            - set(log.body, log.attributes["syslog.message"])
+
+            - set(log.attributes["host.name"], log.attributes["syslog.host"])
+            - set(log.attributes["service.name"], log.attributes["syslog.program"])
+            - set(log.attributes["syslog.proc_id"], log.attributes["syslog.pid"])
+            - set(log.attributes["network.peer.address"], log.attributes["syslog.sourceip"])
+            - set(log.attributes["network.transport"], "udp") where log.attributes["syslog.transport"] == "rfc5426"
+            - set(log.attributes["network.transport"], "udp") where log.attributes["syslog.transport"] == "rfc3164+udp"
+            - set(log.attributes["network.transport"], "tcp") where log.attributes["syslog.transport"] == "rfc6587"
+            - set(log.attributes["network.transport"], "tcp") where log.attributes["syslog.transport"] == "rfc5425"
+            - set(log.attributes["network.transport"], "tcp") where log.attributes["syslog.transport"] == "rfc3164+tcp"
+            - set(log.attributes["network.transport"], log.attributes["syslog.transport"]) where log.attributes["network.transport"] == nil
+            - set(log.attributes["network.peer.port"], log.attributes["syslog.sourceport"])
+            - set(log.attributes["network.protocol.version"], log.attributes["syslog.msgformat"])
+            - set(log.attributes["network.protocol.name"], "syslog")
+
+            - delete_key(log.attributes, "syslog.host")
+            - delete_key(log.attributes, "syslog.message")
+            - delete_key(log.attributes, "syslog.timestamp")
+            - delete_key(log.attributes, "syslog.pid")
+            - delete_key(log.attributes, "syslog.sourceip")
+            - delete_key(log.attributes, "syslog.sourceport")
+            - delete_key(log.attributes, "syslog.msgformat")
+            - delete_key(log.attributes, "syslog.program")
+
+            - set(log.attributes["original_timestamp_nano"], log.time_unix_nano) where log.attributes["network.protocol.version"] == "rfc3164"
+            - set(log.time_unix_nano, log.observed_time_unix_nano) where log.attributes["network.protocol.version"] == "rfc3164"
+
+            - set(log.attributes["original_timestamp_nano"], log.time_unix_nano) where log.attributes["network.protocol.version"] == "rfc5424"
+            - set(log.time_unix_nano, log.observed_time_unix_nano) where log.attributes["network.protocol.version"] == "rfc5424" and log.time_unix_nano > log.observed_time_unix_nano
+
+    resourcedetection/env:
+      detectors:
+        - env
+
+    batch: {}
+
+    groupbyattrs:
+      keys:
+        - host.name
+        - service.name
+        - syslog.facility
+        - syslog.proc_id
+        - syslog.priority
+        - syslog.transport
+        - network.peer.address
+        - network.peer.port
+        - network.protocol.name
+        - network.protocol.version
+        - network.transport
+
+  exporters:
+    otlp_http:
+      endpoint: ""
+      tls:
+        insecure: true
+      retry_on_failure:
+        max_elapsed_time: 20s
+        max_interval: 5s
+    debug:
+      verbosity: detailed
+      sampling_initial: 5
+      sampling_thereafter: 200
+
+  extensions:
+    health_check:
+      endpoint: "0.0.0.0:13133"
+
+  service:
+    telemetry:
+      logs:
+        encoding: json
+      metrics:
+        readers:
+          - pull:
+              exporter:
+                prometheus:
+                  host: "0.0.0.0"
+                  port: 8888
+    extensions:
+      - health_check
+    pipelines:
+      logs/syslog:
+        receivers:
+          - namedpipe
+        processors:
+          - memory_limiter
+          - transform
+          - resourcedetection/env
+          - batch
+          - groupbyattrs
+        exporters:
+          - otlp_http
+
+# -- Deep-merged on top of config.
+# configOverrides:
+#   exporters:
+#     otlp_http:
+#       endpoint: http://opentelemetry-gateway-logs:4318
+#       headers:
+#         x-scope-orgid: my-tenant
+configOverrides: {}
+
+# -- Resource attributes added via OTEL_RESOURCE_ATTRIBUTES env var.
+# Rendered as a Go template — use {{ .Release.Namespace }}, {{ include ... }}, etc.
+resourceAttributes:
+  job: '{{ printf "%s/%s" .Release.Namespace (include "opentelemetry-syslog-collector.fullname" .) }}'
+
+# -- Services for syslog ingestion.
+# tcpudp: mixed-protocol service (requires AWS LB controller annotation
+#   service.beta.kubernetes.io/aws-load-balancer-enable-tcp-udp-listener: "true")
+# tcp/udp: separate single-protocol services (fallback when mixed-protocol is not supported)
+# Enable either tcpudp OR both tcp+udp, not both.
+services:
+  tcpudp:
+    enabled: true
+    type: LoadBalancer
+    # loadBalancerClass: service.k8s.aws/nlb
+    # allocateLoadBalancerNodePorts: false
+    # annotations:
+    #   external-dns.alpha.kubernetes.io/alias: "true"
+    #   external-dns.alpha.kubernetes.io/hostname: syslog.example.com
+    #   service.beta.kubernetes.io/aws-load-balancer-name: "my-syslog"
+    #   service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+    #   service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
+    #   service.beta.kubernetes.io/aws-load-balancer-ip-address-type: "ipv4"
+    #   service.beta.kubernetes.io/aws-load-balancer-target-group-attributes: "preserve_client_ip.enabled=true,deregistration_delay.timeout_seconds=15"
+    #   service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    #   service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "tcp"
+    #   service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "601"
+    #   service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+    #   service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+    #   service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
+    #   service.beta.kubernetes.io/aws-load-balancer-enable-tcp-udp-listener: "true"
+    annotations: {}
+    ports:
+      - name: sl-3164-tcp
+        port: 514
+
+        protocol: TCP
+      - name: sl-3164-udp
+        port: 514
+
+        protocol: UDP
+      - name: sl-5424-tcp
+        port: 601
+        protocol: TCP
+  tcp:
+    enabled: false
+    type: LoadBalancer
+    annotations: {}
+    ports:
+      - name: sl-3164-tcp
+        port: 514
+
+        protocol: TCP
+      - name: sl-5424-tcp
+        port: 601
+        protocol: TCP
+  udp:
+    enabled: false
+    type: LoadBalancer
+    annotations: {}
+    ports:
+      - name: sl-3164-udp
+        port: 514
+
+        protocol: UDP
+
+# -- Pod Disruption Budget (native OpenTelemetryCollector CRD field)
+podDisruptionBudget:
+  maxUnavailable: 1
+
+# -- Autoscaling
+autoscaling:
+  hpa:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 60
+  vpa:
+    enabled: false
+    updateMode: Auto
+    controlledResources:
+      - memory
+    containerPolicies:
+      otc-container:
+        minAllowed:
+          memory: 200Mi
+        maxAllowed:
+          memory: 4Gi
+      syslog-ng:
+        minAllowed:
+          memory: 200Mi
+        maxAllowed:
+          memory: 4Gi
+      sng-prometheus-exporter:
+        minAllowed:
+          memory: 100Mi
+
+# -- Cilium Network Policy
+ciliumNetworkPolicy:
+  enabled: false
+
+# -- Standard Network Policy
+networkPolicy:
+  enabled: false
+
+# -- ServiceMonitor for Prometheus metrics
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  labels: {}
+
+# -- ServiceAccount
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""

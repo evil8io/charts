@@ -1,0 +1,214 @@
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: {{ include "opentelemetry-syslog-collector.fullname" . }}
+  labels:
+    {{- include "opentelemetry-syslog-collector.labels" . | nindent 4 }}
+spec:
+  mode: deployment
+  {{- if not .Values.autoscaling.hpa.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  image: "{{ .Values.collector.image.repository }}:{{ .Values.collector.image.tag | default .Chart.AppVersion }}"
+  imagePullPolicy: {{ .Values.collector.image.pullPolicy }}
+  {{- with .Values.collector.featureGates }}
+  args:
+    feature-gates: {{ . }}
+  {{- end }}
+  {{- with .Values.collector.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.collector.securityContext }}
+  securityContext:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+  lifecycle:
+    preStop:
+      sleep:
+        seconds: {{ .Values.deregistrationDelay }}
+  {{- with .Values.podSecurityContext }}
+  podSecurityContext:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.podAnnotations }}
+  podAnnotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.podLabels }}
+  podLabels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  env:
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: {{ include "opentelemetry-syslog-collector.resourceAttributesEnv" . | quote }}
+    {{- with .Values.collector.extraEnv }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  serviceAccount: {{ include "opentelemetry-syslog-collector.serviceAccountName" . }}
+  volumes:
+    - name: otel
+      emptyDir:
+        medium: Memory
+    - name: syslog-ng
+      configMap:
+        name: {{ include "opentelemetry-syslog-collector.fullname" . }}-syslogng
+    - name: syslog-metrics
+      emptyDir:
+        medium: Memory
+    - name: exporter-script
+      configMap:
+        name: {{ include "opentelemetry-syslog-collector.fullname" . }}-exporter
+    - name: syslog-ng-run
+      emptyDir:
+        medium: Memory
+    {{- with .Values.extraVolumes }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  volumeMounts:
+    - name: otel
+      mountPath: /var/lib/otel
+    {{- with .Values.collector.extraVolumeMounts }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  ports:
+    {{- $seen := dict }}
+    {{- range $name, $svc := .Values.services }}
+    {{- if $svc.enabled }}
+    {{- range $svc.ports }}
+    {{- $tp := (.targetPort | default .port) }}
+    {{- $key := printf "%s-%d" .protocol $tp }}
+    {{- if not (hasKey $seen $key) }}
+    {{- $_ := set $seen $key true }}
+    - name: {{ .name }}
+      port: {{ $tp }}
+      protocol: {{ .protocol }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+    - name: sng-metrics
+      port: {{ .Values.exporter.port }}
+      protocol: TCP
+  initContainers:
+    - name: syslog-ng
+      image: "{{ .Values.syslogng.image.repository }}:{{ .Values.syslogng.image.tag }}"
+      imagePullPolicy: {{ .Values.syslogng.image.pullPolicy }}
+      restartPolicy: Always
+      command:
+        - /bin/sh
+        - -xc
+        - |
+          while ! [ -p "/var/lib/otel/pipe" ]; do sleep 1; done
+          exec /usr/sbin/syslog-ng -F
+      {{- with .Values.syslogng.resources }}
+      resources:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.syslogng.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.syslogng.extraEnv }}
+      env:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      lifecycle:
+        preStop:
+          sleep:
+            seconds: {{ .Values.deregistrationDelay }}
+      readinessProbe:
+        tcpSocket:
+          port: 601
+        initialDelaySeconds: 5
+      livenessProbe:
+        exec:
+          command:
+            - /usr/sbin/syslog-ng-ctl
+            - healthcheck
+        initialDelaySeconds: 5
+      volumeMounts:
+        - name: otel
+          mountPath: /var/lib/otel
+        - name: syslog-ng
+          mountPath: /etc/syslog-ng
+        - name: syslog-metrics
+          mountPath: /var/lib/syslog-ng
+        - name: syslog-ng-run
+          mountPath: /var/run
+        {{- with .Values.syslogng.extraVolumeMounts }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    - name: sng-prometheus-exporter
+      image: "{{ .Values.exporter.image.repository }}:{{ .Values.exporter.image.tag }}"
+      imagePullPolicy: {{ .Values.exporter.image.pullPolicy }}
+      restartPolicy: Always
+      command:
+        - /bin/sh
+        - -c
+        - |
+          while ! [ -S /var/lib/syslog-ng/syslog-ng.ctl ]; do sleep 1; done
+          exec python /scripts/sng_exporter.py --listen-address=:{{ .Values.exporter.port }} --socket-path=/var/lib/syslog-ng/syslog-ng.ctl
+      ports:
+        - name: sng-metrics
+          containerPort: {{ .Values.exporter.port }}
+          protocol: TCP
+      {{- with .Values.exporter.resources }}
+      resources:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.exporter.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.exporter.extraEnv }}
+      env:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      lifecycle:
+        preStop:
+          sleep:
+            seconds: {{ .Values.deregistrationDelay }}
+      readinessProbe:
+        tcpSocket:
+          port: {{ .Values.exporter.port }}
+        initialDelaySeconds: 5
+      livenessProbe:
+        tcpSocket:
+          port: {{ .Values.exporter.port }}
+        initialDelaySeconds: 5
+      volumeMounts:
+        - name: syslog-metrics
+          mountPath: /var/lib/syslog-ng
+        - name: exporter-script
+          mountPath: /scripts
+        {{- with .Values.exporter.extraVolumeMounts }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- with .Values.nodeSelector }}
+  nodeSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.affinity }}
+  affinity:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.tolerations }}
+  tolerations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.topologySpreadConstraints }}
+  topologySpreadConstraints:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.podDisruptionBudget }}
+  podDisruptionBudget:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  config:
+    {{- include "opentelemetry-syslog-collector.otelConfig" . | nindent 4 }}
