@@ -55,7 +55,7 @@ collector:
 syslogng:
   image:
     repository: balabit/syslog-ng
-    tag: "4.9.0"
+    tag: "4.11.0"
     pullPolicy: IfNotPresent
   resources:
     limits:
