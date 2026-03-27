@@ -81,8 +81,11 @@ syslogng:
     @include "scl.conf"
 
     options {
+      use-dns(yes);
       use-fqdn(yes);
-      keep_hostname(yes);
+      keep-hostname(yes);
+      normalize-hostnames(yes);
+
       stats(
         freq(1)
         level(3)
@@ -93,7 +96,9 @@ syslogng:
     };
 
     source s_default {
-      default-network-drivers();
+      default-network-drivers(
+        max-connections(100)
+      );
     };
 
     destination d_pipe {
@@ -353,11 +358,9 @@ services:
     ports:
       - name: sl-3164-tcp
         port: 514
-
         protocol: TCP
       - name: sl-3164-udp
         port: 514
-
         protocol: UDP
       - name: sl-5424-tcp
         port: 601
@@ -369,7 +372,6 @@ services:
     ports:
       - name: sl-3164-tcp
         port: 514
-
         protocol: TCP
       - name: sl-5424-tcp
         port: 601
@@ -381,7 +383,6 @@ services:
     ports:
       - name: sl-3164-udp
         port: 514
-
         protocol: UDP
 
 # -- Pod Disruption Budget (native OpenTelemetryCollector CRD field)
@@ -429,26 +430,16 @@ serviceMonitor:
   interval: 30s
   labels: {}
 
-# -- loggen: syslog traffic generator using syslog-ng's loggen tool.
-# Deploys a separate pod that sends synthetic syslog messages to the collector.
+# -- loadgen: Python-based syslog traffic generator with realistic multi-profile messages.
+# Deploys a StatefulSet that sends synthetic syslog messages to the collector.
 # Useful for demos and testing. Disabled by default.
-loggen:
+loadgen:
   enabled: false
   replicaCount: 1
-  # -- Messages per second
+  # -- Messages per second (total across all enabled profiles)
   rate: 1
-  # -- Run duration in seconds (0 = forever)
-  interval: 0
-  # -- Message payload size in bytes
-  size: 256
-  # -- Number of parallel connections
-  activeConnections: 1
-  # -- Use RFC 5424 format (false = RFC 3164)
-  syslogProto: true
   # -- Transport protocol: tcp or udp
   transport: tcp
-  # -- Extra loggen CLI args
-  extraArgs: []
   target:
     # -- Target host. Defaults to the chart's tcpudp service if empty.
     host: ""
@@ -460,6 +451,30 @@ loggen:
     requests:
       cpu: 10m
       memory: 64Mi
+  # -- Source profiles for traffic generation.
+  # Weight determines relative message frequency across profiles.
+  profiles:
+    firewall:
+      enabled: true
+      weight: 30
+    switch:
+      enabled: true
+      weight: 10
+    sshd:
+      enabled: true
+      weight: 20
+    sudo:
+      enabled: true
+      weight: 5
+    kernel:
+      enabled: true
+      weight: 10
+    nginx:
+      enabled: true
+      weight: 20
+    postfix:
+      enabled: true
+      weight: 5
 
 # -- ServiceAccount
 serviceAccount:

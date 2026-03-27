@@ -49,11 +49,11 @@ specs:
       - toEntities:
           - cluster
           - world
-  {{- if .Values.loggen.enabled }}
+  {{- if .Values.loadgen.enabled }}
   - endpointSelector:
       matchLabels:
         {{- include "opentelemetry-syslog-collector.selectorLabels" . | nindent 8 }}
-        app.kubernetes.io/component: loggen
+        app.kubernetes.io/component: loadgen
     egress:
       - toEndpoints:
           - matchLabels:

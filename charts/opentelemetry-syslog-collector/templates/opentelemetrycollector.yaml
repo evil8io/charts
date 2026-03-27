@@ -32,10 +32,12 @@ spec:
   podSecurityContext:
     {{- toYaml . | nindent 4 }}
   {{- end }}
-  {{- with .Values.podAnnotations }}
   podAnnotations:
+    checksum/syslogng-config: {{ include (print $.Template.BasePath "/configmap-syslogng.yaml") . | sha256sum }}
+    checksum/otel-config: {{ include "opentelemetry-syslog-collector.otelConfig" . | sha256sum }}
+    {{- with .Values.podAnnotations }}
     {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- end }}
   {{- with .Values.podLabels }}
   podLabels:
     {{- toYaml . | nindent 4 }}

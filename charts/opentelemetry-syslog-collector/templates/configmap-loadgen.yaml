@@ -1,0 +1,11 @@
+{{- if .Values.loadgen.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "opentelemetry-syslog-collector.fullname" . }}-loadgen
+  labels:
+    {{- include "opentelemetry-syslog-collector.labels" . | nindent 4 }}
+data:
+  syslog_loadgen.py: |
+{{ .Files.Get "scripts/syslog_loadgen.py" | indent 4 }}
+{{- end }}

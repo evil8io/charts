@@ -38,19 +38,19 @@ spec:
           protocol: TCP
     - ports:
         - protocol: TCP
-{{- if .Values.loggen.enabled }}
+{{- if .Values.loadgen.enabled }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "opentelemetry-syslog-collector.fullname" . }}-loggen
+  name: {{ include "opentelemetry-syslog-collector.fullname" . }}-loadgen
   labels:
     {{- include "opentelemetry-syslog-collector.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
       {{- include "opentelemetry-syslog-collector.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: loggen
+      app.kubernetes.io/component: loadgen
   policyTypes:
     - Egress
   egress:

@@ -1,0 +1,79 @@
+{{- if .Values.loadgen.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "opentelemetry-syslog-collector.fullname" . }}-loadgen
+  labels:
+    {{- include "opentelemetry-syslog-collector.labels" . | nindent 4 }}
+    app.kubernetes.io/component: loadgen
+spec:
+  serviceName: {{ include "opentelemetry-syslog-collector.fullname" . }}-loadgen
+  replicas: {{ .Values.loadgen.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "opentelemetry-syslog-collector.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: loadgen
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ .Files.Get "scripts/syslog_loadgen.py" | sha256sum }}
+      labels:
+        {{- include "opentelemetry-syslog-collector.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: loadgen
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: syslog-loadgen
+          image: "{{ .Values.exporter.image.repository }}:{{ .Values.exporter.image.tag }}"
+          imagePullPolicy: {{ .Values.exporter.image.pullPolicy }}
+          command:
+            - python
+            - /scripts/syslog_loadgen.py
+          args:
+            - --rate={{ .Values.loadgen.rate }}
+            {{- if .Values.loadgen.target.host }}
+            - --host={{ .Values.loadgen.target.host }}
+            {{- else }}
+            - --host={{ include "opentelemetry-syslog-collector.fullname" . }}-tcpudp
+            {{- end }}
+            - --port={{ .Values.loadgen.target.port }}
+            - --transport={{ .Values.loadgen.transport }}
+          env:
+            - name: LOADGEN_PROFILES
+              value: {{ .Values.loadgen.profiles | toJson | quote }}
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          {{- with .Values.loadgen.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            privileged: false
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: loadgen-script
+              mountPath: /scripts
+      volumes:
+        - name: loadgen-script
+          configMap:
+            name: {{ include "opentelemetry-syslog-collector.fullname" . }}-loadgen
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
