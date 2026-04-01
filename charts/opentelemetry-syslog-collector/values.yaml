@@ -32,7 +32,7 @@ collector:
   debug: false
   image:
     repository: otel/opentelemetry-collector-contrib
-    tag: "0.148.0"
+    tag: "0.149.0"
     pullPolicy: IfNotPresent
   resources:
     limits:
