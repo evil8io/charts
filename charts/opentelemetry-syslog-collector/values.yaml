@@ -255,7 +255,9 @@ config:
       detectors:
         - env
 
-    batch: {}
+    batch:
+      send_batch_size: 8192
+      timeout: 2s
 
     groupbyattrs:
       keys:
