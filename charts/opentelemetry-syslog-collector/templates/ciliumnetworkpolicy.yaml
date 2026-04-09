@@ -65,24 +65,15 @@ specs:
                 protocol: UDP
               - port: "53"
                 protocol: TCP
-      - toEndpoints:
-          - matchLabels:
-              {{- include "opentelemetry-syslog-collector.otelOperatorLabels" . | nindent 14 }}
+      - toEntities:
+          - all
         toPorts:
           - ports:
-              {{- $seen := dict }}
-              {{- range $name, $svc := .Values.services }}
-              {{- if $svc.enabled }}
-              {{- range $svc.ports }}
-              {{- $tp := (.targetPort | default .port) }}
-              {{- $key := printf "%s-%d" .protocol $tp }}
-              {{- if not (hasKey $seen $key) }}
-              {{- $_ := set $seen $key true }}
-              - port: {{ $tp | quote }}
-                protocol: {{ .protocol }}
-              {{- end }}
-              {{- end }}
-              {{- end }}
-              {{- end }}
+              - port: "514"
+                protocol: TCP
+              - port: "514"
+                protocol: UDP
+              - port: "601"
+                protocol: TCP
   {{- end }}
 {{- end }}

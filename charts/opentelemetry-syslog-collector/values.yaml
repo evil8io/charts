@@ -226,13 +226,13 @@ config:
             - set(log.attributes["service.name"], log.attributes["syslog.program"])
             - set(log.attributes["syslog.proc_id"], log.attributes["syslog.pid"])
             - set(log.attributes["network.peer.address"], log.attributes["syslog.sourceip"])
+            - set(log.attributes["network.peer.port"], log.attributes["syslog.sourceport"])
             - set(log.attributes["network.transport"], "udp") where log.attributes["syslog.transport"] == "rfc5426"
             - set(log.attributes["network.transport"], "udp") where log.attributes["syslog.transport"] == "rfc3164+udp"
             - set(log.attributes["network.transport"], "tcp") where log.attributes["syslog.transport"] == "rfc6587"
             - set(log.attributes["network.transport"], "tcp") where log.attributes["syslog.transport"] == "rfc5425"
             - set(log.attributes["network.transport"], "tcp") where log.attributes["syslog.transport"] == "rfc3164+tcp"
             - set(log.attributes["network.transport"], log.attributes["syslog.transport"]) where log.attributes["network.transport"] == nil
-            - set(log.attributes["network.peer.port"], log.attributes["syslog.sourceport"])
             - set(log.attributes["network.protocol.version"], log.attributes["syslog.msgformat"])
             - set(log.attributes["network.protocol.name"], "syslog")
 
@@ -339,6 +339,7 @@ services:
   tcpudp:
     enabled: true
     type: LoadBalancer
+    externalTrafficPolicy: Cluster
     # loadBalancerClass: service.k8s.aws/nlb
     # allocateLoadBalancerNodePorts: false
     # annotations:
@@ -370,6 +371,7 @@ services:
   tcp:
     enabled: false
     type: LoadBalancer
+    externalTrafficPolicy: Cluster
     annotations: {}
     ports:
       - name: sl-3164-tcp
@@ -381,6 +383,7 @@ services:
   udp:
     enabled: false
     type: LoadBalancer
+    externalTrafficPolicy: Cluster
     annotations: {}
     ports:
       - name: sl-3164-udp
@@ -400,7 +403,7 @@ autoscaling:
     targetCPUUtilizationPercentage: 60
   vpa:
     enabled: false
-    updateMode: Auto
+    updateMode: Recreate
     controlledResources:
       - memory
     containerPolicies:

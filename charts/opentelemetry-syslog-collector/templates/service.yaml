@@ -19,6 +19,9 @@ spec:
   {{- if hasKey $svc "allocateLoadBalancerNodePorts" }}
   allocateLoadBalancerNodePorts: {{ $svc.allocateLoadBalancerNodePorts }}
   {{- end }}
+  {{- with $svc.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ . }}
+  {{- end }}
   selector:
     {{- include "opentelemetry-syslog-collector.otelOperatorLabels" $ | nindent 4 }}
   ports:
