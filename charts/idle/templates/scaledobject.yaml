@@ -1,0 +1,39 @@
+{{- range $name, $overrides := .Values.deployments }}
+{{- $cfg := include "idle.mergedConfig" (dict "root" $ "overrides" $overrides) | fromYaml }}
+{{- if $cfg.scaledObject.enabled }}
+{{- if not $cfg.scaledObject.triggers }}
+{{- fail (printf "deployment %q: scaledObject.enabled=true requires at least one entry in scaledObject.triggers" $name) }}
+{{- end }}
+{{- $ctx := dict "root" $ "name" $name "cfg" $cfg }}
+{{- $so := $cfg.scaledObject }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "idle.deploymentName" $ctx }}
+  labels:
+    {{- include "idle.deploymentLabels" $ctx | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "idle.deploymentName" $ctx }}
+  minReplicaCount: {{ $so.minReplicaCount }}
+  maxReplicaCount: {{ $so.maxReplicaCount }}
+  pollingInterval: {{ $so.pollingInterval }}
+  cooldownPeriod: {{ $so.cooldownPeriod }}
+  {{- with $so.idleReplicaCount }}
+  idleReplicaCount: {{ . }}
+  {{- end }}
+  {{- with $so.fallback }}
+  fallback:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $so.advanced }}
+  advanced:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  triggers:
+    {{- toYaml $so.triggers | nindent 4 }}
+{{- end }}
+{{- end }}

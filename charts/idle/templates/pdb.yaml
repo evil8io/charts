@@ -1,0 +1,29 @@
+{{- range $name, $overrides := .Values.deployments }}
+{{- $cfg := include "idle.mergedConfig" (dict "root" $ "overrides" $overrides) | fromYaml }}
+{{- if $cfg.pdb.enabled }}
+{{- if and $cfg.pdb.minAvailable $cfg.pdb.maxUnavailable }}
+{{- fail (printf "deployment %q: pdb.minAvailable and pdb.maxUnavailable are mutually exclusive" $name) }}
+{{- end }}
+{{- if and (not $cfg.pdb.minAvailable) (not $cfg.pdb.maxUnavailable) }}
+{{- fail (printf "deployment %q: pdb.enabled=true requires pdb.minAvailable or pdb.maxUnavailable" $name) }}
+{{- end }}
+{{- $ctx := dict "root" $ "name" $name "cfg" $cfg }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "idle.deploymentName" $ctx }}
+  labels:
+    {{- include "idle.deploymentLabels" $ctx | nindent 4 }}
+spec:
+  {{- with $cfg.pdb.minAvailable }}
+  minAvailable: {{ . }}
+  {{- end }}
+  {{- with $cfg.pdb.maxUnavailable }}
+  maxUnavailable: {{ . }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "idle.deploymentSelectorLabels" $ctx | nindent 6 }}
+{{- end }}
+{{- end }}

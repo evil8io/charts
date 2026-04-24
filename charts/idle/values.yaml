@@ -1,0 +1,120 @@
+---
+nameOverride: ""
+fullnameOverride: ""
+
+# Single cluster-scoped PriorityClass shared by every deployment in this release.
+# Value is deeply negative so idle pods are always preemptible by real workloads.
+priorityClass:
+  create: true
+  name: idle
+  value: -1000000
+  description: "Evil8 idle pods used to pre-provision node capacity; always preemptible."
+
+# Applied to every entry in .deployments unless overridden there.
+defaults:
+  image: spurin/idle:latest
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: []
+
+  replicas: 1
+
+  podAnnotations: {}
+  podLabels: {}
+
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    fsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    privileged: false
+    readOnlyRootFilesystem: true
+
+  resources:
+    requests:
+      cpu: 10m
+      memory: 8Mi
+    limits:
+      cpu: 50m
+      memory: 32Mi
+
+  nodeSelector: {}
+  tolerations: []
+  # Raw affinity passthrough. Merged with the podAntiAffinity toggle below.
+  affinity: {}
+  topologySpreadConstraints: []
+
+  # Convenience toggle. When enabled, synthesises an affinity.podAntiAffinity
+  # keyed on idle.evil8.io/deployment=<name> so a deployment's pods spread
+  # across nodes without stepping on other idle deployments in the same release.
+  podAntiAffinity:
+    enabled: false
+    mode: soft                     # "soft" | "hard"
+    topologyKey: kubernetes.io/hostname
+    weight: 100                    # used only when mode=soft
+
+  # Empty string => use .Values.priorityClass.name when priorityClass.create=true.
+  priorityClassName: ""
+  terminationGracePeriodSeconds: 0
+  restartPolicy: Always
+
+  serviceAccount:
+    create: false
+    annotations: {}
+    # name: ""  # when create=false, "default" is used unless overridden here
+
+  # Default PDB exists but permits full disruption — idle pods are preemptible
+  # placeholders, so the PDB is really just a signal to tooling that the
+  # workload is "PDB-aware". Override per-deployment to set a real budget;
+  # when you set `minAvailable`, also set `maxUnavailable: null` to avoid the
+  # both-set guardrail.
+  pdb:
+    enabled: true
+    minAvailable: null
+    maxUnavailable: "100%"
+
+  # KEDA ScaledObject. KEDA emits its own HPA; the chart never renders spec.replicas
+  # on the Deployment when scaledObject.enabled=true.
+  scaledObject:
+    enabled: false
+    minReplicaCount: 1
+    maxReplicaCount: 10
+    pollingInterval: 30
+    cooldownPeriod: 300
+    idleReplicaCount: null
+    fallback: {}
+    advanced: {}
+    triggers: []                   # required when enabled
+
+# Map of deployment-name -> partial override of `defaults`. Empty by default.
+deployments: {}
+# Example:
+# deployments:
+#   warm-general:
+#     replicas: 20
+#     podAntiAffinity:
+#       enabled: true
+#       mode: soft
+#   warm-arm64:
+#     replicas: 5
+#     nodeSelector:
+#       kubernetes.io/arch: arm64
+#   warm-cron:
+#     scaledObject:
+#       enabled: true
+#       minReplicaCount: 1
+#       maxReplicaCount: 50
+#       triggers:
+#         - type: cron
+#           metadata:
+#             timezone: UTC
+#             start: "0 8 * * MON-FRI"
+#             end: "0 18 * * MON-FRI"
+#             desiredReplicas: "50"

@@ -1,0 +1,16 @@
+Release {{ .Release.Name }} installed in namespace {{ .Release.Namespace }}.
+
+Deployments rendered by this release:
+{{- range $name, $_ := .Values.deployments }}
+  - {{ include "idle.deploymentName" (dict "root" $ "name" $name) }}
+{{- else }}
+  (none — set .Values.deployments to create pre-provisioning pools)
+{{- end }}
+
+{{- if .Values.priorityClass.create }}
+
+PriorityClass {{ .Values.priorityClass.name | quote }} ({{ .Values.priorityClass.value }}) is shared by every deployment above.
+{{- end }}
+
+Inspect the pool:
+  kubectl --namespace {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}

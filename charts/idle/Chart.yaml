@@ -1,0 +1,7 @@
+---
+apiVersion: v2
+name: idle
+description: Pre-provision Kubernetes node capacity with spurin/idle pods
+type: application
+version: 0.1.0
+appVersion: "latest"

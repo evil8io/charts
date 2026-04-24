@@ -1,0 +1,68 @@
+{{- range $name, $overrides := .Values.deployments }}
+{{- $cfg := include "idle.mergedConfig" (dict "root" $ "overrides" $overrides) | fromYaml }}
+{{- $ctx := dict "root" $ "name" $name "cfg" $cfg }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "idle.deploymentName" $ctx }}
+  labels:
+    {{- include "idle.deploymentLabels" $ctx | nindent 4 }}
+spec:
+  {{- if not $cfg.scaledObject.enabled }}
+  replicas: {{ $cfg.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "idle.deploymentSelectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      {{- with $cfg.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "idle.deploymentSelectorLabels" $ctx | nindent 8 }}
+        {{- with $cfg.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with $cfg.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "idle.serviceAccountName" $ctx }}
+      {{- $pc := include "idle.priorityClassName" $ctx | trim }}
+      {{- if $pc }}
+      priorityClassName: {{ $pc }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ $cfg.terminationGracePeriodSeconds }}
+      restartPolicy: {{ $cfg.restartPolicy }}
+      {{- with $cfg.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $cfg.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $affinity := include "idle.affinity" $ctx | trim }}
+      {{- if $affinity }}
+      affinity:
+        {{- $affinity | nindent 8 }}
+      {{- end }}
+      {{- with $cfg.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml $cfg.podSecurityContext | nindent 8 }}
+      containers:
+        - name: idle
+          image: {{ $cfg.image }}
+          imagePullPolicy: {{ $cfg.imagePullPolicy }}
+          resources:
+            {{- toYaml $cfg.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml $cfg.containerSecurityContext | nindent 12 }}
+{{- end }}
