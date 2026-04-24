@@ -1,5 +1,16 @@
 apiVersion: v1
 entries:
+  idle:
+  - apiVersion: v2
+    appVersion: latest
+    created: "2026-04-24T14:53:24.222274149Z"
+    description: Pre-provision Kubernetes node capacity with spurin/idle pods
+    digest: f964f1413879747fefd3e0591aff7c881f0a39612424117fadc2b9a3ac6706e2
+    name: idle
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/idle-0.1.0/idle-0.1.0.tgz
+    version: 0.1.0
   opentelemetry-syslog-collector:
   - apiVersion: v2
     created: "2026-04-17T07:41:16.012234155Z"
@@ -114,4 +125,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-04-17T07:41:16.012260173Z"
+generated: "2026-04-24T14:53:24.222300718Z"
