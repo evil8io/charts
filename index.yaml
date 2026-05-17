@@ -13,6 +13,16 @@ entries:
     version: 0.1.0
   opentelemetry-syslog-collector:
   - apiVersion: v2
+    created: "2026-05-17T10:47:20.675519881Z"
+    description: Syslog collector using syslog-ng and OpenTelemetry Collector, managed
+      by the opentelemetry-operator
+    digest: 4c33333d78481fd8df3cb2a45e3ea5888c4fdb4d7e6779163de8091b4b183cd5
+    name: opentelemetry-syslog-collector
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/opentelemetry-syslog-collector-0.5.3/opentelemetry-syslog-collector-0.5.3.tgz
+    version: 0.5.3
+  - apiVersion: v2
     created: "2026-05-06T12:08:12.633709482Z"
     description: Syslog collector using syslog-ng and OpenTelemetry Collector, managed
       by the opentelemetry-operator
@@ -135,4 +145,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-05-06T12:08:12.633750849Z"
+generated: "2026-05-17T10:47:20.675556296Z"
