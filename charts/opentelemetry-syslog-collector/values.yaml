@@ -180,7 +180,7 @@ exporter:
 # Deep-merged with configOverrides via mustMergeOverwrite.
 config:
   receivers:
-    namedpipe:
+    named_pipe:
       path: /var/lib/otel/pipe
       mode: 0666
       operators:
@@ -306,7 +306,7 @@ config:
     pipelines:
       logs/syslog:
         receivers:
-          - namedpipe
+          - named_pipe
         processors:
           - memory_limiter
           - transform
