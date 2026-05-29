@@ -32,7 +32,7 @@ collector:
   debug: false
   image:
     repository: otel/opentelemetry-collector-contrib
-    tag: "0.152.1"
+    tag: "0.153.0"
     pullPolicy: IfNotPresent
   resources:
     limits:
@@ -251,7 +251,7 @@ config:
             - set(log.attributes["original_timestamp_nano"], log.time_unix_nano) where log.attributes["network.protocol.version"] == "rfc5424"
             - set(log.time_unix_nano, log.observed_time_unix_nano) where log.attributes["network.protocol.version"] == "rfc5424" and log.time_unix_nano > log.observed_time_unix_nano
 
-    resourcedetection/env:
+    resource_detection/env:
       detectors:
         - env
 
@@ -310,7 +310,7 @@ config:
         processors:
           - memory_limiter
           - transform
-          - resourcedetection/env
+          - resource_detection/env
           - batch
           - groupbyattrs
         exporters:
