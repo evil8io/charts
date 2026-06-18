@@ -3,6 +3,16 @@ entries:
   idle:
   - apiVersion: v2
     appVersion: latest
+    created: "2026-06-18T09:50:23.680047912Z"
+    description: Pre-provision Kubernetes node capacity with spurin/idle pods
+    digest: 2180ebed66eaccf59f3e63aa2e42e637a998941ccd6ea2540de7cc935ac1f281
+    name: idle
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/idle-0.1.1/idle-0.1.1.tgz
+    version: 0.1.1
+  - apiVersion: v2
+    appVersion: latest
     created: "2026-04-24T14:53:24.222274149Z"
     description: Pre-provision Kubernetes node capacity with spurin/idle pods
     digest: f964f1413879747fefd3e0591aff7c881f0a39612424117fadc2b9a3ac6706e2
@@ -12,6 +22,16 @@ entries:
     - https://github.com/evil8io/charts/releases/download/idle-0.1.0/idle-0.1.0.tgz
     version: 0.1.0
   opentelemetry-syslog-collector:
+  - apiVersion: v2
+    created: "2026-06-18T09:50:23.854955669Z"
+    description: Syslog collector using syslog-ng and OpenTelemetry Collector, managed
+      by the opentelemetry-operator
+    digest: 8a181a2bf6309f85e1f9674b4bd3ad946661be4e10d8f5430cfc18715437d44c
+    name: opentelemetry-syslog-collector
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/opentelemetry-syslog-collector-0.5.8/opentelemetry-syslog-collector-0.5.8.tgz
+    version: 0.5.8
   - apiVersion: v2
     created: "2026-06-14T09:11:41.168081889Z"
     description: Syslog collector using syslog-ng and OpenTelemetry Collector, managed
@@ -146,6 +166,16 @@ entries:
   simple-cronjob:
   - apiVersion: v2
     appVersion: 1.1.1
+    created: "2026-06-18T09:50:24.046383471Z"
+    description: Deploy a CronJob that runs a simple job
+    digest: 75231a9fb0c1fdc49b14a023ac8c48183110fcfc2830c34357966eda13c87a94
+    name: simple-cronjob
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/simple-cronjob-1.1.2/simple-cronjob-1.1.2.tgz
+    version: 1.1.2
+  - apiVersion: v2
+    appVersion: 1.1.1
     created: "2026-02-28T18:21:08.940983183Z"
     description: Deploy a CronJob that runs a simple job
     digest: d9374df540ecbdce5c8af8912b3c53229eb6cd4f91ffe6639a14458f67243a8f
@@ -167,6 +197,16 @@ entries:
   simple-hook:
   - apiVersion: v2
     appVersion: 1.1.1
+    created: "2026-06-18T09:50:24.222815568Z"
+    description: Run a single helm-hook
+    digest: 2e7d9c3f21fa17f73310797a459afecb009d1c66fc2876aa505bd1da1090c0a6
+    name: simple-hook
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.2/simple-hook-1.1.2.tgz
+    version: 1.1.2
+  - apiVersion: v2
+    appVersion: 1.1.1
     created: "2026-02-28T18:21:09.088893478Z"
     description: Run a single helm-hook
     digest: b44ec12e1e5762b27c3b5c8d37bf069c9fc5cbeb796e0bfede12b1737c7b6df7
@@ -185,4 +225,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-06-14T09:11:41.16818919Z"
+generated: "2026-06-18T09:50:24.222939275Z"
