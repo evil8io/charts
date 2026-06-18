@@ -1,6 +1,6 @@
+---
 nameOverride: "syslog"
 fullnameOverride: ""
-
 replicaCount: 3
 
 podSecurityContext:
@@ -16,7 +16,6 @@ deregistrationDelay: 15
 
 # -- terminationGracePeriodSeconds must be > preStop sleep
 terminationGracePeriodSeconds: 25
-
 podAnnotations: {}
 podLabels: {}
 nodeSelector: {}
@@ -79,13 +78,11 @@ syslogng:
   config: |
     @version: 4.6
     @include "scl.conf"
-
     options {
       use-dns(yes);
       use-fqdn(yes);
       keep-hostname(yes);
       normalize-hostnames(yes);
-
       stats(
         freq(1)
         level(3)
@@ -94,13 +91,11 @@ syslogng:
         syslog-stats(yes)
       );
     };
-
     source s_default {
       default-network-drivers(
         max-connections(100)
       );
     };
-
     destination d_pipe {
       pipe(
         "/var/lib/otel/pipe"
@@ -123,7 +118,6 @@ syslogng:
         frac-digits(3)
       );
     };
-
     destination d_stdout {
       file(
         "/dev/stdout"
@@ -146,7 +140,6 @@ syslogng:
         frac-digits(3)
       );
     };
-
     log {
       source(s_default);
       destination(d_pipe);
@@ -200,13 +193,11 @@ config:
                 - crit
                 - alert
                 - emerg
-
   processors:
     memory_limiter:
       check_interval: 1s
       limit_percentage: 80
       spike_limit_percentage: 25
-
     transform:
       error_mode: ignore
       log_statements:
@@ -219,9 +210,7 @@ config:
             - set(log.attributes, log.cache["syslog"])
             - flatten(log.cache["sdata"]) where log.cache["sdata"] != nil
             - merge_maps(log.attributes, log.cache["sdata"], "insert") where log.cache["sdata"] != nil
-
             - set(log.body, log.attributes["syslog.message"])
-
             - set(log.attributes["host.name"], log.attributes["syslog.host"])
             - set(log.attributes["service.name"], log.attributes["syslog.program"])
             - set(log.attributes["syslog.proc_id"], log.attributes["syslog.pid"])
@@ -235,7 +224,6 @@ config:
             - set(log.attributes["network.transport"], log.attributes["syslog.transport"]) where log.attributes["network.transport"] == nil
             - set(log.attributes["network.protocol.version"], log.attributes["syslog.msgformat"])
             - set(log.attributes["network.protocol.name"], "syslog")
-
             - delete_key(log.attributes, "syslog.host")
             - delete_key(log.attributes, "syslog.message")
             - delete_key(log.attributes, "syslog.timestamp")
@@ -244,21 +232,16 @@ config:
             - delete_key(log.attributes, "syslog.sourceport")
             - delete_key(log.attributes, "syslog.msgformat")
             - delete_key(log.attributes, "syslog.program")
-
             - set(log.attributes["original_timestamp_nano"], log.time_unix_nano) where log.attributes["network.protocol.version"] == "rfc3164"
             - set(log.time_unix_nano, log.observed_time_unix_nano) where log.attributes["network.protocol.version"] == "rfc3164"
-
             - set(log.attributes["original_timestamp_nano"], log.time_unix_nano) where log.attributes["network.protocol.version"] == "rfc5424"
             - set(log.time_unix_nano, log.observed_time_unix_nano) where log.attributes["network.protocol.version"] == "rfc5424" and log.time_unix_nano > log.observed_time_unix_nano
-
     resource_detection/env:
       detectors:
         - env
-
     batch:
       send_batch_size: 8192
       timeout: 2s
-
     groupbyattrs:
       keys:
         - host.name
@@ -272,7 +255,6 @@ config:
         - network.protocol.name
         - network.protocol.version
         - network.transport
-
   exporters:
     otlp_http:
       endpoint: ""
@@ -285,11 +267,9 @@ config:
       verbosity: detailed
       sampling_initial: 5
       sampling_thereafter: 200
-
   extensions:
     health_check:
       endpoint: "0.0.0.0:13133"
-
   service:
     telemetry:
       logs:
