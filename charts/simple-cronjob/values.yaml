@@ -2,24 +2,20 @@
 image:
 imagePullPolicy: Always
 imagePullSecrets: []
-
 schedule: "*/5 * * * *"
 timeZone: "Europe/Amsterdam"
 concurrencyPolicy: Forbid
-successfulJobsHistoryLimit: null
-failedJobsHistoryLimit: null
-
+successfulJobsHistoryLimit:
+failedJobsHistoryLimit:
 backoffLimit: 3
 restartPolicy: OnFailure
 activeDeadlineSeconds: 120
-startingDeadlineSeconds: null
-ttlSecondsAfterFinished: null
-
+startingDeadlineSeconds:
+ttlSecondsAfterFinished:
 command: []
 args: []
 script: |
   echo Hello, World!
-
 nodeSelector: {}
 tolerations: []
 dnsPolicy: ClusterFirst
@@ -72,7 +68,6 @@ networkPolicy:
 extraEnv: []
 # - name: foo
 #   value: bar
-
 extraContainers: []
 initContainers: []
 extraVolumeMounts: []

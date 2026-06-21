@@ -10,13 +10,11 @@ hook:
 
 backoffLimit: 6
 restartPolicy: OnFailure
-ttlSecondsAfterFinished: null
-
+ttlSecondsAfterFinished:
 command: []
 args: []
 script: |
   echo Hello, World!
-
 nodeSelector: {}
 tolerations: []
 dnsPolicy: ClusterFirst
@@ -68,11 +66,9 @@ networkPolicy:
 
 # Legacy: mounts an emptyDir at /.kube for kubeconfig usage
 kubeVolume: true
-
 extraEnv: []
 # - name: foo
 #   value: bar
-
 extraContainers: []
 initContainers: []
 extraVolumeMounts: []

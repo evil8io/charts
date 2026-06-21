@@ -15,12 +15,9 @@ defaults:
   image: spurin/idle:latest
   imagePullPolicy: IfNotPresent
   imagePullSecrets: []
-
   replicas: 1
-
   podAnnotations: {}
   podLabels: {}
-
   podSecurityContext:
     runAsNonRoot: true
     runAsUser: 65534
@@ -28,7 +25,6 @@ defaults:
     fsGroup: 65534
     seccompProfile:
       type: RuntimeDefault
-
   containerSecurityContext:
     allowPrivilegeEscalation: false
     capabilities:
@@ -36,7 +32,6 @@ defaults:
         - ALL
     privileged: false
     readOnlyRootFilesystem: true
-
   resources:
     requests:
       cpu: 10m
@@ -44,7 +39,6 @@ defaults:
     limits:
       cpu: 50m
       memory: 32Mi
-
   nodeSelector: {}
   tolerations: []
   # Raw affinity passthrough. Merged with the podAntiAffinity toggle below.
@@ -58,13 +52,12 @@ defaults:
     enabled: false
     mode: soft                     # "soft" | "hard"
     topologyKey: kubernetes.io/hostname
-    weight: 100                    # used only when mode=soft
+    weight: 100  # used only when mode=soft
 
   # Empty string => use .Values.priorityClass.name when priorityClass.create=true.
   priorityClassName: ""
   terminationGracePeriodSeconds: 0
   restartPolicy: Always
-
   serviceAccount:
     create: false
     annotations: {}
@@ -77,7 +70,7 @@ defaults:
   # both-set guardrail.
   pdb:
     enabled: true
-    minAvailable: null
+    minAvailable:
     maxUnavailable: "100%"
 
   # KEDA ScaledObject. KEDA emits its own HPA; the chart never renders spec.replicas
@@ -88,10 +81,10 @@ defaults:
     maxReplicaCount: 10
     pollingInterval: 30
     cooldownPeriod: 300
-    idleReplicaCount: null
+    idleReplicaCount:
     fallback: {}
     advanced: {}
-    triggers: []                   # required when enabled
+    triggers: []  # required when enabled
 
 # Map of deployment-name -> partial override of `defaults`. Empty by default.
 deployments: {}
