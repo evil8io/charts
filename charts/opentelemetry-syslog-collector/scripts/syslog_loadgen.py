@@ -10,7 +10,7 @@ import signal
 import socket
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 logger = logging.getLogger("syslog-loadgen")
 
@@ -441,7 +441,7 @@ def priority(facility_name, severity_name):
 
 
 def fill_template(tmpl_str):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return tmpl_str.format(
         src_ip=random_ip(),
         dst_ip=random_ip(),
@@ -501,7 +501,7 @@ def fill_template(tmpl_str):
 
 
 def format_rfc3164(pri, hostname, program, pid, message):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     ts = now.strftime("%b %d %H:%M:%S")
     # Pad single-digit day with space (BSD format)
     if ts[4] == "0":
@@ -510,7 +510,7 @@ def format_rfc3164(pri, hostname, program, pid, message):
 
 
 def format_rfc5424(pri, hostname, program, pid, msg_id, sd, message):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     ts = now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond:06d}+00:00"
     return f"<{pri}>1 {ts} {hostname} {program} {pid} {msg_id} {sd} {message}"
 
