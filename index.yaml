@@ -3,6 +3,16 @@ entries:
   idle:
   - apiVersion: v2
     appVersion: latest
+    created: "2026-09-07T09:05:45.584450753Z"
+    description: Pre-provision Kubernetes node capacity with spurin/idle pods
+    digest: 68011cd56ef5e3dc7836f30cc03d44730dc67599ef608e17bf7e0ad47d095c8c
+    name: idle
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/idle-0.1.2/idle-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
+    appVersion: latest
     created: "2026-06-18T09:50:23.680047912Z"
     description: Pre-provision Kubernetes node capacity with spurin/idle pods
     digest: 2180ebed66eaccf59f3e63aa2e42e637a998941ccd6ea2540de7cc935ac1f281
@@ -315,4 +325,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-09-05T08:28:07.43993682Z"
+generated: "2026-09-07T09:05:45.584496834Z"
