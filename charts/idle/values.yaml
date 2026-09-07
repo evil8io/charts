@@ -12,7 +12,7 @@ priorityClass:
 
 # Applied to every entry in .deployments unless overridden there.
 defaults:
-  image: spurin/idle:latest
+  image: spurin/idle:latest@sha256:7c9b9832a35b902f378a4c37c4578fb07e137d5fb33075d9bc18988df49fa2a7
   imagePullPolicy: IfNotPresent
   imagePullSecrets: []
   replicas: 1
