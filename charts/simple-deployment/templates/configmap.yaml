@@ -1,0 +1,13 @@
+{{- if not .Values.command }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: '{{ include "simple-deployment.fullname" . }}'
+  labels:
+    {{- include "simple-deployment.labels" . | nindent 4 }}
+  annotations: {}
+data:
+  init.sh: |-
+  {{- .Values.script | nindent 4 }}
+{{- end }}

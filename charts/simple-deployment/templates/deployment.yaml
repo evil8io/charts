@@ -1,0 +1,112 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: '{{ include "simple-deployment.fullname" . }}'
+  labels:
+    {{- include "simple-deployment.labels" . | nindent 4 }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.replicas }}
+  {{- with .Values.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "simple-deployment.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/script: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "simple-deployment.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: '{{ include "simple-deployment.fullname" . }}'
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      dnsPolicy: '{{ .Values.dnsPolicy }}'
+      securityContext:
+      {{- with .Values.podSecurityContext -}}
+        {{ toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: simple-deployment
+          image: {{ .Values.image }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          {{- if .Values.command }}
+          command:
+            {{- toYaml .Values.command | nindent 12 }}
+          {{- else }}
+          command:
+            - /scripts/init.sh
+          {{- end }}
+          {{- with .Values.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{- with .Values.extraEnv -}}
+            {{ toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+          {{- with .Values.resources -}}
+            {{ toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+          {{- with .Values.containerSecurityContext -}}
+            {{ toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            {{- if not .Values.command }}
+            - mountPath: /scripts
+              name: config-volume
+            {{- end }}
+          {{- with .Values.extraVolumeMounts -}}
+          {{ toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.extraContainers }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        {{- if not .Values.command }}
+        - configMap:
+            defaultMode: 0755
+            name: '{{ include "simple-deployment.fullname" . }}'
+          name: config-volume
+        {{- end }}
+      {{- with .Values.extraVolumes -}}
+      {{ toYaml . | nindent 8 }}
+      {{- end }}
