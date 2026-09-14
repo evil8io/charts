@@ -294,6 +294,17 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-cronjob-1.1.0/simple-cronjob-1.1.0.tgz
     version: 1.1.0
+  simple-deployment:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2026-09-14T16:51:30.884541766Z"
+    description: Deploy a Deployment that runs a simple script
+    digest: b0bf79ea69c577fc06b08af06465de1e261f1e3549daced3b3447ff4ea1d26fb
+    name: simple-deployment
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/simple-deployment-0.1.0/simple-deployment-0.1.0.tgz
+    version: 0.1.0
   simple-hook:
   - apiVersion: v2
     appVersion: 1.1.1
@@ -325,4 +336,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-09-07T09:05:45.584496834Z"
+generated: "2026-09-14T16:51:30.884590979Z"
