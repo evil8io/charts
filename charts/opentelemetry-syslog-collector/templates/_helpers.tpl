@@ -51,8 +51,8 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Labels that the OpenTelemetry Operator sets on pods it manages.
-Used as selectors for Services, CNPs, etc. that target operator-managed pods.
+Labels that the OpenTelemetry Operator sets on the pods it manages.
+The Services and the network policies select on them.
 */}}
 {{- define "opentelemetry-syslog-collector.otelOperatorLabels" -}}
 app.kubernetes.io/component: opentelemetry-collector
@@ -72,8 +72,8 @@ Create the name of the service account to use
 {{- end }}
 
 {{/*
-Merge config + configOverrides (plain dicts).
-When collector.debug is true, append the debug exporter to all pipelines.
+Merges config and configOverrides.
+When collector.debug is true, adds the debug exporter to every pipeline.
 */}}
 {{- define "opentelemetry-syslog-collector.otelConfig" -}}
 {{- $merged := mustMergeOverwrite (mustDeepCopy .Values.config) (.Values.configOverrides | default dict) -}}
@@ -88,8 +88,8 @@ When collector.debug is true, append the debug exporter to all pipelines.
 {{- end -}}
 
 {{/*
-Build OTEL_RESOURCE_ATTRIBUTES env var value from .Values.resourceAttributes.
-Each value is rendered through tpl to support Go template expressions.
+Builds the OTEL_RESOURCE_ATTRIBUTES value from .Values.resourceAttributes.
+Each value renders through tpl.
 */}}
 {{- define "opentelemetry-syslog-collector.resourceAttributesEnv" -}}
 {{- $parts := list -}}

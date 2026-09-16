@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Syslog traffic generator with realistic multi-profile messages."""
+"""Syslog traffic generator with multiple message profiles."""
 
 import argparse
 import json
@@ -503,7 +503,7 @@ def fill_template(tmpl_str):
 def format_rfc3164(pri, hostname, program, pid, message):
     now = datetime.now(UTC)
     ts = now.strftime("%b %d %H:%M:%S")
-    # Pad single-digit day with space (BSD format)
+    # The BSD format pads a single-digit day with a space.
     if ts[4] == "0":
         ts = ts[:4] + " " + ts[5:]
     return f"<{pri}>{ts} {hostname} {program}[{pid}]: {message}"
@@ -522,7 +522,7 @@ def generate_message(profile_name, profile):
     hostname = random.choice(profile["hostnames"])
     pid = random_pid()
 
-    # Determine program: per-template override (postfix) or profile default
+    # The template program (postfix) wins over the profile program.
     program = tmpl.get("program", profile.get("program", profile_name))
 
     msg = fill_template(tmpl["msg"])
@@ -672,7 +672,7 @@ def main():
             sender.send(msg)
 
             next_send += interval
-            # Prevent drift accumulation if we fall behind
+            # Resets the schedule when the sender is more than 1s behind.
             if next_send < time.monotonic() - 1.0:
                 next_send = time.monotonic()
     finally:

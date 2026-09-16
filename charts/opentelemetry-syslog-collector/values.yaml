@@ -11,10 +11,10 @@ podSecurityContext:
   seccompProfile:
     type: RuntimeDefault
 
-# -- Deregistration delay (seconds). preStop sleep must be >= this value.
+# -- Deregistration delay in seconds. The preStop sleep must be at least this value.
 deregistrationDelay: 15
 
-# -- terminationGracePeriodSeconds must be > preStop sleep
+# -- Must be more than the preStop sleep.
 terminationGracePeriodSeconds: 25
 podAnnotations: {}
 podLabels: {}
@@ -27,7 +27,7 @@ extraVolumes: []
 
 # -- OpenTelemetry Collector (main container)
 collector:
-  # -- Enable debug exporter in the pipeline
+  # -- Adds the debug exporter to every pipeline.
   debug: false
   image:
     repository: otel/opentelemetry-collector-contrib
@@ -73,7 +73,7 @@ syslogng:
     readOnlyRootFilesystem: true
   extraEnv: []
   extraVolumeMounts: []
-  # -- Enable debug output (prints JSON messages to stdout)
+  # -- Also writes the JSON messages to stdout.
   debug: false
   config: |
     @version: 4.6
@@ -169,8 +169,7 @@ exporter:
   extraVolumeMounts: []
   port: 9577
 
-# -- OpenTelemetry Collector config (plain dict).
-# Deep-merged with configOverrides via mustMergeOverwrite.
+# -- OpenTelemetry Collector config. configOverrides is deep-merged on top.
 config:
   receivers:
     named_pipe:
@@ -305,16 +304,15 @@ config:
 #         x-scope-orgid: my-tenant
 configOverrides: {}
 
-# -- Resource attributes added via OTEL_RESOURCE_ATTRIBUTES env var.
-# Rendered as a Go template — use {{ .Release.Namespace }}, {{ include ... }}, etc.
+# -- Resource attributes for the OTEL_RESOURCE_ATTRIBUTES env var.
+# Each value renders as a Go template, for example {{ .Release.Namespace }}.
 resourceAttributes:
   job: '{{ printf "%s/%s" .Release.Namespace (include "opentelemetry-syslog-collector.fullname" .) }}'
 
-# -- Services for syslog ingestion.
-# tcpudp: mixed-protocol service (requires AWS LB controller annotation
-#   service.beta.kubernetes.io/aws-load-balancer-enable-tcp-udp-listener: "true")
-# tcp/udp: separate single-protocol services (fallback when mixed-protocol is not supported)
-# Enable either tcpudp OR both tcp+udp, not both.
+# -- Services for syslog ingestion. Enable tcpudp, or tcp and udp, not both.
+# tcpudp is a mixed-protocol Service. The AWS LB controller needs the annotation
+#   service.beta.kubernetes.io/aws-load-balancer-enable-tcp-udp-listener: "true".
+# tcp and udp are single-protocol Services for a controller without mixed-protocol support.
 services:
   tcpudp:
     enabled: true
@@ -370,7 +368,7 @@ services:
         port: 514
         protocol: UDP
 
-# -- Pod Disruption Budget (native OpenTelemetryCollector CRD field)
+# -- PodDisruptionBudget, a field of the OpenTelemetryCollector CRD.
 podDisruptionBudget:
   maxUnavailable: 1
 
@@ -415,18 +413,16 @@ serviceMonitor:
   interval: 30s
   labels: {}
 
-# -- loadgen: Python-based syslog traffic generator with realistic multi-profile messages.
-# Deploys a StatefulSet that sends synthetic syslog messages to the collector.
-# Useful for demos and testing. Disabled by default.
+# -- loadgen: a StatefulSet that sends synthetic syslog messages to the collector.
 loadgen:
   enabled: false
   replicaCount: 1
-  # -- Messages per second (total across all enabled profiles)
+  # -- Messages per second, summed over the enabled profiles.
   rate: 1
   # -- Transport protocol: tcp or udp
   transport: tcp
   target:
-    # -- Target host. Defaults to the chart's tcpudp service if empty.
+    # -- Target host. An empty value selects the chart's tcpudp Service.
     host: ""
     # -- Target port
     port: 514
@@ -436,8 +432,7 @@ loadgen:
     requests:
       cpu: 10m
       memory: 64Mi
-  # -- Source profiles for traffic generation.
-  # Weight determines relative message frequency across profiles.
+  # -- Message profiles. The weight sets the share of each profile in the rate.
   profiles:
     firewall:
       enabled: true

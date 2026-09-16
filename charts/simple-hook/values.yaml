@@ -52,9 +52,9 @@ rbac:
   create: false
   # one of cluster or namespace
   scope: namespace
-  # bind to an existing ClusterRole (default: cluster-admin)
+  # the existing ClusterRole to bind
   clusterRole: cluster-admin
-  # define custom rules instead of binding to an existing ClusterRole
+  # custom rules instead of the clusterRole binding
   rules: []
 
 networkPolicy:
@@ -64,7 +64,7 @@ networkPolicy:
   egress:
     - {}
 
-# Legacy: mounts an emptyDir at /.kube for kubeconfig usage
+# Legacy: mounts an emptyDir at /.kube for the kubeconfig.
 kubeVolume: true
 extraEnv: []
 # - name: foo

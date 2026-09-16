@@ -2,8 +2,8 @@
 nameOverride: ""
 fullnameOverride: ""
 
-# Single cluster-scoped PriorityClass shared by every deployment in this release.
-# Value is deeply negative so idle pods are always preemptible by real workloads.
+# One PriorityClass for every deployment in the release. The negative value
+# makes the idle pods preemptible by every other workload.
 priorityClass:
   create: true
   name: idle
@@ -41,20 +41,20 @@ defaults:
       memory: 32Mi
   nodeSelector: {}
   tolerations: []
-  # Raw affinity passthrough. Merged with the podAntiAffinity toggle below.
+  # Passed through as is. The podAntiAffinity toggle below merges into it.
   affinity: {}
   topologySpreadConstraints: []
 
-  # Convenience toggle. When enabled, synthesises an affinity.podAntiAffinity
-  # keyed on idle.evil8.io/deployment=<name> so a deployment's pods spread
-  # across nodes without stepping on other idle deployments in the same release.
+  # Adds an affinity.podAntiAffinity term on idle.evil8.io/deployment=<name>.
+  # The pods of one deployment then spread across nodes, independent of the
+  # other deployments in the release.
   podAntiAffinity:
     enabled: false
     mode: soft                     # "soft" | "hard"
     topologyKey: kubernetes.io/hostname
     weight: 100  # used only when mode=soft
 
-  # Empty string => use .Values.priorityClass.name when priorityClass.create=true.
+  # An empty string selects .Values.priorityClass.name when priorityClass.create is true.
   priorityClassName: ""
   terminationGracePeriodSeconds: 0
   restartPolicy: Always
@@ -63,18 +63,16 @@ defaults:
     annotations: {}
     # name: ""  # when create=false, "default" is used unless overridden here
 
-  # Default PDB exists but permits full disruption — idle pods are preemptible
-  # placeholders, so the PDB is really just a signal to tooling that the
-  # workload is "PDB-aware". Override per-deployment to set a real budget;
-  # when you set `minAvailable`, also set `maxUnavailable: null` to avoid the
-  # both-set guardrail.
+  # The default PDB permits full disruption. It marks the workload as PDB-aware
+  # for tooling. Set a budget per deployment when needed. A `minAvailable` needs
+  # `maxUnavailable: null`, because the chart rejects both fields set.
   pdb:
     enabled: true
     minAvailable:
     maxUnavailable: "100%"
 
-  # KEDA ScaledObject. KEDA emits its own HPA; the chart never renders spec.replicas
-  # on the Deployment when scaledObject.enabled=true.
+  # KEDA ScaledObject. KEDA creates its own HPA, so the chart omits spec.replicas
+  # on the Deployment when scaledObject.enabled is true.
   scaledObject:
     enabled: false
     minReplicaCount: 1
@@ -86,7 +84,7 @@ defaults:
     advanced: {}
     triggers: []  # required when enabled
 
-# Map of deployment-name -> partial override of `defaults`. Empty by default.
+# Map of deployment name to a partial override of `defaults`.
 deployments: {}
 # Example:
 # deployments:

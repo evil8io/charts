@@ -112,8 +112,8 @@ ServiceAccount name for a deployment. Call with (dict "root" $ "name" $name "cfg
 
 {{/*
 Effective affinity YAML for a deployment. Call with (dict "root" $ "name" $name "cfg" $cfg).
-Takes cfg.affinity as-is and splices in a podAntiAffinity stanza when cfg.podAntiAffinity.enabled.
-Returns a YAML fragment or empty string.
+Adds a podAntiAffinity term to cfg.affinity when cfg.podAntiAffinity.enabled is true.
+Returns a YAML fragment, or an empty string.
 */}}
 {{- define "idle.affinity" -}}
 {{- $cfg := .cfg -}}
