@@ -210,11 +210,11 @@ config:
             - flatten(log.cache["sdata"]) where log.cache["sdata"] != nil
             - merge_maps(log.attributes, log.cache["sdata"], "insert") where log.cache["sdata"] != nil
             - set(log.body, log.attributes["syslog.message"])
-            - set(log.attributes["host.name"], log.attributes["syslog.host"])
-            - set(log.attributes["service.name"], log.attributes["syslog.program"])
-            - set(log.attributes["syslog.proc_id"], log.attributes["syslog.pid"])
-            - set(log.attributes["network.peer.address"], log.attributes["syslog.sourceip"])
-            - set(log.attributes["network.peer.port"], log.attributes["syslog.sourceport"])
+            - set(log.attributes["host.name"], log.attributes["syslog.host"]) where log.attributes["syslog.host"] != nil
+            - set(log.attributes["service.name"], log.attributes["syslog.program"]) where log.attributes["syslog.program"] != nil
+            - set(log.attributes["syslog.proc_id"], log.attributes["syslog.pid"]) where log.attributes["syslog.pid"] != nil
+            - set(log.attributes["network.peer.address"], log.attributes["syslog.sourceip"]) where log.attributes["syslog.sourceip"] != nil
+            - set(log.attributes["network.peer.port"], log.attributes["syslog.sourceport"]) where log.attributes["syslog.sourceport"] != nil
             - set(log.attributes["network.transport"], "udp") where log.attributes["syslog.transport"] == "rfc5426"
             - set(log.attributes["network.transport"], "udp") where log.attributes["syslog.transport"] == "rfc3164+udp"
             - set(log.attributes["network.transport"], "tcp") where log.attributes["syslog.transport"] == "rfc6587"
