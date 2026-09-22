@@ -1,0 +1,184 @@
+---
+suite: api filter deployment
+
+templates:
+  - templates/api-filter-deployment.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: takes the image tag from the chart appVersion
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/evil8io/drover:0.14.0
+      - equal:
+          path: metadata.labels["app.kubernetes.io/version"]
+          value: "0.14.0"
+  - it: takes the image tag from the values
+    set:
+      image.tag: 1.2.3
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/evil8io/drover:1.2.3
+      - equal:
+          path: metadata.labels["app.kubernetes.io/version"]
+          value: "1.2.3"
+  - it: builds the args in a fixed order
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - api-filter
+            - --upstream=https://rancher.cattle-system.svc
+            - --token-file=/var/run/secrets/drover/token/token
+            - --cache-ttl=15s
+            - --log-level=info
+  - it: omits the max-cache-entries and the fetch-rate args by default
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - api-filter
+            - --upstream=https://rancher.cattle-system.svc
+            - --token-file=/var/run/secrets/drover/token/token
+            - --cache-ttl=15s
+            - --log-level=info
+  - it: renders the max-cache-entries and the fetch-rate args when set
+    set:
+      apiFilter.maxCacheEntries: 2000
+      apiFilter.fetchRate: 100
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - api-filter
+            - --upstream=https://rancher.cattle-system.svc
+            - --token-file=/var/run/secrets/drover/token/token
+            - --cache-ttl=15s
+            - --max-cache-entries=2000
+            - --fetch-rate=100
+            - --log-level=info
+  - it: omits the max-watches arg by default
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - api-filter
+            - --upstream=https://rancher.cattle-system.svc
+            - --token-file=/var/run/secrets/drover/token/token
+            - --cache-ttl=15s
+            - --log-level=info
+  - it: renders the max-watches arg when set
+    set:
+      apiFilter.maxWatches: 500
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - api-filter
+            - --upstream=https://rancher.cattle-system.svc
+            - --token-file=/var/run/secrets/drover/token/token
+            - --cache-ttl=15s
+            - --max-watches=500
+            - --log-level=info
+  - it: omits the fanout args by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --fanout
+  - it: renders the fanout arg alone when the limits stay at zero
+    set:
+      apiFilter.fanout.enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - api-filter
+            - --upstream=https://rancher.cattle-system.svc
+            - --token-file=/var/run/secrets/drover/token/token
+            - --cache-ttl=15s
+            - --fanout
+            - --log-level=info
+  - it: renders the fanout limits when set
+    set:
+      apiFilter.fanout.enabled: true
+      apiFilter.fanout.maxNamespaces: 500
+      apiFilter.fanout.maxWatchNamespaces: 200
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - api-filter
+            - --upstream=https://rancher.cattle-system.svc
+            - --token-file=/var/run/secrets/drover/token/token
+            - --cache-ttl=15s
+            - --fanout
+            - --fanout-max-namespaces=500
+            - --fanout-max-watch-namespaces=200
+            - --log-level=info
+  - it: adds the otlp args when the endpoint is set
+    set:
+      otlp.endpoint: otel-collector:4317
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - api-filter
+            - --upstream=https://rancher.cattle-system.svc
+            - --token-file=/var/run/secrets/drover/token/token
+            - --cache-ttl=15s
+            - --log-level=info
+            - --otlp-endpoint=otel-collector:4317
+            - --otlp-traces=true
+            - --otlp-metrics=true
+            - --service-name=drover
+  - it: omits the otlp args when the endpoint is empty
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --service-name=drover
+  - it: omits the upstream-insecure-skip-verify arg by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --upstream-insecure-skip-verify
+  - it: renders the upstream-insecure-skip-verify arg when set
+    set:
+      rancher.insecureSkipVerify: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --upstream-insecure-skip-verify
+  - it: keeps the service account token out of the pod
+    asserts:
+      - equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: false
+  - it: sets GOMEMLIMIT from the container memory limit
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env
+          value:
+            - name: GOMEMLIMIT
+              valueFrom:
+                resourceFieldRef:
+                  resource: limits.memory
+                  divisor: "1"
+  - it: sets the deployment annotations without touching the pod template
+    set:
+      apiFilter.annotations:
+        evil8.io/vpa-min-memory: 64Mi
+    asserts:
+      - equal:
+          path: metadata.annotations
+          value:
+            evil8.io/vpa-min-memory: 64Mi
+      - notExists:
+          path: spec.template.metadata.annotations

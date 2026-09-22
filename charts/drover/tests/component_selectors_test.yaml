@@ -1,0 +1,45 @@
+---
+suite: component selectors
+
+templates:
+  - templates/api-filter-deployment.yaml
+  - templates/api-filter-service.yaml
+  - templates/api-filter-pdb.yaml
+  - templates/project-sync-deployment.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: gives the filter and the sync their own selector
+    asserts:
+      - template: templates/api-filter-deployment.yaml
+        equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: api-filter
+      - template: templates/project-sync-deployment.yaml
+        equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: project-sync
+      - template: templates/api-filter-service.yaml
+        equal:
+          path: spec.selector["app.kubernetes.io/component"]
+          value: api-filter
+      - template: templates/api-filter-pdb.yaml
+        equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: api-filter
+  - it: labels the pods with their own component
+    asserts:
+      - template: templates/api-filter-deployment.yaml
+        equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: api-filter
+      - template: templates/project-sync-deployment.yaml
+        equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: project-sync

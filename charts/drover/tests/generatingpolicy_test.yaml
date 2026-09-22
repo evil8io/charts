@@ -1,0 +1,214 @@
+---
+suite: generating policy
+
+templates:
+  - templates/generatingpolicy.yaml
+  - templates/kyverno-rbac.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: triggers on a created Rancher cluster
+    values:
+      - ../ci/all-components-values.yaml
+    template: templates/generatingpolicy.yaml
+    asserts:
+      - isKind:
+          of: GeneratingPolicy
+      - isAPIVersion:
+          of: policies.kyverno.io/v1
+      - equal:
+          path: metadata.name
+          value: drover-routes
+      - equal:
+          path: spec.matchConstraints.resourceRules
+          value:
+            - apiGroups:
+                - management.cattle.io
+              apiVersions:
+                - v3
+              operations:
+                - CREATE
+              resources:
+                - clusters
+  - it: generates the existing clusters and never synchronizes
+    values:
+      - ../ci/all-components-values.yaml
+    template: templates/generatingpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.evaluation.generateExisting.enabled
+          value: true
+      - equal:
+          path: spec.evaluation.synchronize.enabled
+          value: false
+      - equal:
+          path: spec.evaluation.orphanDownstreamOnPolicyDelete.enabled
+          value: false
+      - equal:
+          path: spec.generate[0].expression
+          value: generator.Apply("cattle-system", variables.routes)
+  - it: names the route after the cluster and keeps it in the release namespace
+    values:
+      - ../ci/all-components-values.yaml
+    template: templates/generatingpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.variables[0]
+          value:
+            name: prefix
+            expression: '"/k8s/clusters/" + object.metadata.name'
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: '"name": dyn\("drover-" \+ object\.metadata\.name\)'
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: '"namespace": dyn\("cattle-system"\)'
+  - it: writes the filtered paths and the filter backend into the route
+    values:
+      - ../ci/all-components-values.yaml
+    template: templates/generatingpolicy.yaml
+    asserts:
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: 'dyn\(variables\.prefix \+ "/api/v1/namespaces"\)'
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: 'dyn\(variables\.prefix \+ "/apis/authorization\.k8s\.io/v1/selfsubjectaccessreviews"\)'
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: '"name": dyn\("drover-api-filter"\)'
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: '"port": dyn\(8080\)'
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: '"timeouts": dyn\(\{"request": dyn\("0s"\)\}\)'
+  - it: adds the wide read prefixes and the Rancher rule when the fanout is on
+    values:
+      - ../ci/all-components-values.yaml
+    template: templates/generatingpolicy.yaml
+    asserts:
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: '"type": dyn\("PathPrefix"\), "value": dyn\(variables\.prefix \+ "/api/v1"\)'
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: '"type": dyn\("PathPrefix"\), "value": dyn\(variables\.prefix \+ "/apis"\)'
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: '"type": dyn\("PathPrefix"\), "value": dyn\(variables\.prefix \+ "/api/v1/namespaces"\)'
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: 'dyn\(\{"name": dyn\("rancher"\), "namespace": dyn\("cattle-system"\), "port": dyn\(80\)\}\)'
+  - it: keeps the two exact paths and one rule when the fanout is off
+    values:
+      - ../ci/default-values.yaml
+    template: templates/generatingpolicy.yaml
+    asserts:
+      - notMatchRegex:
+          path: spec.variables[1].expression
+          pattern: PathPrefix
+      - notMatchRegex:
+          path: spec.variables[1].expression
+          pattern: '"backendRefs".*"backendRefs"'
+  - it: fails the render when the fanout has no Rancher backend
+    set:
+      httpRoute.parentRefs:
+        - name: rancher
+          namespace: gateway
+      apiFilter.fanout.enabled: true
+    template: templates/generatingpolicy.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: apiFilter.fanout.enabled needs httpRoute.rancherBackendRef.name, because the wide route must send the namespaced reads to Rancher
+  - it: takes the parents and the hostnames from the values
+    values:
+      - ../ci/all-components-values.yaml
+    template: templates/generatingpolicy.yaml
+    asserts:
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: '"parentRefs": dyn\(\[\{"name": dyn\("rancher"\), "namespace": dyn\("gateway"\)\}\]\)'
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: '"hostnames": dyn\(\["rancher\.example\.com"\]\)'
+  - it: omits the hostnames when the value is empty
+    set:
+      httpRoute.parentRefs:
+        - name: rancher
+          namespace: gateway
+    template: templates/generatingpolicy.yaml
+    asserts:
+      - notMatchRegex:
+          path: spec.variables[1].expression
+          pattern: hostnames
+  - it: grants the kyverno background controller the routes and the clusters
+    values:
+      - ../ci/all-components-values.yaml
+    template: templates/kyverno-rbac.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ClusterRole
+      - equal:
+          path: metadata.name
+          value: drover-kyverno-background-controller
+      - equal:
+          path: metadata.labels["rbac.kyverno.io/aggregate-to-background-controller"]
+          value: "true"
+      - equal:
+          path: rules
+          value:
+            - apiGroups:
+                - gateway.networking.k8s.io
+              resources:
+                - httproutes
+              verbs:
+                - create
+                - delete
+                - get
+                - list
+                - patch
+                - update
+                - watch
+            - apiGroups:
+                - management.cattle.io
+              resources:
+                - clusters
+              verbs:
+                - get
+                - list
+                - watch
+  - it: grants the kyverno admission and reports controllers a read on the routes and the clusters
+    values:
+      - ../ci/all-components-values.yaml
+    template: templates/kyverno-rbac.yaml
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: ClusterRole
+      - equal:
+          path: metadata.name
+          value: drover-kyverno-read
+      - equal:
+          path: metadata.labels["rbac.kyverno.io/aggregate-to-admission-controller"]
+          value: "true"
+      - equal:
+          path: metadata.labels["rbac.kyverno.io/aggregate-to-reports-controller"]
+          value: "true"
+      - equal:
+          path: rules[0].verbs
+          value:
+            - get
+            - list
+            - watch
+      - equal:
+          path: rules[1].resources
+          value:
+            - clusters

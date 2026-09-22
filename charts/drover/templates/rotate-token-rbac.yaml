@@ -1,0 +1,32 @@
+{{- $component := dict "root" . "component" "rotate-token" }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "drover.rotateToken.fullname" . }}
+  labels:
+    {{- include "drover.componentLabels" $component | nindent 4 }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    resourceNames:
+      - {{ include "drover.tokenSecretName" . }}
+    verbs:
+      - get
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "drover.rotateToken.fullname" . }}
+  labels:
+    {{- include "drover.componentLabels" $component | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "drover.rotateToken.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "drover.rotateToken.fullname" . }}
+    namespace: {{ .Release.Namespace }}

@@ -1,0 +1,35 @@
+---
+suite: api filter service
+
+templates:
+  - templates/api-filter-service.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: exposes port 8080 on the http target port
+    asserts:
+      - equal:
+          path: metadata.name
+          value: drover-api-filter
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports
+          value:
+            - name: http
+              port: 8080
+              targetPort: http
+              protocol: TCP
+      - equal:
+          path: spec.selector
+          value:
+            app.kubernetes.io/name: drover
+            app.kubernetes.io/instance: drover
+            app.kubernetes.io/component: api-filter

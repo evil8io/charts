@@ -1,0 +1,135 @@
+---
+suite: rotate token cronjob
+
+templates:
+  - templates/rotate-token-cronjob.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: runs every ten minutes without an overlap
+    asserts:
+      - isKind:
+          of: CronJob
+      - isAPIVersion:
+          of: batch/v1
+      - equal:
+          path: metadata.name
+          value: drover-rotate-token
+      - equal:
+          path: spec.schedule
+          value: "*/10 * * * *"
+      - equal:
+          path: spec.concurrencyPolicy
+          value: Forbid
+      - equal:
+          path: spec.startingDeadlineSeconds
+          value: 300
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.restartPolicy
+          value: OnFailure
+      - equal:
+          path: spec.jobTemplate.spec.backoffLimit
+          value: 6
+  - it: builds the args in a fixed order
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].args
+          value:
+            - rotate-token
+            - --rancher-url=https://rancher.cattle-system.svc
+            - --credentials-dir=/var/run/secrets/drover/credentials
+            - --token-secret=cattle-system/drover-token
+            - --token-key=token
+            - --password-secret=cattle-local-user-passwords/u-drover
+            - --ttl=48h
+            - --renew-before=24h
+            - --keep=2
+            - --log-level=info
+  - it: follows the rotation values in the args
+    set:
+      logLevel: debug
+      tokenRotation.ttl: 96h
+      tokenRotation.renewBefore: 48h
+      tokenRotation.keep: 3
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].args
+          value:
+            - rotate-token
+            - --rancher-url=https://rancher.cattle-system.svc
+            - --credentials-dir=/var/run/secrets/drover/credentials
+            - --token-secret=cattle-system/drover-token
+            - --token-key=token
+            - --password-secret=cattle-local-user-passwords/u-drover
+            - --ttl=96h
+            - --renew-before=48h
+            - --keep=3
+            - --log-level=debug
+  - it: adds the otlp args when the endpoint is set
+    set:
+      otlp.endpoint: otel-collector:4317
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].args
+          value:
+            - rotate-token
+            - --rancher-url=https://rancher.cattle-system.svc
+            - --credentials-dir=/var/run/secrets/drover/credentials
+            - --token-secret=cattle-system/drover-token
+            - --token-key=token
+            - --password-secret=cattle-local-user-passwords/u-drover
+            - --ttl=48h
+            - --renew-before=24h
+            - --keep=2
+            - --log-level=info
+            - --otlp-endpoint=otel-collector:4317
+            - --otlp-traces=true
+            - --otlp-metrics=true
+            - --service-name=drover
+  - it: omits the otlp args when the endpoint is empty
+    asserts:
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].args
+          content: --service-name=drover
+  - it: omits the rancher-insecure-skip-verify arg by default
+    asserts:
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].args
+          content: --rancher-insecure-skip-verify
+  - it: renders the rancher-insecure-skip-verify arg when set
+    set:
+      rancher.insecureSkipVerify: true
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].args
+          content: --rancher-insecure-skip-verify
+  - it: mounts the credentials Secret and no token Secret
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.volumes
+          value:
+            - name: credentials
+              secret:
+                secretName: drover-credentials
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts
+          value:
+            - name: credentials
+              mountPath: /var/run/secrets/drover/credentials
+              readOnly: true
+  - it: sets GOMEMLIMIT from the container memory limit
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          value:
+            - name: GOMEMLIMIT
+              valueFrom:
+                resourceFieldRef:
+                  resource: limits.memory
+                  divisor: "1"

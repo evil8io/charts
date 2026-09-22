@@ -1,0 +1,45 @@
+---
+suite: token
+
+templates:
+  - templates/api-filter-deployment.yaml
+  - templates/project-sync-deployment.yaml
+  - templates/token-secret.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: mounts the same Secret in the project sync
+    asserts:
+      - template: templates/project-sync-deployment.yaml
+        equal:
+          path: spec.template.spec.volumes[0].secret.secretName
+          value: drover-token
+      - template: templates/project-sync-deployment.yaml
+        equal:
+          path: spec.template.spec.containers[0].volumeMounts[0]
+          value:
+            name: token
+            mountPath: /var/run/secrets/drover/token
+            readOnly: true
+  - it: creates the Secret without a data field
+    asserts:
+      - template: templates/token-secret.yaml
+        equal:
+          path: metadata.name
+          value: drover-token
+      - template: templates/token-secret.yaml
+        isNull:
+          path: data
+      - template: templates/token-secret.yaml
+        isNull:
+          path: stringData
+      - template: templates/api-filter-deployment.yaml
+        equal:
+          path: spec.template.spec.volumes[0].secret.secretName
+          value: drover-token

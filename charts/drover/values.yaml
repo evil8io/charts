@@ -1,0 +1,111 @@
+---
+image:
+  repository: ghcr.io/evil8io/drover
+  # An empty tag selects the chart appVersion.
+  tag: ""
+
+logLevel: info
+
+# An empty endpoint turns telemetry off.
+otlp:
+  endpoint: ""
+
+rancher:
+  # The Rancher Service in the cluster, for example https://rancher.cattle-system.
+  url: ""
+  # Skips the certificate verification of the url. For a Service inside the cluster whose certificate the deployment does not copy.
+  insecureSkipVerify: false
+
+serviceUser:
+  # The external-secrets Password generator writes the password into the credentials Secret.
+  password:
+    refreshInterval: 2160h
+    length: 32
+  # The hook Jobs that write and delete the Rancher RBAC of the service user.
+  hook:
+    image: docker.io/dtzar/helm-kubectl:4.3.0
+    # The kubectl discovery of a Rancher cluster needs more than 64Mi.
+    resources:
+      requests:
+        cpu: 10m
+        memory: 256Mi
+      limits:
+        memory: 256Mi
+
+apiFilter:
+  replicaCount: 3
+  cacheTTL: 15s
+  # Hard bound on the cached allowed sets. Zero selects the default of the service.
+  maxCacheEntries: 0
+  # Fetches per second that the rate limit allows, for a fetch of an allowed set. Zero selects the default of the service.
+  fetchRate: 0
+  # Open watch streams above which a new watch answers 503. Zero selects the default of the service.
+  maxWatches: 0
+  # Answers a cluster-wide list of a namespaced kind with one request per allowed namespace.
+  fanout:
+    enabled: false
+    # Allowed namespaces above which such a list answers 403. Zero selects the default of the service.
+    maxNamespaces: 0
+    # Allowed namespaces above which a merged watch answers 403. Zero selects the default of the service.
+    # A watch keeps one upstream connection open per namespace, so its bound is lower than the list bound.
+    maxWatchNamespaces: 0
+    # Namespaced requests of one fan-out that run at a time. Zero selects the default of the service.
+    concurrency: 0
+  annotations: {}
+  resources:
+    requests:
+      cpu: 10m
+      memory: 256Mi
+    limits:
+      memory: 256Mi
+  podDisruptionBudget:
+    maxUnavailable: 1
+
+tokenRotation:
+  schedule: "*/10 * * * *"
+  # A CronJob that misses 100 start times stops for good. The deadline bounds the count.
+  startingDeadlineSeconds: 300
+  ttl: 48h
+  # A run renews the token when it expires inside this window.
+  renewBefore: 24h
+  keep: 2
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 64Mi
+
+projectSync:
+  interval: 60s
+  # Label keys that the sync copies from a project to the namespaces of the project.
+  labelKeys: []
+  # Annotation keys that the sync copies.
+  annotationKeys: []
+  # Label key on a namespace that gets the display name of the project. Empty turns it off.
+  nameLabel: ""
+  # Annotation key that gets the display name. Empty turns it off.
+  nameAnnotation: ""
+  annotations: {}
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 64Mi
+
+httpRoute:
+  # For example [{name: rancher, namespace: gateway}].
+  parentRefs: []
+  # For example [rancher.example.com].
+  hostnames: []
+  # A watch stream stays open for minutes. The gateway default request timeout is 15s.
+  timeouts:
+    request: 0s
+  # The Rancher Service. The fan-out route sends the namespaced reads to it, so exec, attach,
+  # portforward and a log stream stay off the filter. Required when the fan-out is on. A Service
+  # in another namespace needs a ReferenceGrant in that namespace.
+  rancherBackendRef:
+    name: ""
+    namespace: ""
+    port: 80

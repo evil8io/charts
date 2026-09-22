@@ -1,0 +1,51 @@
+---
+suite: rotate token rbac
+
+templates:
+  - templates/rotate-token-rbac.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: restricts the Role to the token Secret
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Role
+      - equal:
+          path: metadata.name
+          value: drover-rotate-token
+      - equal:
+          path: rules
+          value:
+            - apiGroups:
+                - ""
+              resources:
+                - secrets
+              resourceNames:
+                - drover-token
+              verbs:
+                - get
+                - patch
+  - it: binds the Role to the rotation service account
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: RoleBinding
+      - equal:
+          path: roleRef
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Role
+            name: drover-rotate-token
+      - equal:
+          path: subjects
+          value:
+            - kind: ServiceAccount
+              name: drover-rotate-token
+              namespace: cattle-system

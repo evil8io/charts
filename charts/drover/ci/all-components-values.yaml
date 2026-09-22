@@ -1,0 +1,31 @@
+---
+otlp:
+  endpoint: opentelemetry-node-collector.opentelemetry-collector.svc.cluster.local.:4317
+
+rancher:
+  url: https://rancher.cattle-system
+  insecureSkipVerify: true
+
+apiFilter:
+  fanout:
+    enabled: true
+    maxNamespaces: 500
+    maxWatchNamespaces: 200
+
+projectSync:
+  labelKeys:
+    - evil8.io/cost-center
+  annotationKeys:
+    - evil8.io/owner
+  nameLabel: evil8.io/project-name
+  nameAnnotation: evil8.io/project-display-name
+
+httpRoute:
+  parentRefs:
+    - name: rancher
+      namespace: gateway
+  hostnames:
+    - rancher.example.com
+  rancherBackendRef:
+    name: rancher
+    namespace: cattle-system

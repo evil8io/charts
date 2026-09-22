@@ -1,0 +1,8 @@
+---
+rancher:
+  url: https://rancher.cattle-system
+
+httpRoute:
+  parentRefs:
+    - name: rancher
+      namespace: gateway

@@ -1,0 +1,270 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "apiFilter": {
+      "additionalProperties": false,
+      "properties": {
+        "annotations": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "cacheTTL": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "fanout": {
+          "additionalProperties": false,
+          "properties": {
+            "concurrency": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "maxNamespaces": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxWatchNamespaces": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "fetchRate": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxCacheEntries": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxWatches": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "podDisruptionBudget": {
+          "additionalProperties": false,
+          "properties": {
+            "maxUnavailable": {
+              "type": [
+                "integer",
+                "string"
+              ]
+            }
+          },
+          "type": "object"
+        },
+        "replicaCount": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "resources": {
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "httpRoute": {
+      "additionalProperties": false,
+      "properties": {
+        "hostnames": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "parentRefs": {
+          "items": {
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "rancherBackendRef": {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "namespace": {
+              "type": "string"
+            },
+            "port": {
+              "maximum": 65535,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        },
+        "timeouts": {
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "image": {
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "tag": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository"
+      ],
+      "type": "object"
+    },
+    "logLevel": {
+      "enum": [
+        "debug",
+        "info",
+        "warn",
+        "error"
+      ],
+      "type": "string"
+    },
+    "otlp": {
+      "additionalProperties": false,
+      "properties": {
+        "endpoint": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "projectSync": {
+      "additionalProperties": false,
+      "properties": {
+        "annotationKeys": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "annotations": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object"
+        },
+        "interval": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "labelKeys": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "nameAnnotation": {
+          "type": "string"
+        },
+        "nameLabel": {
+          "type": "string"
+        },
+        "resources": {
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "rancher": {
+      "additionalProperties": false,
+      "properties": {
+        "insecureSkipVerify": {
+          "type": "boolean"
+        },
+        "url": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "type": "object"
+    },
+    "serviceUser": {
+      "additionalProperties": false,
+      "properties": {
+        "hook": {
+          "additionalProperties": false,
+          "description": "The hook Jobs that write and delete the Rancher RBAC of the service user.",
+          "properties": {
+            "image": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "resources": {
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "password": {
+          "additionalProperties": false,
+          "properties": {
+            "length": {
+              "minimum": 8,
+              "type": "integer"
+            },
+            "refreshInterval": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "tokenRotation": {
+      "additionalProperties": false,
+      "properties": {
+        "keep": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "renewBefore": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "resources": {
+          "type": "object"
+        },
+        "schedule": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "startingDeadlineSeconds": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "ttl": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "required": [
+    "rancher"
+  ],
+  "title": "drover values",
+  "type": "object"
+}

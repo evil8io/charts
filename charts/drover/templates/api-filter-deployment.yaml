@@ -1,0 +1,123 @@
+{{- $component := dict "root" . "component" "api-filter" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "drover.apiFilter.fullname" . }}
+  {{- with .Values.apiFilter.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "drover.componentLabels" $component | nindent 4 }}
+spec:
+  replicas: {{ .Values.apiFilter.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "drover.componentSelectorLabels" $component | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "drover.componentLabels" $component | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "drover.apiFilter.fullname" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        {{- include "drover.podSecurityContext" . | nindent 8 }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          matchLabelKeys:
+            - pod-template-hash
+          labelSelector:
+            matchLabels:
+              {{- include "drover.componentSelectorLabels" $component | nindent 14 }}
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          matchLabelKeys:
+            - pod-template-hash
+          labelSelector:
+            matchLabels:
+              {{- include "drover.componentSelectorLabels" $component | nindent 14 }}
+      containers:
+        - name: api-filter
+          image: {{ include "drover.image" . | quote }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - api-filter
+            - "--upstream={{ .Values.rancher.url }}"
+            - "--token-file={{ include "drover.tokenFile" . }}"
+            - "--cache-ttl={{ .Values.apiFilter.cacheTTL }}"
+            {{- if .Values.apiFilter.maxCacheEntries }}
+            - "--max-cache-entries={{ .Values.apiFilter.maxCacheEntries }}"
+            {{- end }}
+            {{- if .Values.apiFilter.fetchRate }}
+            - "--fetch-rate={{ .Values.apiFilter.fetchRate }}"
+            {{- end }}
+            {{- if .Values.apiFilter.maxWatches }}
+            - "--max-watches={{ .Values.apiFilter.maxWatches }}"
+            {{- end }}
+            {{- if .Values.apiFilter.fanout.enabled }}
+            - "--fanout"
+            {{- if .Values.apiFilter.fanout.maxNamespaces }}
+            - "--fanout-max-namespaces={{ .Values.apiFilter.fanout.maxNamespaces }}"
+            {{- end }}
+            {{- if .Values.apiFilter.fanout.maxWatchNamespaces }}
+            - "--fanout-max-watch-namespaces={{ .Values.apiFilter.fanout.maxWatchNamespaces }}"
+            {{- end }}
+            {{- if .Values.apiFilter.fanout.concurrency }}
+            - "--fanout-concurrency={{ .Values.apiFilter.fanout.concurrency }}"
+            {{- end }}
+            {{- end }}
+            - "--log-level={{ .Values.logLevel }}"
+            {{- if .Values.rancher.insecureSkipVerify }}
+            - "--upstream-insecure-skip-verify"
+            {{- end }}
+            {{- if .Values.otlp.endpoint }}
+            - "--otlp-endpoint={{ .Values.otlp.endpoint }}"
+            - "--otlp-traces=true"
+            - "--otlp-metrics=true"
+            - "--service-name={{ .Release.Name }}"
+            {{- end }}
+          env:
+            - name: GOMEMLIMIT
+              valueFrom:
+                resourceFieldRef:
+                  resource: limits.memory
+                  divisor: "1"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 10
+          securityContext:
+            {{- include "drover.securityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.apiFilter.resources | nindent 12 }}
+          volumeMounts:
+            - name: token
+              mountPath: /var/run/secrets/drover/token
+              readOnly: true
+      volumes:
+        - name: token
+          secret:
+            secretName: {{ include "drover.tokenSecretName" . }}

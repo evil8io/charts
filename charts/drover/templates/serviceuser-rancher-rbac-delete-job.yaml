@@ -1,0 +1,63 @@
+{{- $component := dict "root" . "component" "rancher-rbac" }}
+{{- $name := include "drover.serviceUser.rancherRbac.fullname" . }}
+{{- $fullname := include "drover.fullname" . }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}-delete
+  labels:
+    {{- include "drover.componentLabels" $component | nindent 4 }}
+  annotations:
+    {{- include "drover.serviceUser.hookAnnotations" (dict "hook" "pre-delete" "weight" 1) | nindent 4 }}
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        {{- include "drover.componentLabels" $component | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ $name }}
+      automountServiceAccountToken: true
+      securityContext:
+        {{- include "drover.podSecurityContext" . | nindent 8 }}
+        runAsUser: 1001
+        runAsGroup: 1001
+      containers:
+        - name: rancher-rbac-delete
+          image: {{ .Values.serviceUser.hook.image | quote }}
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              if ! kubectl api-resources --api-group=management.cattle.io -o name 2>/dev/null | grep -q '^roletemplates\.'; then
+                echo "Rancher is not installed, nothing to delete"
+                exit 0
+              fi
+              kubectl delete clusterroletemplatebinding.management.cattle.io --namespace local {{ $fullname }}-local --ignore-not-found --wait=false
+              kubectl delete globalrolebinding.management.cattle.io {{ $fullname }} --ignore-not-found --wait=false
+              kubectl delete globalrolebinding.management.cattle.io {{ $fullname }}-user-base --ignore-not-found --wait=false
+              kubectl delete globalrole.management.cattle.io {{ $fullname }} --ignore-not-found --wait=false
+              deadline=$(($(date +%s) + 120))
+              until kubectl delete roletemplate.management.cattle.io {{ $fullname }} --ignore-not-found --wait=false; do
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "the role template {{ $fullname }} still has an inherited binding after 120s"
+                  exit 1
+                fi
+                sleep 5
+              done
+          env:
+            - name: HOME
+              value: /tmp
+          securityContext:
+            {{- include "drover.securityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.serviceUser.hook.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

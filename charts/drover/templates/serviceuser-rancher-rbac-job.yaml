@@ -1,0 +1,96 @@
+{{- $component := dict "root" . "component" "rancher-rbac" }}
+{{- $name := include "drover.serviceUser.rancherRbac.fullname" . }}
+{{- $fullname := include "drover.fullname" . }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "drover.componentLabels" $component | nindent 4 }}
+  annotations:
+    {{- include "drover.serviceUser.hookAnnotations" (dict "hook" "post-install,post-upgrade" "weight" 1) | nindent 4 }}
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        {{- include "drover.componentLabels" $component | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ $name }}
+      automountServiceAccountToken: true
+      securityContext:
+        {{- include "drover.podSecurityContext" . | nindent 8 }}
+        runAsUser: 1001
+        runAsGroup: 1001
+      containers:
+        - name: rancher-rbac
+          image: {{ .Values.serviceUser.hook.image | quote }}
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              kubectl apply -f - <<EOF
+              apiVersion: management.cattle.io/v3
+              kind: RoleTemplate
+              metadata:
+                name: {{ $fullname }}
+              displayName: {{ $fullname }}
+              description: Grants the drover service user the namespace metadata and the project list of a cluster.
+              context: cluster
+              rules:
+                {{- include "drover.serviceUser.rules" . | nindent 16 }}
+              EOF
+              kubectl apply -f - <<EOF
+              apiVersion: management.cattle.io/v3
+              kind: GlobalRole
+              metadata:
+                name: {{ $fullname }}
+              displayName: {{ $fullname }}
+              description: Grants the drover service user the drover role template on every downstream cluster.
+              newUserDefault: false
+              inheritedClusterRoles:
+                - {{ $fullname }}
+              EOF
+              kubectl get globalrolebinding.management.cattle.io {{ $fullname }} >/dev/null 2>&1 || kubectl create -f - <<EOF
+              apiVersion: management.cattle.io/v3
+              kind: GlobalRoleBinding
+              metadata:
+                name: {{ $fullname }}
+              globalRoleName: {{ $fullname }}
+              userName: u-drover
+              EOF
+              kubectl get globalrolebinding.management.cattle.io {{ $fullname }}-user-base >/dev/null 2>&1 || kubectl create -f - <<EOF
+              apiVersion: management.cattle.io/v3
+              kind: GlobalRoleBinding
+              metadata:
+                name: {{ $fullname }}-user-base
+              globalRoleName: user-base
+              userName: u-drover
+              EOF
+              kubectl get clusterroletemplatebinding.management.cattle.io --namespace local {{ $fullname }}-local >/dev/null 2>&1 || kubectl create -f - <<EOF
+              apiVersion: management.cattle.io/v3
+              kind: ClusterRoleTemplateBinding
+              metadata:
+                name: {{ $fullname }}-local
+                namespace: local
+              clusterName: local
+              roleTemplateName: {{ $fullname }}
+              userName: u-drover
+              userPrincipalName: local://u-drover
+              EOF
+          env:
+            - name: HOME
+              value: /tmp
+          securityContext:
+            {{- include "drover.securityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.serviceUser.hook.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

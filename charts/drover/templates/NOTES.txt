@@ -1,0 +1,3 @@
+api-filter: Service {{ include "drover.apiFilter.fullname" . }}.{{ .Release.Namespace }}.svc:8080
+rotate-token: schedule {{ .Values.tokenRotation.schedule | quote }}, Secret {{ .Release.Namespace }}/{{ include "drover.tokenSecretName" . }}
+project-sync: interval 60s

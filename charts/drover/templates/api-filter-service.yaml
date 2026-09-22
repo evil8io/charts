@@ -1,0 +1,16 @@
+{{- $component := dict "root" . "component" "api-filter" }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "drover.apiFilter.fullname" . }}
+  labels:
+    {{- include "drover.componentLabels" $component | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    {{- include "drover.componentSelectorLabels" $component | nindent 4 }}

@@ -1,0 +1,45 @@
+---
+suite: topology spread
+
+templates:
+  - templates/api-filter-deployment.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: spreads over nodes and zones with the component selector
+    asserts:
+      - lengthEqual:
+          path: spec.template.spec.topologySpreadConstraints
+          count: 2
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[0]
+          value:
+            maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: ScheduleAnyway
+            matchLabelKeys:
+              - pod-template-hash
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: drover
+                app.kubernetes.io/instance: drover
+                app.kubernetes.io/component: api-filter
+      - equal:
+          path: spec.template.spec.topologySpreadConstraints[1]
+          value:
+            maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: ScheduleAnyway
+            matchLabelKeys:
+              - pod-template-hash
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: drover
+                app.kubernetes.io/instance: drover
+                app.kubernetes.io/component: api-filter

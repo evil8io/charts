@@ -1,0 +1,12 @@
+{{- $component := dict "root" . "component" "api-filter" }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "drover.apiFilter.fullname" . }}
+  labels:
+    {{- include "drover.componentLabels" $component | nindent 4 }}
+spec:
+  maxUnavailable: {{ .Values.apiFilter.podDisruptionBudget.maxUnavailable }}
+  selector:
+    matchLabels:
+      {{- include "drover.componentSelectorLabels" $component | nindent 6 }}

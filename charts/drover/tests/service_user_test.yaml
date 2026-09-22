@@ -1,0 +1,209 @@
+---
+suite: service user
+
+templates:
+  - templates/serviceuser-user.yaml
+  - templates/serviceuser-password-secret.yaml
+  - templates/serviceuser-password-rbac.yaml
+  - templates/credentials-externalsecret.yaml
+  - templates/rotate-token-cronjob.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: creates the User object of the service user
+    asserts:
+      - template: templates/serviceuser-user.yaml
+        isKind:
+          of: User
+      - template: templates/serviceuser-user.yaml
+        isAPIVersion:
+          of: management.cattle.io/v3
+      - template: templates/serviceuser-user.yaml
+        equal:
+          path: metadata.name
+          value: u-drover
+      - template: templates/serviceuser-user.yaml
+        equal:
+          path: username
+          value: drover
+      - template: templates/serviceuser-user.yaml
+        equal:
+          path: displayName
+          value: drover
+      - template: templates/serviceuser-user.yaml
+        equal:
+          path: enabled
+          value: true
+      - template: templates/serviceuser-user.yaml
+        equal:
+          path: mustChangePassword
+          value: false
+      - template: templates/serviceuser-user.yaml
+        equal:
+          path: principalIds
+          value:
+            - local://u-drover
+  - it: creates the password Secret without a data field
+    asserts:
+      - template: templates/serviceuser-password-secret.yaml
+        isKind:
+          of: Secret
+      - template: templates/serviceuser-password-secret.yaml
+        equal:
+          path: metadata.name
+          value: u-drover
+      - template: templates/serviceuser-password-secret.yaml
+        equal:
+          path: metadata.namespace
+          value: cattle-local-user-passwords
+      - template: templates/serviceuser-password-secret.yaml
+        equal:
+          path: metadata.annotations["cattle.io/password-hash"]
+          value: pbkdf2sha3512
+      - template: templates/serviceuser-password-secret.yaml
+        equal:
+          path: type
+          value: Opaque
+      - template: templates/serviceuser-password-secret.yaml
+        isNull:
+          path: data
+      - template: templates/serviceuser-password-secret.yaml
+        isNull:
+          path: stringData
+  - it: restricts the password Role to the password Secret
+    template: templates/serviceuser-password-rbac.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Role
+      - equal:
+          path: metadata.name
+          value: drover-rotate-token-password
+      - equal:
+          path: metadata.namespace
+          value: cattle-local-user-passwords
+      - equal:
+          path: rules
+          value:
+            - apiGroups:
+                - ""
+              resources:
+                - secrets
+              resourceNames:
+                - u-drover
+              verbs:
+                - get
+                - patch
+  - it: binds the password Role to the rotation service account
+    template: templates/serviceuser-password-rbac.yaml
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: RoleBinding
+      - equal:
+          path: metadata.name
+          value: drover-rotate-token-password
+      - equal:
+          path: metadata.namespace
+          value: cattle-local-user-passwords
+      - equal:
+          path: roleRef
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Role
+            name: drover-rotate-token-password
+      - equal:
+          path: subjects
+          value:
+            - kind: ServiceAccount
+              name: drover-rotate-token
+              namespace: cattle-system
+  - it: generates the password with the external-secrets generator
+    template: templates/credentials-externalsecret.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: Password
+      - isAPIVersion:
+          of: generators.external-secrets.io/v1alpha1
+      - equal:
+          path: metadata.name
+          value: drover-password
+      - equal:
+          path: spec
+          value:
+            length: 32
+            digits: 5
+            symbols: 0
+            noUpper: false
+            allowRepeat: true
+  - it: writes the generated password into the credentials Secret
+    template: templates/credentials-externalsecret.yaml
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: ExternalSecret
+      - isAPIVersion:
+          of: external-secrets.io/v1
+      - equal:
+          path: metadata.name
+          value: drover-credentials
+      - equal:
+          path: spec.refreshInterval
+          value: 2160h
+      - equal:
+          path: spec.refreshPolicy
+          value: Periodic
+      - equal:
+          path: spec.target.name
+          value: drover-credentials
+      - equal:
+          path: spec.target.creationPolicy
+          value: Owner
+      - equal:
+          path: spec.target.template.data.username
+          value: drover
+      - equal:
+          path: spec.target.template.data.password
+          value: "{{ .password }}"
+      - equal:
+          path: spec.dataFrom
+          value:
+            - sourceRef:
+                generatorRef:
+                  apiVersion: generators.external-secrets.io/v1alpha1
+                  kind: Password
+                  name: drover-password
+  - it: follows the generator values
+    set:
+      serviceUser.password.refreshInterval: 720h
+      serviceUser.password.length: 48
+    asserts:
+      - template: templates/credentials-externalsecret.yaml
+        documentIndex: 0
+        equal:
+          path: spec.length
+          value: 48
+      - template: templates/credentials-externalsecret.yaml
+        documentIndex: 1
+        equal:
+          path: spec.refreshInterval
+          value: 720h
+  - it: passes the password Secret to the rotation run
+    template: templates/rotate-token-cronjob.yaml
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].args
+          content: --password-secret=cattle-local-user-passwords/u-drover
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.volumes
+          value:
+            - name: credentials
+              secret:
+                secretName: drover-credentials

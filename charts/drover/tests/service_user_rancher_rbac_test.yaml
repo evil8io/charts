@@ -1,0 +1,344 @@
+---
+suite: service user rancher rbac
+
+templates:
+  - templates/serviceuser-rancher-rbac.yaml
+  - templates/serviceuser-rancher-rbac-job.yaml
+  - templates/serviceuser-rancher-rbac-delete-job.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: keeps the hook rbac for the install hook and for the delete hook
+    asserts:
+      - template: templates/serviceuser-rancher-rbac.yaml
+        documentIndex: 0
+        equal:
+          path: metadata.annotations
+          value: &hookRbacAnnotations
+            helm.sh/hook: pre-delete,post-install,post-upgrade
+            helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+            helm.sh/hook-weight: "0"
+      - template: templates/serviceuser-rancher-rbac.yaml
+        documentIndex: 1
+        equal:
+          path: metadata.annotations
+          value: *hookRbacAnnotations
+      - template: templates/serviceuser-rancher-rbac.yaml
+        documentIndex: 2
+        equal:
+          path: metadata.annotations
+          value: *hookRbacAnnotations
+      - template: templates/serviceuser-rancher-rbac.yaml
+        documentIndex: 3
+        equal:
+          path: metadata.annotations
+          value: *hookRbacAnnotations
+      - template: templates/serviceuser-rancher-rbac.yaml
+        documentIndex: 4
+        equal:
+          path: metadata.annotations
+          value: *hookRbacAnnotations
+  - it: creates the hook service account in the release namespace
+    template: templates/serviceuser-rancher-rbac.yaml
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - equal:
+          path: metadata.name
+          value: drover-rancher-rbac
+      - equal:
+          path: metadata.namespace
+          value: cattle-system
+  - it: gives the hook the granted rules, the rancher rbac kinds, and the bind rights
+    template: templates/serviceuser-rancher-rbac.yaml
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: ClusterRole
+      - equal:
+          path: metadata.name
+          value: drover-rancher-rbac
+      - equal:
+          path: rules
+          value:
+            - apiGroups:
+                - ""
+              resources:
+                - namespaces
+              verbs:
+                - get
+                - list
+                - watch
+                - patch
+            - apiGroups:
+                - management.cattle.io
+              resources:
+                - projects
+              verbs:
+                - get
+                - list
+                - watch
+            - apiGroups:
+                - management.cattle.io
+              resources:
+                - roletemplates
+                - globalroles
+                - globalrolebindings
+              verbs:
+                - get
+                - create
+                - patch
+                - delete
+            - apiGroups:
+                - management.cattle.io
+              resources:
+                - globalroles
+              resourceNames:
+                - drover
+                - user-base
+              verbs:
+                - bind
+                - escalate
+  - it: binds the cluster role to the hook service account
+    template: templates/serviceuser-rancher-rbac.yaml
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: ClusterRoleBinding
+      - equal:
+          path: roleRef
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: drover-rancher-rbac
+      - equal:
+          path: subjects
+          value: &hookSubjects
+            - kind: ServiceAccount
+              name: drover-rancher-rbac
+              namespace: cattle-system
+  - it: lets the hook write the binding of the local cluster
+    template: templates/serviceuser-rancher-rbac.yaml
+    documentIndex: 3
+    asserts:
+      - isKind:
+          of: Role
+      - equal:
+          path: metadata.namespace
+          value: local
+      - equal:
+          path: rules
+          value:
+            - apiGroups:
+                - management.cattle.io
+              resources:
+                - clusterroletemplatebindings
+              verbs:
+                - get
+                - create
+                - delete
+  - it: binds the role to the hook service account
+    template: templates/serviceuser-rancher-rbac.yaml
+    documentIndex: 4
+    asserts:
+      - isKind:
+          of: RoleBinding
+      - equal:
+          path: metadata.namespace
+          value: local
+      - equal:
+          path: roleRef
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Role
+            name: drover-rancher-rbac
+      - equal:
+          path: subjects
+          value: *hookSubjects
+  - it: runs the install hook after the chart objects
+    template: templates/serviceuser-rancher-rbac-job.yaml
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: drover-rancher-rbac
+      - equal:
+          path: metadata.annotations
+          value:
+            helm.sh/hook: post-install,post-upgrade
+            helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+            helm.sh/hook-weight: "1"
+  - it: applies the rancher objects in dependency order
+    template: templates/serviceuser-rancher-rbac-job.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)kind: RoleTemplate.*kind: GlobalRole\n.*globalRoleName: drover\n.*globalRoleName: user-base.*kind: ClusterRoleTemplateBinding'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)kind: RoleTemplate.*context: cluster.*rules:\n  - apiGroups:\n      - ""\n    resources:\n      - namespaces'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)kind: GlobalRole\n.*newUserDefault: false\n.*inheritedClusterRoles:\n  - drover\n'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'kubectl get globalrolebinding\.management\.cattle\.io drover >/dev/null 2>&1 \|\| kubectl create -f -'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'kubectl get globalrolebinding\.management\.cattle\.io drover-user-base >/dev/null 2>&1 \|\| kubectl create -f -'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'kubectl get clusterroletemplatebinding\.management\.cattle\.io --namespace local drover-local >/dev/null 2>&1 \|\| kubectl create -f -'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)clusterName: local\nroleTemplateName: drover\nuserName: u-drover\nuserPrincipalName: local://u-drover'
+  - it: runs the delete hook before the release goes
+    template: templates/serviceuser-rancher-rbac-delete-job.yaml
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: drover-rancher-rbac-delete
+      - equal:
+          path: metadata.annotations
+          value:
+            helm.sh/hook: pre-delete
+            helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+            helm.sh/hook-weight: "1"
+  - it: deletes the rancher objects in the reverse order
+    template: templates/serviceuser-rancher-rbac-delete-job.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)^set -eu\nif ! kubectl api-resources --api-group=management\.cattle\.io -o name.*grep -q.*roletemplates.*Rancher is not installed.*exit 0\nfi\nkubectl delete clusterroletemplatebinding'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)delete clusterroletemplatebinding\.management\.cattle\.io --namespace local drover-local --ignore-not-found --wait=false.*delete globalrolebinding\.management\.cattle\.io drover
+            --ignore-not-found --wait=false.*delete globalrolebinding\.management\.cattle\.io drover-user-base --ignore-not-found --wait=false.*delete globalrole\.management\.cattle\.io drover --ignore-not-found
+            --wait=false.*delete roletemplate\.management\.cattle\.io drover --ignore-not-found --wait=false'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)until kubectl delete roletemplate\.management\.cattle\.io drover --ignore-not-found --wait=false; do.*sleep 5'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?m)--ignore-not-found$'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'date \+%s\) \+ 120'
+  - it: gives both hook Jobs the same pod spec
+    asserts:
+      - template: templates/serviceuser-rancher-rbac-job.yaml
+        equal:
+          path: spec.template.spec.serviceAccountName
+          value: drover-rancher-rbac
+      - template: templates/serviceuser-rancher-rbac-delete-job.yaml
+        equal:
+          path: spec.template.spec.serviceAccountName
+          value: drover-rancher-rbac
+      - template: templates/serviceuser-rancher-rbac-job.yaml
+        equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: true
+      - template: templates/serviceuser-rancher-rbac-delete-job.yaml
+        equal:
+          path: spec.template.spec.automountServiceAccountToken
+          value: true
+      - template: templates/serviceuser-rancher-rbac-job.yaml
+        equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/dtzar/helm-kubectl:4.3.0
+      - template: templates/serviceuser-rancher-rbac-delete-job.yaml
+        equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/dtzar/helm-kubectl:4.3.0
+      - template: templates/serviceuser-rancher-rbac-job.yaml
+        equal:
+          path: spec.template.spec.containers[0].env
+          value: &hookEnv
+            - name: HOME
+              value: /tmp
+      - template: templates/serviceuser-rancher-rbac-delete-job.yaml
+        equal:
+          path: spec.template.spec.containers[0].env
+          value: *hookEnv
+      - template: templates/serviceuser-rancher-rbac-job.yaml
+        equal:
+          path: spec.template.spec.volumes
+          value: &hookVolumes
+            - name: tmp
+              emptyDir: {}
+      - template: templates/serviceuser-rancher-rbac-delete-job.yaml
+        equal:
+          path: spec.template.spec.volumes
+          value: *hookVolumes
+      - template: templates/serviceuser-rancher-rbac-job.yaml
+        equal:
+          path: spec.template.spec.containers[0].volumeMounts
+          value: &hookVolumeMounts
+            - name: tmp
+              mountPath: /tmp
+      - template: templates/serviceuser-rancher-rbac-delete-job.yaml
+        equal:
+          path: spec.template.spec.containers[0].volumeMounts
+          value: *hookVolumeMounts
+      - template: templates/serviceuser-rancher-rbac-job.yaml
+        equal:
+          path: spec.template.spec.securityContext
+          value: &hookPodSecurityContext
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            seccompProfile:
+              type: RuntimeDefault
+      - template: templates/serviceuser-rancher-rbac-delete-job.yaml
+        equal:
+          path: spec.template.spec.securityContext
+          value: *hookPodSecurityContext
+      - template: templates/serviceuser-rancher-rbac-job.yaml
+        equal:
+          path: spec.template.spec.containers[0].securityContext
+          value: &hookSecurityContext
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      - template: templates/serviceuser-rancher-rbac-delete-job.yaml
+        equal:
+          path: spec.template.spec.containers[0].securityContext
+          value: *hookSecurityContext
+      - template: templates/serviceuser-rancher-rbac-job.yaml
+        equal:
+          path: spec.template.spec.containers[0].resources
+          value: &hookResources
+            requests:
+              cpu: 10m
+              memory: 256Mi
+            limits:
+              memory: 256Mi
+      - template: templates/serviceuser-rancher-rbac-delete-job.yaml
+        equal:
+          path: spec.template.spec.containers[0].resources
+          value: *hookResources
+  - it: follows the hook values
+    set:
+      serviceUser.hook.image: docker.io/dtzar/helm-kubectl:4.2.0
+      serviceUser.hook.resources.requests.cpu: 20m
+    asserts:
+      - template: templates/serviceuser-rancher-rbac-job.yaml
+        equal:
+          path: spec.template.spec.containers[0].image
+          value: docker.io/dtzar/helm-kubectl:4.2.0
+      - template: templates/serviceuser-rancher-rbac-job.yaml
+        equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 20m
