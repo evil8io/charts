@@ -45,6 +45,19 @@ entries:
     version: 0.18.0
   drover-policies:
   - apiVersion: v2
+    created: "2026-09-24T19:17:17.220585549Z"
+    description: Drover multi-tenancy policies
+    digest: 82bf46319d4a9eb053b19f80f009acc8d2dd3fe151aa1d1e300d1b54497d64ec
+    home: https://github.com/evil8io/drover
+    kubeVersion: '>=1.30.0-0'
+    name: drover-policies
+    sources:
+    - https://github.com/evil8io/drover
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/drover-policies-0.3.0/drover-policies-0.3.0.tgz
+    version: 0.3.0
+  - apiVersion: v2
     created: "2026-09-24T17:20:09.495080877Z"
     description: Drover multi-tenancy policies
     digest: ae1bcf094fcf9f2197ffd76873674c9f4af20a857b079bba6936e89612a8dc1d
@@ -476,4 +489,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-09-24T18:31:18.579826283Z"
+generated: "2026-09-24T19:17:17.220685005Z"
