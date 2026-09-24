@@ -1,0 +1,114 @@
+{{- if (index .Values.policies "namespace-project").enabled }}
+---
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
+metadata:
+  name: drover.namespace-project
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Namespace Project Assignment
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Namespace
+    policies.kyverno.io/description: >-
+      Sets the annotation and the label field.cattle.io/projectId on a Namespace
+      that is created without the annotation, when the requester holds the
+      namespace-edit ClusterRole of exactly one Rancher project, passes the
+      manage-namespaces check for that project, and may not manage the
+      namespaces of every project.
+spec:
+  evaluation:
+    background:
+      enabled: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+        resources:
+          - namespaces
+  matchConditions:
+    - name: no-project-annotation
+      expression: >-
+        !has(object.metadata.annotations) ||
+        !("field.cattle.io/projectId" in object.metadata.annotations)
+  variables:
+    - name: nsAll
+      expression: 'globalContext.Get("drover-namespaces", "") == null ? [] : globalContext.Get("drover-namespaces", "")'
+    - name: crbAll
+      expression: 'globalContext.Get("drover-clusterrolebindings", "") == null ? [] : globalContext.Get("drover-clusterrolebindings", "")'
+    - name: clusterIds
+      expression: |-
+        variables.nsAll.filter(ns,
+          ns.metadata.name == "kube-system" &&
+          has(ns.metadata.annotations) &&
+          "field.cattle.io/projectId" in ns.metadata.annotations &&
+          ns.metadata.annotations["field.cattle.io/projectId"].contains(":")
+        ).map(ns, ns.metadata.annotations["field.cattle.io/projectId"].split(":")[0])
+    - name: clusterId
+      expression: 'variables.clusterIds.size() > 0 ? variables.clusterIds[0] : ""'
+    - name: candidates
+      expression: |-
+        variables.crbAll.filter(b,
+          b.roleRef.kind == "ClusterRole" &&
+          b.roleRef.name.endsWith("-namespaces-edit") &&
+          has(b.subjects) && b.subjects != null &&
+          b.subjects.exists(s,
+            (s.kind == "User" && s.name == request.userInfo.username) ||
+            (s.kind == "Group" && s.name in request.userInfo.groups)
+          )
+        ).map(b, b.roleRef.name.substring(0, b.roleRef.name.size() - "-namespaces-edit".size())).distinct()
+    - name: unrestricted
+      expression: |-
+        resource.Post("authorization.k8s.io/v1", "subjectaccessreviews", "", {
+          "apiVersion": dyn("authorization.k8s.io/v1"),
+          "kind": dyn("SubjectAccessReview"),
+          "spec": dyn({
+            "user": dyn(request.userInfo.username),
+            "groups": dyn(request.userInfo.groups),
+            "extra": has(request.userInfo.extra) ? dyn(request.userInfo.extra) : dyn({}),
+            "resourceAttributes": dyn({
+              "group": "management.cattle.io",
+              "resource": "projects",
+              "verb": "manage-namespaces"
+            })
+          })
+        }).status.allowed == true
+    - name: verified
+      expression: |-
+        variables.candidates.size() == 0 ? [] :
+        variables.unrestricted ? [] :
+        variables.candidates.filter(p,
+          resource.Post("authorization.k8s.io/v1", "subjectaccessreviews", "", {
+            "apiVersion": dyn("authorization.k8s.io/v1"),
+            "kind": dyn("SubjectAccessReview"),
+            "spec": dyn({
+              "user": dyn(request.userInfo.username),
+              "groups": dyn(request.userInfo.groups),
+              "extra": has(request.userInfo.extra) ? dyn(request.userInfo.extra) : dyn({}),
+              "resourceAttributes": dyn({
+                "group": "management.cattle.io",
+                "resource": "projects",
+                "name": p,
+                "verb": "manage-namespaces"
+              })
+            })
+          }).status.allowed == true
+        )
+    - name: projectId
+      expression: 'variables.verified.size() > 0 ? variables.verified[0] : ""'
+  mutations:
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: |-
+          (variables.clusterId != "" && variables.verified.size() == 1) ? Object{
+            metadata: Object.metadata{
+              annotations: {"field.cattle.io/projectId": variables.clusterId + ":" + variables.projectId},
+              labels: {"field.cattle.io/projectId": variables.projectId}
+            }
+          } : Object{}
+{{- end }}

@@ -1,0 +1,78 @@
+{{- if (index .Values.policies "prometheus-monitors").enabled }}
+---
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
+metadata:
+  name: drover.prometheus-monitors
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Scope Prometheus Monitor Namespace Selector
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: PodMonitor, ServiceMonitor
+    policies.kyverno.io/description: >-
+      Sets namespaceSelector.matchNames to the own namespace on a PodMonitor or a
+      ServiceMonitor, on CREATE and UPDATE, when the namespace is in a Rancher
+      project other than System and Default.
+spec:
+  evaluation:
+    background:
+      enabled: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - monitoring.coreos.com
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - podmonitors
+          - servicemonitors
+  variables:
+    - name: nsAll
+      expression: 'globalContext.Get("drover-namespaces", "") == null ? [] : globalContext.Get("drover-namespaces", "")'
+    - name: systemNsMatches
+      expression: 'variables.nsAll.filter(n, n.metadata.name == "kube-system")'
+    - name: systemNs
+      expression: 'variables.systemNsMatches.size() > 0 ? variables.systemNsMatches[0] : null'
+    - name: defaultNsMatches
+      expression: 'variables.nsAll.filter(n, n.metadata.name == "default")'
+    - name: defaultNs
+      expression: 'variables.defaultNsMatches.size() > 0 ? variables.defaultNsMatches[0] : null'
+    - name: projectId
+      expression: >-
+        (has(namespaceObject.metadata.labels) &&
+        "field.cattle.io/projectId" in namespaceObject.metadata.labels) ?
+        namespaceObject.metadata.labels["field.cattle.io/projectId"] : ""
+    - name: systemProjectId
+      expression: >-
+        (variables.systemNs != null && has(variables.systemNs.metadata.labels) && variables.systemNs.metadata.labels != null
+          && "field.cattle.io/projectId" in variables.systemNs.metadata.labels)
+        ? string(variables.systemNs.metadata.labels["field.cattle.io/projectId"]) : ""
+    - name: defaultProjectId
+      expression: >-
+        (variables.defaultNs != null && has(variables.defaultNs.metadata.labels) && variables.defaultNs.metadata.labels != null
+          && "field.cattle.io/projectId" in variables.defaultNs.metadata.labels)
+        ? string(variables.defaultNs.metadata.labels["field.cattle.io/projectId"]) : ""
+    - name: isUserProject
+      expression: >-
+        variables.projectId != "" &&
+        variables.systemProjectId != "" &&
+        variables.defaultProjectId != "" &&
+        variables.projectId != variables.systemProjectId &&
+        variables.projectId != variables.defaultProjectId
+  mutations:
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: |-
+          variables.isUserProject ? [
+            JSONPatch{
+              op: "add",
+              path: "/spec/namespaceSelector",
+              value: {"matchNames": [object.metadata.namespace]}
+            }
+          ] : []
+{{- end }}

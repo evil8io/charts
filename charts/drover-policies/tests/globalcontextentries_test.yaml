@@ -1,0 +1,71 @@
+---
+suite: global context entries
+
+templates:
+  - templates/globalcontextentries.yaml
+
+release:
+  name: drover-policies
+  namespace: kyverno
+
+tests:
+  - it: renders one prefixed entry per resource
+    asserts:
+      - hasDocuments:
+          count: 7
+      - documentIndex: 0
+        equal:
+          path: metadata.name
+          value: drover-clusterrolebindings
+      - documentIndex: 0
+        equal:
+          path: spec.kubernetesResource
+          value:
+            group: rbac.authorization.k8s.io
+            version: v1
+            resource: clusterrolebindings
+      - documentIndex: 2
+        equal:
+          path: metadata.name
+          value: drover-httproutes
+      - documentIndex: 4
+        equal:
+          path: metadata.name
+          value: drover-namespaces
+      - documentIndex: 4
+        equal:
+          path: spec.kubernetesResource
+          value:
+            version: v1
+            resource: namespaces
+  - it: drops the entries that only a disabled policy reads
+    set:
+      policies.route-hostname.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 3
+      - documentIndex: 0
+        equal:
+          path: metadata.name
+          value: drover-clusterrolebindings
+      - documentIndex: 1
+        equal:
+          path: metadata.name
+          value: drover-listenersets
+      - documentIndex: 2
+        equal:
+          path: metadata.name
+          value: drover-namespaces
+  - it: keeps an entry with an explicit enabled
+    set:
+      policies.route-hostname.enabled: false
+      globalContextEntries.httproutes.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 4
+  - it: drops an entry with an explicit disabled
+    set:
+      globalContextEntries.namespaces.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 6

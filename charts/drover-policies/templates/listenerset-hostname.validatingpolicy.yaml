@@ -1,0 +1,76 @@
+{{- if (index .Values.policies "listenerset-hostname").enabled }}
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: drover.listenerset-hostname
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Prevent Cross-Project ListenerSet Hostname Conflicts
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: ListenerSet
+    policies.kyverno.io/description: >-
+      Denies a ListenerSet in a namespace with a Rancher project ID when a listener
+      has no hostname, or when a listener hostname is in use by a ListenerSet
+      outside the project, on CREATE and UPDATE. A listener without a hostname is a
+      catch-all on its port. The hostname match is exact, so a wildcard and an
+      exact name do not conflict.
+spec:
+  evaluation:
+    background:
+      enabled: false
+  validationActions:
+    - Deny
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - "gateway.networking.k8s.io"
+        apiVersions:
+          - "v1"
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - listenersets
+  variables:
+    - name: nsAll
+      expression: 'globalContext.Get("drover-namespaces", "") == null ? [] : globalContext.Get("drover-namespaces", "")'
+    - name: listenersetsAll
+      expression: 'globalContext.Get("drover-listenersets", "") == null ? [] : globalContext.Get("drover-listenersets", "")'
+    - name: projectId
+      expression: >-
+        (has(namespaceObject.metadata.labels) &&
+        "field.cattle.io/projectId" in namespaceObject.metadata.labels) ?
+        namespaceObject.metadata.labels["field.cattle.io/projectId"] : ""
+    - name: hasProjectId
+      expression: >-
+        variables.projectId != ""
+    - name: hostnames
+      expression: "object.spec.listeners.map(l, l.?hostname.orValue(''))"
+    - name: projectNamespaces
+      expression: >-
+        variables.hasProjectId ?
+        variables.nsAll.filter(ns,
+          has(ns.metadata.labels) &&
+          "field.cattle.io/projectId" in ns.metadata.labels &&
+          ns.metadata.labels["field.cattle.io/projectId"] == variables.projectId
+        ).map(ns, ns.metadata.name) : []
+    - name: conflictingListenerSets
+      expression: >-
+        variables.listenersetsAll.filter(ls,
+          !(ls.metadata.name == object.metadata.name && ls.metadata.namespace == object.metadata.namespace) &&
+          ls.spec.?listeners.orValue([]).exists(l, l.?hostname.orValue('') in variables.hostnames) &&
+          !(ls.metadata.namespace in variables.projectNamespaces)
+        ).map(ls, ls.metadata.namespace + '/' + ls.metadata.name)
+  validations:
+    - expression: >-
+        !variables.hasProjectId || object.spec.listeners.all(l, l.?hostname.orValue('') != '')
+      message: >-
+        ListenerSet listeners must specify a hostname; a listener without one is a catch-all on its port.
+    - expression: >-
+        !variables.hasProjectId || variables.conflictingListenerSets.size() == 0
+      messageExpression: >-
+        'One of the configured listener hostnames is already configured in another project. Conflicting: ' + variables.conflictingListenerSets.join(', ')
+{{- end }}

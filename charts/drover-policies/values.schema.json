@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "globalContextEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "policy": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "type": "object"
+    }
+  },
+  "properties": {
+    "externalDns": {
+      "additionalProperties": false,
+      "properties": {
+        "annotationPrefix": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "annotationPrefix"
+      ],
+      "type": "object"
+    },
+    "globalContextEntries": {
+      "additionalProperties": false,
+      "properties": {
+        "clusterrolebindings": {
+          "$ref": "#/definitions/globalContextEntry"
+        },
+        "grpcroutes": {
+          "$ref": "#/definitions/globalContextEntry"
+        },
+        "httproutes": {
+          "$ref": "#/definitions/globalContextEntry"
+        },
+        "listenersets": {
+          "$ref": "#/definitions/globalContextEntry"
+        },
+        "namespaces": {
+          "$ref": "#/definitions/globalContextEntry"
+        },
+        "services": {
+          "$ref": "#/definitions/globalContextEntry"
+        },
+        "tlsroutes": {
+          "$ref": "#/definitions/globalContextEntry"
+        }
+      },
+      "type": "object"
+    },
+    "kyverno": {
+      "additionalProperties": false,
+      "properties": {
+        "namespace": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace"
+      ],
+      "type": "object"
+    },
+    "platform": {
+      "enum": [
+        "generic",
+        "aws",
+        "azure"
+      ],
+      "type": "string"
+    },
+    "policies": {
+      "additionalProperties": false,
+      "properties": {
+        "generated-integrity": {
+          "$ref": "#/definitions/policy"
+        },
+        "listenerset-hostname": {
+          "$ref": "#/definitions/policy"
+        },
+        "namespace-project": {
+          "$ref": "#/definitions/policy"
+        },
+        "namespace-quotas": {
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "hard": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "revision": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "enabled",
+            "hard",
+            "revision"
+          ],
+          "type": "object"
+        },
+        "prometheus-monitors": {
+          "$ref": "#/definitions/policy"
+        },
+        "route-hostname": {
+          "$ref": "#/definitions/policy"
+        }
+      },
+      "required": [
+        "generated-integrity",
+        "listenerset-hostname",
+        "namespace-project",
+        "namespace-quotas",
+        "prometheus-monitors",
+        "route-hostname"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "externalDns",
+    "globalContextEntries",
+    "kyverno",
+    "platform",
+    "policies"
+  ],
+  "title": "drover-policies values",
+  "type": "object"
+}

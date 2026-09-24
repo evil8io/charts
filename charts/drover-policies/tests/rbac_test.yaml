@@ -1,0 +1,47 @@
+---
+suite: rbac
+
+templates:
+  - templates/rbac.yaml
+
+release:
+  name: drover-policies
+  namespace: kyverno
+
+tests:
+  - it: aggregates the reads to the three controllers and the monitor writes to the background controller
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        equal:
+          path: metadata.name
+          value: drover-policies-kyverno-read
+      - documentIndex: 0
+        equal:
+          path: metadata.labels["rbac.kyverno.io/aggregate-to-admission-controller"]
+          value: "true"
+      - documentIndex: 0
+        equal:
+          path: metadata.labels["rbac.kyverno.io/aggregate-to-background-controller"]
+          value: "true"
+      - documentIndex: 0
+        equal:
+          path: metadata.labels["rbac.kyverno.io/aggregate-to-reports-controller"]
+          value: "true"
+      - documentIndex: 1
+        equal:
+          path: metadata.name
+          value: drover-policies-kyverno-background-controller
+      - documentIndex: 1
+        equal:
+          path: rules[0].verbs
+          value:
+            - update
+            - patch
+  - it: drops the monitor writes with the monitor policies
+    set:
+      policies.prometheus-monitors.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 1

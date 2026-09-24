@@ -1,2 +1,47 @@
 ---
-...
+# The platform that the cluster runs on: generic, aws, or azure. It selects the cloud-specific policies. This policy set has none yet.
+platform: generic
+
+kyverno:
+  # The namespace of the Kyverno controllers. Their ServiceAccounts may write generated objects.
+  namespace: kyverno
+
+externalDns:
+  annotationPrefix: external-dns.alpha.kubernetes.io/
+
+policies:
+  namespace-project:
+    enabled: true
+  namespace-quotas:
+    enabled: true
+    # Part of the policy name and of the generated names. Bump it when a generated field that is immutable changes.
+    revision: 1
+    hard:
+      count/pods: "3k"
+      count/jobs.batch: "1k"
+      count/secrets: "1k"
+      count/services: "500"
+      count/configmaps: "1k"
+      count/replicasets.apps: "1k"
+      count/daemonsets.apps: "0"
+      count/replicationcontrollers: "0"
+      count/services.nodeports: "0"
+      count/services.loadbalancers: "0"
+  route-hostname:
+    enabled: true
+  listenerset-hostname:
+    enabled: true
+  prometheus-monitors:
+    enabled: true
+  generated-integrity:
+    enabled: true
+
+# An entry without enabled follows the policies that read it.
+globalContextEntries:
+  namespaces: {}
+  clusterrolebindings: {}
+  httproutes: {}
+  grpcroutes: {}
+  tlsroutes: {}
+  listenersets: {}
+  services: {}

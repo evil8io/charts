@@ -1,0 +1,107 @@
+{{- $policy := index .Values.policies "namespace-quotas" }}
+{{- if $policy.enabled }}
+---
+apiVersion: policies.kyverno.io/v1
+kind: GeneratingPolicy
+metadata:
+  name: drover.namespace-quotas.{{ $policy.revision }}
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Generate Namespace Quotas
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: ResourceQuota,LimitRange
+    policies.kyverno.io/description: >-
+      Generates a ResourceQuota and a LimitRange in every namespace with a Rancher
+      project ID, except a namespace in the System or the Default project.
+spec:
+  evaluation:
+    synchronize:
+      enabled: true
+    generateExisting:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - namespaces
+  matchConditions:
+    - name: has-project-id
+      expression: |-
+        has(object.metadata.labels) &&
+        "field.cattle.io/projectId" in object.metadata.labels &&
+        object.metadata.labels["field.cattle.io/projectId"] != ""
+  variables:
+    - name: nsAll
+      expression: 'globalContext.Get("drover-namespaces", "") == null ? [] : globalContext.Get("drover-namespaces", "")'
+    - name: projectId
+      expression: 'object.metadata.labels["field.cattle.io/projectId"]'
+    - name: excludedProjectIds
+      expression: |-
+        variables.nsAll.filter(ns, ns.metadata.name in ["kube-system", "default"])
+          .map(ns,
+            has(ns.metadata.labels) && "field.cattle.io/projectId" in ns.metadata.labels
+            ? ns.metadata.labels["field.cattle.io/projectId"] : "")
+    - name: governed
+      expression: |-
+        variables.excludedProjectIds.size() == 2 &&
+        !("" in variables.excludedProjectIds) &&
+        !(variables.projectId in variables.excludedProjectIds)
+    - name: resources
+      expression: |-
+        !variables.governed ? [] : [
+          {
+            "apiVersion": dyn("v1"),
+            "kind": dyn("ResourceQuota"),
+            "metadata": dyn({
+              "name": dyn("counts.{{ $policy.revision }}"),
+              "namespace": dyn(object.metadata.name),
+              "ownerReferences": dyn([
+                {
+                  "apiVersion": object.apiVersion,
+                  "kind": object.kind,
+                  "name": object.metadata.name,
+                  "uid": object.metadata.uid
+                }
+              ])
+            }),
+            "spec": dyn({
+              "hard": {{ toJson $policy.hard }}
+            })
+          },
+          {
+            "apiVersion": dyn("v1"),
+            "kind": dyn("LimitRange"),
+            "metadata": dyn({
+              "name": dyn("default.{{ $policy.revision }}"),
+              "namespace": dyn(object.metadata.name),
+              "ownerReferences": dyn([
+                {
+                  "apiVersion": object.apiVersion,
+                  "kind": object.kind,
+                  "name": object.metadata.name,
+                  "uid": object.metadata.uid
+                }
+              ])
+            }),
+            "spec": dyn({
+              "limits": [
+                {
+                  "default": dyn({"ephemeral-storage": "2Gi"}),
+                  "defaultRequest": dyn({"ephemeral-storage": "200Mi"}),
+                  "type": dyn("Container")
+                }
+              ]
+            })
+          }
+        ]
+  generate:
+    - expression: generator.Apply(object.metadata.name, variables.resources)
+{{- end }}

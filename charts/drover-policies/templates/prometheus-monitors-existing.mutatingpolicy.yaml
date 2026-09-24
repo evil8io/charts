@@ -1,0 +1,104 @@
+{{- if (index .Values.policies "prometheus-monitors").enabled }}
+---
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
+metadata:
+  name: drover.prometheus-monitors-existing
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Scope Existing Prometheus Monitors on Project Change
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: PodMonitor, ServiceMonitor
+    policies.kyverno.io/description: >-
+      Sets namespaceSelector.matchNames to the own namespace on every existing
+      PodMonitor and ServiceMonitor in a namespace whose Rancher project ID changes
+      to a project other than System and Default. A change to the System or the
+      Default project changes nothing.
+spec:
+  evaluation:
+    background:
+      enabled: false
+    mutateExisting:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - UPDATE
+        resources:
+          - namespaces
+  matchConditions:
+    - name: project-id-changed
+      expression: |-
+        (has(object.metadata.labels) && "field.cattle.io/projectId" in object.metadata.labels ? object.metadata.labels["field.cattle.io/projectId"] : "")
+        !=
+        (has(oldObject.metadata.labels) && "field.cattle.io/projectId" in oldObject.metadata.labels ? oldObject.metadata.labels["field.cattle.io/projectId"] : "")
+  variables:
+    - name: nsName
+      expression: request.object.metadata.name
+    - name: projectId
+      expression: >-
+        (has(request.object.metadata.labels) &&
+        "field.cattle.io/projectId" in request.object.metadata.labels) ?
+        request.object.metadata.labels["field.cattle.io/projectId"] : ""
+    - name: nsAll
+      expression: 'globalContext.Get("drover-namespaces", "") == null ? [] : globalContext.Get("drover-namespaces", "")'
+    - name: systemNsMatches
+      expression: 'variables.nsAll.filter(n, n.metadata.name == "kube-system")'
+    - name: systemNs
+      expression: 'variables.systemNsMatches.size() > 0 ? variables.systemNsMatches[0] : null'
+    - name: defaultNsMatches
+      expression: 'variables.nsAll.filter(n, n.metadata.name == "default")'
+    - name: defaultNs
+      expression: 'variables.defaultNsMatches.size() > 0 ? variables.defaultNsMatches[0] : null'
+    - name: systemProjectId
+      expression: >-
+        (variables.systemNs != null && has(variables.systemNs.metadata.labels) && variables.systemNs.metadata.labels != null
+          && "field.cattle.io/projectId" in variables.systemNs.metadata.labels)
+        ? string(variables.systemNs.metadata.labels["field.cattle.io/projectId"]) : ""
+    - name: defaultProjectId
+      expression: >-
+        (variables.defaultNs != null && has(variables.defaultNs.metadata.labels) && variables.defaultNs.metadata.labels != null
+          && "field.cattle.io/projectId" in variables.defaultNs.metadata.labels)
+        ? string(variables.defaultNs.metadata.labels["field.cattle.io/projectId"]) : ""
+    - name: isUserProject
+      expression: >-
+        variables.projectId != "" &&
+        variables.systemProjectId != "" &&
+        variables.defaultProjectId != "" &&
+        variables.projectId != variables.systemProjectId &&
+        variables.projectId != variables.defaultProjectId
+  targetMatchConstraints:
+    resourceRules:
+      - apiGroups:
+          - monitoring.coreos.com
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - podmonitors
+          - servicemonitors
+  targetMatchConditions:
+    - name: same-namespace
+      expression: object.metadata.namespace == variables.nsName
+  mutations:
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: |-
+          !variables.isUserProject ? [] :
+          (has(object.spec.namespaceSelector) && object.spec.namespaceSelector == {"matchNames": [object.metadata.namespace]}) ? [] :
+          [
+            JSONPatch{
+              op: "add",
+              path: "/spec/namespaceSelector",
+              value: {"matchNames": [object.metadata.namespace]}
+            }
+          ]
+{{- end }}

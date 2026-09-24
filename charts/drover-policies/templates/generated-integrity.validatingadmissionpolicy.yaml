@@ -1,0 +1,59 @@
+{{- if (index .Values.policies "generated-integrity").enabled }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: drover.generated-integrity
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    # The selector matches when either side of the request has the label that
+    # Kyverno puts on every generated object, so a label removal is matched too.
+    # "*" excludes subresources, so status writers such as the VPA recommender,
+    # KEDA, and the quota controller are out of scope.
+    objectSelector:
+      matchExpressions:
+        - key: generate.kyverno.io/policy-name
+          operator: Exists
+    resourceRules:
+      - apiGroups:
+          - "*"
+        apiVersions:
+          - "*"
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - "*"
+  variables:
+    - name: authorized
+      expression: >-
+        request.userInfo.groups.exists(g,
+          g == "system:serviceaccounts:{{ .Values.kyverno.namespace }}" ||
+          g == "system:serviceaccounts:kube-system") ||
+        authorizer.group("policies.kyverno.io").resource("generatingpolicies").check("delete").allowed()
+    - name: sameTop
+      expression: >-
+        object.all(k, k == "metadata" || (k in oldObject && object[k] == oldObject[k])) &&
+        oldObject.all(k, k == "metadata" || k in object)
+    - name: sameMeta
+      expression: >-
+        object.metadata.all(k,
+          k in ["finalizers", "resourceVersion", "generation", "managedFields"] ||
+          ((k in oldObject.metadata) && object.metadata[k] == oldObject.metadata[k])) &&
+        oldObject.metadata.all(k,
+          k in ["finalizers", "resourceVersion", "generation", "managedFields"] ||
+          k in object.metadata)
+    - name: finalizerOnlyUpdate
+      expression: >-
+        request.operation == "UPDATE" &&
+        variables.sameTop && variables.sameMeta
+  validations:
+    - expression: "variables.authorized || variables.finalizerOnlyUpdate"
+      messageExpression: >-
+        "This object is managed by a GeneratingPolicy; " +
+        request.operation + " is restricted to platform controllers and cluster admins."
+{{- end }}

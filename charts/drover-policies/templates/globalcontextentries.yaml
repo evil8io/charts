@@ -1,0 +1,14 @@
+{{- range $name, $spec := (include "drover-policies.gceResources" . | fromYaml) }}
+{{- if include "drover-policies.gceEnabled" (dict "root" $ "name" $name) }}
+---
+apiVersion: kyverno.io/v2
+kind: GlobalContextEntry
+metadata:
+  name: drover-{{ $name }}
+  labels:
+    {{- include "drover-policies.labels" $ | nindent 4 }}
+spec:
+  kubernetesResource:
+    {{- toYaml $spec | nindent 4 }}
+{{- end }}
+{{- end }}

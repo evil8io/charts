@@ -1,0 +1,122 @@
+---
+suite: policies
+
+templates:
+  - templates/namespace-project.mutatingpolicy.yaml
+  - templates/namespace-project.validatingpolicy.yaml
+  - templates/namespace-quotas.generatingpolicy.yaml
+  - templates/route-hostname.validatingpolicy.yaml
+  - templates/listenerset-hostname.validatingpolicy.yaml
+  - templates/prometheus-monitors.mutatingpolicy.yaml
+  - templates/prometheus-monitors-existing.mutatingpolicy.yaml
+  - templates/generated-integrity.validatingadmissionpolicy.yaml
+  - templates/generated-integrity.validatingadmissionpolicybinding.yaml
+
+release:
+  name: drover-policies
+  namespace: kyverno
+
+tests:
+  - it: names every policy with the drover prefix
+    asserts:
+      - template: templates/namespace-project.mutatingpolicy.yaml
+        equal:
+          path: metadata.name
+          value: drover.namespace-project
+      - template: templates/namespace-project.validatingpolicy.yaml
+        equal:
+          path: metadata.name
+          value: drover.namespace-project
+      - template: templates/namespace-quotas.generatingpolicy.yaml
+        equal:
+          path: metadata.name
+          value: drover.namespace-quotas.1
+      - template: templates/route-hostname.validatingpolicy.yaml
+        equal:
+          path: metadata.name
+          value: drover.route-hostname
+      - template: templates/listenerset-hostname.validatingpolicy.yaml
+        equal:
+          path: metadata.name
+          value: drover.listenerset-hostname
+      - template: templates/prometheus-monitors.mutatingpolicy.yaml
+        equal:
+          path: metadata.name
+          value: drover.prometheus-monitors
+      - template: templates/prometheus-monitors-existing.mutatingpolicy.yaml
+        equal:
+          path: metadata.name
+          value: drover.prometheus-monitors-existing
+      - template: templates/generated-integrity.validatingadmissionpolicy.yaml
+        equal:
+          path: metadata.name
+          value: drover.generated-integrity
+      - template: templates/generated-integrity.validatingadmissionpolicybinding.yaml
+        equal:
+          path: spec.policyName
+          value: drover.generated-integrity
+  - it: reads the prefixed context entries
+    template: templates/namespace-project.mutatingpolicy.yaml
+    asserts:
+      - matchRegex:
+          path: spec.variables[0].expression
+          pattern: globalContext.Get\("drover-namespaces", ""\)
+      - matchRegex:
+          path: spec.variables[1].expression
+          pattern: globalContext.Get\("drover-clusterrolebindings", ""\)
+  - it: puts the revision in the quota policy name and in the generated names
+    set:
+      policies.namespace-quotas.revision: 7
+    template: templates/namespace-quotas.generatingpolicy.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: drover.namespace-quotas.7
+      - matchRegex:
+          path: spec.variables[4].expression
+          pattern: dyn\("counts\.7"\)
+      - matchRegex:
+          path: spec.variables[4].expression
+          pattern: dyn\("default\.7"\)
+  - it: renders the quota map into the generated ResourceQuota
+    set:
+      policies.namespace-quotas.hard:
+        count/pods: "10"
+    template: templates/namespace-quotas.generatingpolicy.yaml
+    asserts:
+      - matchRegex:
+          path: spec.variables[4].expression
+          pattern: '"hard": \{.*"count/pods":"10".*\}'
+  - it: exempts the ServiceAccounts of the Kyverno namespace
+    set:
+      kyverno.namespace: kyverno-system
+    template: templates/generated-integrity.validatingadmissionpolicy.yaml
+    asserts:
+      - matchRegex:
+          path: spec.variables[0].expression
+          pattern: system:serviceaccounts:kyverno-system
+  - it: reads the external-dns hostname annotation with the configured prefix
+    set:
+      externalDns.annotationPrefix: dns.example.com/
+    template: templates/route-hostname.validatingpolicy.yaml
+    asserts:
+      - matchRegex:
+          path: spec.variables[12].expression
+          pattern: "'dns.example.com/hostname' in s.metadata.annotations"
+  - it: renders nothing for a disabled policy
+    set:
+      policies.route-hostname.enabled: false
+      policies.prometheus-monitors.enabled: false
+    asserts:
+      - template: templates/route-hostname.validatingpolicy.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/prometheus-monitors.mutatingpolicy.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/prometheus-monitors-existing.mutatingpolicy.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/namespace-project.mutatingpolicy.yaml
+        hasDocuments:
+          count: 1
