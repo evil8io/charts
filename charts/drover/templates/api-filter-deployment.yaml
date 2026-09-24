@@ -61,8 +61,14 @@ spec:
             {{- if .Values.apiFilter.fetchRate }}
             - "--fetch-rate={{ .Values.apiFilter.fetchRate }}"
             {{- end }}
+            {{- if .Values.apiFilter.fetchRatePerCaller }}
+            - "--fetch-rate-per-caller={{ .Values.apiFilter.fetchRatePerCaller }}"
+            {{- end }}
             {{- if .Values.apiFilter.maxWatches }}
             - "--max-watches={{ .Values.apiFilter.maxWatches }}"
+            {{- end }}
+            {{- if .Values.apiFilter.maxWatchesPerCaller }}
+            - "--max-watches-per-caller={{ .Values.apiFilter.maxWatchesPerCaller }}"
             {{- end }}
             {{- if .Values.apiFilter.fanout.enabled }}
             - "--fanout"
@@ -74,6 +80,9 @@ spec:
             {{- end }}
             {{- if .Values.apiFilter.fanout.concurrency }}
             - "--fanout-concurrency={{ .Values.apiFilter.fanout.concurrency }}"
+            {{- end }}
+            {{- if .Values.apiFilter.fanout.maxInflight }}
+            - "--fanout-max-inflight={{ .Values.apiFilter.fanout.maxInflight }}"
             {{- end }}
             {{- end }}
             - "--log-level={{ .Values.logLevel }}"

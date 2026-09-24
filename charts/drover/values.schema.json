@@ -25,6 +25,10 @@
             "enabled": {
               "type": "boolean"
             },
+            "maxInflight": {
+              "minimum": 0,
+              "type": "integer"
+            },
             "maxNamespaces": {
               "minimum": 0,
               "type": "integer"
@@ -40,11 +44,19 @@
           "minimum": 0,
           "type": "integer"
         },
+        "fetchRatePerCaller": {
+          "minimum": 0,
+          "type": "integer"
+        },
         "maxCacheEntries": {
           "minimum": 0,
           "type": "integer"
         },
         "maxWatches": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxWatchesPerCaller": {
           "minimum": 0,
           "type": "integer"
         },

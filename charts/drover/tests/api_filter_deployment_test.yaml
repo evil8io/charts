@@ -16,10 +16,10 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: ghcr.io/evil8io/drover:0.14.0
+          value: ghcr.io/evil8io/drover:0.16.1
       - equal:
           path: metadata.labels["app.kubernetes.io/version"]
-          value: "0.14.0"
+          value: "0.16.1"
   - it: takes the image tag from the values
     set:
       image.tag: 1.2.3
@@ -122,6 +122,25 @@ tests:
             - --fanout
             - --fanout-max-namespaces=500
             - --fanout-max-watch-namespaces=200
+            - --log-level=info
+  - it: sets the per-caller limits and the fan-out in-flight cap
+    set:
+      apiFilter.fetchRatePerCaller: 2
+      apiFilter.maxWatchesPerCaller: 20
+      apiFilter.fanout.enabled: true
+      apiFilter.fanout.maxInflight: 32
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - api-filter
+            - --upstream=https://rancher.cattle-system.svc
+            - --token-file=/var/run/secrets/drover/token/token
+            - --cache-ttl=15s
+            - --fetch-rate-per-caller=2
+            - --max-watches-per-caller=20
+            - --fanout
+            - --fanout-max-inflight=32
             - --log-level=info
   - it: adds the otlp args when the endpoint is set
     set:

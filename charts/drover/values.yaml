@@ -39,8 +39,12 @@ apiFilter:
   maxCacheEntries: 0
   # Fetches per second that the rate limit allows, for a fetch of an allowed set. Zero selects the default of the service.
   fetchRate: 0
+  # Fetches per second that the rate limit of one caller allows, for a fetch of an allowed set. Zero selects the default of the service.
+  fetchRatePerCaller: 0
   # Open watch streams above which a new watch answers 503. Zero selects the default of the service.
   maxWatches: 0
+  # Open watch streams of one caller above which a new watch of that caller answers 503. Zero selects the default of the service.
+  maxWatchesPerCaller: 0
   # Answers a cluster-wide list of a namespaced kind with one request per allowed namespace.
   fanout:
     enabled: false
@@ -51,6 +55,8 @@ apiFilter:
     maxWatchNamespaces: 0
     # Namespaced requests of one fan-out that run at a time. Zero selects the default of the service.
     concurrency: 0
+    # Namespaced requests of all fan-outs that run at a time. Zero selects the default of the service.
+    maxInflight: 0
   annotations: {}
   resources:
     requests:
