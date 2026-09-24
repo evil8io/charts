@@ -103,6 +103,14 @@ tests:
       - matchRegex:
           path: spec.variables[12].expression
           pattern: "'dns.example.com/hostname' in s.metadata.annotations"
+  - it: reads the display name from the configured name annotation
+    set:
+      policies.namespace-project.nameAnnotation: example.com/name
+    template: templates/namespace-project.validatingpolicy.yaml
+    asserts:
+      - matchRegex:
+          path: spec.variables[7].expression
+          pattern: '"example.com/name" in ns.metadata.annotations'
   - it: renders nothing for a disabled policy
     set:
       policies.route-hostname.enabled: false

@@ -12,6 +12,8 @@ externalDns:
 policies:
   namespace-project:
     enabled: true
+    # Annotation key on a namespace that has the display name of its project. The deny message shows the name next to the project id. Empty turns the hint off.
+    nameAnnotation: project.display_name
   namespace-quotas:
     enabled: true
     # Part of the policy name and of the generated names. Bump it when a generated field that is immutable changes.

@@ -1,4 +1,5 @@
 {{- if (index .Values.policies "namespace-project").enabled }}
+{{- $nameAnnotation := (index .Values.policies "namespace-project").nameAnnotation }}
 ---
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
@@ -16,7 +17,9 @@ metadata:
       field.cattle.io/projectId when the requester holds the namespace-edit
       ClusterRole of one or more Rancher projects, passes the manage-namespaces
       check for them, and may not manage the namespaces of every project. The
-      message lists the annotation values to choose from.
+      message lists the annotation values to choose from, each with the
+      display name of the project when a namespace of the project has the
+      name annotation.
 spec:
   evaluation:
     background:
@@ -101,10 +104,22 @@ spec:
             })
           }).status.allowed == true
         )
+    - name: choices
+      expression: |-
+        variables.verified.map(p,
+          [variables.nsAll.filter(ns,
+            has(ns.metadata.labels) &&
+            "field.cattle.io/projectId" in ns.metadata.labels &&
+            ns.metadata.labels["field.cattle.io/projectId"] == p &&
+            has(ns.metadata.annotations) &&
+            "{{ $nameAnnotation }}" in ns.metadata.annotations
+          ).map(ns, ns.metadata.annotations["{{ $nameAnnotation }}"])]
+          .map(names, variables.clusterId + ":" + p + (names.size() > 0 ? " (" + names[0] + ")" : ""))[0]
+        )
   validations:
     - expression: variables.verified.size() == 0
       messageExpression: >-
         'A namespace without the annotation field.cattle.io/projectId is in no Rancher project. Set the annotation to one of: ' +
-        variables.verified.map(p, variables.clusterId + ':' + p).join(', ') +
+        variables.choices.join(', ') +
         '. The project id is in the Rancher URL of the project, and in the same annotation of every namespace of the project.'
 {{- end }}

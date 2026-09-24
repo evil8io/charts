@@ -8,7 +8,7 @@ and Kubernetes 1.30+.
 
 | Policy | Kind | Rule |
 |---|---|---|
-| `drover.namespace-project` | MutatingPolicy, ValidatingPolicy | A namespace that a tenant creates without the `field.cattle.io/projectId` annotation is assigned to the Rancher project of the tenant. A requester with more than one project gets a deny that lists the values to choose from. |
+| `drover.namespace-project` | MutatingPolicy, ValidatingPolicy | A namespace that a tenant creates without the `field.cattle.io/projectId` annotation is assigned to the Rancher project of the tenant. A requester with more than one project gets a deny that lists the values to choose from, with the display name of each project that has a namespace. |
 | `drover.namespace-quotas.<revision>` | GeneratingPolicy | Generates a ResourceQuota `counts.<revision>` and a LimitRange `default.<revision>` in every namespace of a Rancher project, except the System and the Default project. |
 | `drover.route-hostname` | ValidatingPolicy | A Gateway-parented HTTPRoute, GRPCRoute, or TLSRoute in a project namespace requires at least one hostname. The policy denies a wildcard hostname, and a hostname that a route or an external-dns Service outside the project already uses. |
 | `drover.listenerset-hostname` | ValidatingPolicy | A ListenerSet in a project namespace requires that a hostname is configured on every listener, and no hostname of a ListenerSet outside the project. |
@@ -34,6 +34,7 @@ policy goes with its objects, and the new policy generates them again.
 | `kyverno.namespace` | `kyverno` | The namespace of the Kyverno controllers. Their ServiceAccounts may write generated objects. |
 | `externalDns.annotationPrefix` | `external-dns.alpha.kubernetes.io/` | The annotation prefix that the route-hostname policy reads on Services. |
 | `policies.<name>.enabled` | `true` | Renders the policy. |
+| `policies.namespace-project.nameAnnotation` | `project.display_name` | The annotation key on a namespace that has the display name of its project. The deny message shows the name next to the project id. Empty turns the hint off. |
 | `policies.namespace-quotas.revision` | `1` | See Quota revision. |
 | `policies.namespace-quotas.hard` | object counts | The `spec.hard` of the generated ResourceQuota. |
 | `globalContextEntries.<name>.enabled` | derived | Renders the entry. |

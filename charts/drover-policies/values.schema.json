@@ -96,7 +96,20 @@
           "$ref": "#/definitions/policy"
         },
         "namespace-project": {
-          "$ref": "#/definitions/policy"
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "nameAnnotation": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "nameAnnotation"
+          ],
+          "type": "object"
         },
         "namespace-quotas": {
           "additionalProperties": false,
