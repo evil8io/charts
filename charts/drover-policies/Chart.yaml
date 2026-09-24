@@ -1,0 +1,11 @@
+---
+apiVersion: v2
+name: drover-policies
+description: Drover multi-tenancy policies
+type: application
+version: 0.1.0
+kubeVersion: '>=1.30.0-0'
+home: https://github.com/evil8io/drover
+
+sources:
+  - https://github.com/evil8io/drover
