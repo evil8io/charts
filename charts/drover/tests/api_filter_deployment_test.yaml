@@ -16,10 +16,10 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: ghcr.io/evil8io/drover:0.16.1
+          value: ghcr.io/evil8io/drover:0.16.2
       - equal:
           path: metadata.labels["app.kubernetes.io/version"]
-          value: "0.16.1"
+          value: "0.16.2"
   - it: takes the image tag from the values
     set:
       image.tag: 1.2.3
