@@ -4,7 +4,7 @@ fullnameOverride: ""
 
 image:
   repository: registry.k8s.io/coredns/coredns
-  tag: "v1.14.3"
+  tag: "v1.14.7"
 
 replicaCount: 3
 
