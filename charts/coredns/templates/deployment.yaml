@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "coredns.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "coredns.labels" . | nindent 4 }}
+    {{- with .Values.deploymentAnnotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  progressDeadlineSeconds: 600
+  {{- $replicas := .Values.replicaCount }}
+  {{- if .Values.autoscaling.enabled }}
+  {{- $live := lookup "apps/v1" "Deployment" .Release.Namespace (include "coredns.fullname" .) }}
+  {{- $liveSpec := dig "spec" (dict) $live }}
+  {{- if hasKey $liveSpec "replicas" }}
+  {{- $replicas = $liveSpec.replicas }}
+  {{- end }}
+  {{- end }}
+  replicas: {{ $replicas }}
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      {{- include "coredns.selectorLabels" . | nindent 6 }}
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "coredns.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: coredns
+          image: {{ printf "%s:%s" .Values.image.repository (toString .Values.image.tag) | quote }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - -conf
+            - /etc/coredns/Corefile
+          livenessProbe:
+            failureThreshold: 5
+            httpGet:
+              path: /health
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 5
+          ports:
+            - containerPort: 53
+              name: dns
+              protocol: UDP
+            - containerPort: 53
+              name: dns-tcp
+              protocol: TCP
+            - containerPort: 9153
+              name: metrics
+              protocol: TCP
+          readinessProbe:
+            failureThreshold: 1
+            httpGet:
+              path: /ready
+              port: 8181
+              scheme: HTTP
+            periodSeconds: 5
+            successThreshold: 3
+            timeoutSeconds: 1
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add:
+                - NET_BIND_SERVICE
+              drop:
+                - all
+            readOnlyRootFilesystem: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /etc/coredns
+              name: config-volume
+              readOnly: true
+            - mountPath: /tmp
+              name: tmp
+      dnsPolicy: Default
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      serviceAccount: {{ include "coredns.fullname" . }}
+      serviceAccountName: {{ include "coredns.fullname" . }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: config-volume
+          configMap:
+            defaultMode: 420
+            items:
+              - key: Corefile
+                path: Corefile
+            name: {{ include "coredns.fullname" . }}

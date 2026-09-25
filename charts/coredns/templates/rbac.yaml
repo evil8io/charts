@@ -1,0 +1,48 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.rbac.clusterRoleName }}
+  labels:
+    {{- include "coredns.labels" . | nindent 4 }}
+    kubernetes.io/bootstrapping: rbac-defaults
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - endpoints
+      - services
+      - pods
+      - namespaces
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Values.rbac.clusterRoleName }}
+  labels:
+    {{- include "coredns.labels" . | nindent 4 }}
+    kubernetes.io/bootstrapping: rbac-defaults
+    rbac.authorization.kubernetes.io/autoupdate: "true"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Values.rbac.clusterRoleName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "coredns.fullname" . }}
+    namespace: {{ .Release.Namespace }}

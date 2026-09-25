@@ -1,0 +1,36 @@
+{{- if .Values.httpRoute.enabled }}
+{{- $fullname := include "opentelemetry-gateway.fullname" . }}
+{{- /*
+The otlphttp exporter posts profiles to /v1development/profiles while the signal is
+in development. /v1/profiles is the path after the rename.
+*/}}
+{{- $paths := dict
+  "logs" (list "/v1/logs")
+  "traces" (list "/v1/traces")
+  "metrics" (list "/v1/metrics")
+  "profiles" (list "/v1/profiles" "/v1development/profiles")
+}}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ $fullname }}-http
+  labels:
+    {{- include "opentelemetry-gateway.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    {{- toYaml .Values.httpRoute.parentRefs | nindent 4 }}
+  hostnames:
+    {{- toYaml .Values.httpRoute.hostnames | nindent 4 }}
+  rules:
+    {{- range $signal := splitList " " (include "opentelemetry-gateway.signals" .) }}
+    - matches:
+        {{- range index $paths $signal }}
+        - path:
+            type: PathPrefix
+            value: {{ . }}
+        {{- end }}
+      backendRefs:
+        - name: {{ $fullname }}-{{ $signal }}-collector
+          port: 4318
+    {{- end }}
+{{- end }}

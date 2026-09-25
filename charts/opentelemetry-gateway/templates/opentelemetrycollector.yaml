@@ -1,0 +1,60 @@
+{{- $fullname := include "opentelemetry-gateway.fullname" . }}
+{{- $config := include "opentelemetry-gateway.otelConfig" . }}
+{{- range $signal := splitList " " (include "opentelemetry-gateway.signals" .) }}
+---
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: {{ $fullname }}-{{ $signal }}
+  labels:
+    {{- include "opentelemetry-gateway.collectorLabels" $ | nindent 4 }}
+spec:
+  mode: deployment
+  {{- if not $.Values.autoscaling.keda.enabled }}
+  replicas: {{ $.Values.replicaCount }}
+  {{- end }}
+  image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag | default $.Chart.AppVersion }}"
+  {{- with $.Values.podDisruptionBudget }}
+  podDisruptionBudget:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $.Values.deploymentUpdateStrategy }}
+  deploymentUpdateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $.Values.featureGates }}
+  args:
+    feature-gates: {{ . }}
+  {{- end }}
+  {{- with $.Values.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $.Values.podSecurityContext }}
+  podSecurityContext:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $.Values.securityContext }}
+  securityContext:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  ports:
+    - name: grpc
+      port: 4317
+      targetPort: 4317
+      appProtocol: kubernetes.io/h2c
+    - name: otlp-grpc
+      port: 4319
+      targetPort: 4319
+      appProtocol: kubernetes.io/h2c
+  {{- with $.Values.nodeSelector }}
+  nodeSelector:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $.Values.tolerations }}
+  tolerations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  config:
+    {{- $config | nindent 4 }}
+{{- end }}

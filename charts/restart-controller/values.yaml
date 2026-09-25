@@ -1,0 +1,53 @@
+---
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: dtzar/helm-kubectl
+  tag: "4.3.0"
+
+intervalSeconds: 15
+
+triggers:
+  apiserverRemoval:
+    label: restart.autopilot.kubernetes.io/on-apiserver-removal
+    annotation: restart.autopilot.kubernetes.io/apiserver-removal-at
+    settleSeconds: 0
+  crdChange:
+    label: restart.autopilot.kubernetes.io/on-crd-change
+    annotation: restart.autopilot.kubernetes.io/crd-change-at
+    settleSeconds: 120
+
+deploymentAnnotations: {}
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+
+resources:
+  limits:
+    memory: 200Mi
+  requests:
+    cpu: 100m
+    memory: 200Mi
+
+podSecurityContext:
+  fsGroup: 1001
+  runAsUser: 1001
+  runAsGroup: 1001
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  privileged: false
+  readOnlyRootFilesystem: true
+
+ciliumNetworkPolicy:
+  enabled: false
+
+networkPolicy:
+  enabled: false

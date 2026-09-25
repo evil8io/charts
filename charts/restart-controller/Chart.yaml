@@ -1,0 +1,6 @@
+---
+apiVersion: v2
+name: restart-controller
+description: Restart subscribed workloads when an API server leaves or a CRD is created
+type: application
+version: 0.1.0

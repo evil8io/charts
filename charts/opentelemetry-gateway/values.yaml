@@ -1,0 +1,230 @@
+---
+# -- Name part of the object names. The collectors are named <release>-<signal> when
+# the release name contains this value, else <release>-<nameOverride>-<signal>.
+nameOverride: "gateway"
+fullnameOverride: ""
+
+# -- OpenTelemetry Collector image. An empty tag selects the chart appVersion.
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: ""
+
+# -- Feature gates, comma-separated. The profiles pipeline needs service.profilesSupport.
+featureGates: "connector.spanmetrics.includeCollectorInstanceID,service.profilesSupport"
+
+# -- Replicas of each collector when autoscaling.keda.enabled is false.
+replicaCount: 3
+
+resources:
+  limits:
+    memory: 2Gi
+  requests:
+    cpu: "1"
+    memory: 2Gi
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  privileged: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  allowPrivilegeEscalation: false
+
+# -- PodDisruptionBudget, a field of the OpenTelemetryCollector CRD.
+podDisruptionBudget:
+  maxUnavailable: 40%
+
+# -- Deployment update strategy, a field of the OpenTelemetryCollector CRD.
+deploymentUpdateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 40%
+    maxUnavailable: 40%
+
+nodeSelector: {}
+tolerations: []
+
+# -- One KEDA ScaledObject per collector, on the scale subresource of the OpenTelemetryCollector.
+autoscaling:
+  keda:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 90
+    # -- CPU utilization target, in percent of the CPU request.
+    targetCPUUtilizationPercentage: 50
+    # -- Memory utilization target, in percent of the memory request.
+    targetMemoryUtilizationPercentage: 50
+
+# -- Tenant for a request without an x-scope-orgid header.
+defaultTenant: anonymous
+
+# -- OTLP/HTTP endpoints of the backends, per signal.
+endpoints:
+  logs: http://loki-distributor:3100/otlp
+  traces: http://tempo-distributor:4318
+  metrics: http://mimir-distributor:8080/otlp
+  profiles: http://pyroscope-distributor:4040
+
+selfTelemetry:
+  # -- OTLP gRPC endpoint (host:port) for the spans and metrics of the collectors.
+  # An empty value disables the export.
+  endpoint: ""
+  # -- Sample ratio for the root spans of the collectors.
+  tracesSampleRatio: 0.01
+
+# -- Attribute keys that the groupbyattrs/loki processor moves from the log records to
+# the resource. List the resource attributes that Loki indexes as labels.
+lokiIndexedLabels:
+  - job
+  - __aggregated_metric__
+  - container.name
+  - k8s.cluster.name
+  - k8s.container.name
+  - k8s.cronjob.name
+  - k8s.daemonset.name
+  - k8s.deployment.name
+  - k8s.job.name
+  - k8s.namespace.name
+  - k8s.statefulset.name
+  - cloud.account.id
+  - cloud.provider
+  - cloud.region
+  - azure.category
+  - azure.resource.id
+  - azure.resource.name
+  - azure.resource.type
+  - azure.resourcegroup.name
+  - azure.tenant.id
+  - azure.vm.scaleset.name
+  - host.name
+  - service.name
+  - service.namespace
+  - deployment.environment
+  - deployment.environment.name
+  - log.file.name
+  - log.file.path
+  - os.type
+
+# -- Resource attributes that the transform processor deletes from every signal.
+# https://grafana.com/docs/opentelemetry/collector/opentelemetry-collector/
+droppedResourceAttributes:
+  - container.image.id
+  - container.image.repo_digests
+  - host.ip
+  - host.mac
+  - k8s.pod.start_time
+  - k8s.pod.uid
+  - os.build_id
+  - process.command_args
+  - process.command_line
+  - process.executable.path
+  - process.parent_pid
+  - process.pid
+  - process.runtime.description
+  - process.runtime.name
+  - process.runtime.version
+
+# -- Span attributes that the filter/drop_noisy_trace_urls processor compares with noisyUrlPatterns.
+noisyUrlAttributes:
+  - http.route
+  - http.target
+  - url.path
+  - http.url
+  - url.full
+
+# -- Regular expressions (RE2). The filter drops a GET span when an attribute of
+# noisyUrlAttributes matches one of them.
+noisyUrlPatterns:
+  - '(?i).*is_?ready'
+  - '(?i).*is_?alive'
+  - '(?i)/prometheus(\?.*)?$'
+  - '(?i)/metrics(\?.*)?$'
+  - '(?i).*actuator.*'
+  - '(?i).*internal/health.*'
+  - '(?i).*internal/status.*'
+  - '(?i).*/readyz?'
+  - '(?i).*/healthz?'
+  - '(?i).*/livez?'
+  - '(?i).*/startupz?'
+  - '(?i).*/ping'
+  - '(?i).*/version'
+  - '(?i).*\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot|map)$'
+
+# -- The span_metrics connector: RED metrics from the spans, exported to Mimir.
+spanMetrics:
+  enabled: true
+
+# -- The grafanacloud connector: Grafana Cloud host metrics from the spans, exported to Mimir.
+grafanaCloudMetrics:
+  enabled: false
+
+# -- Deep-merged on top of the collector config.
+# configOverrides:
+#   exporters:
+#     otlp_http/tempo:
+#       endpoint: http://tempo-distributor.tempo:4318
+#       headers:
+#         x-scope-orgid: my-tenant
+configOverrides: {}
+
+# -- HTTPRoute for OTLP/HTTP. The path of each signal goes to its collector.
+httpRoute:
+  enabled: false
+  hostnames: []
+  parentRefs: []
+
+# -- GRPCRoute for OTLP gRPC and OTel Arrow. The gRPC services of each signal go to its collector.
+grpcRoute:
+  enabled: false
+  hostnames: []
+  parentRefs: []
+
+# -- CiliumNetworkPolicy for the pods of the namespace. It uses networkPolicyPeers.
+ciliumNetworkPolicy:
+  enabled: false
+
+# -- Two NetworkPolicy objects for a cluster without Cilium. They use networkPolicyPeers.
+networkPolicy:
+  enabled: false
+
+# -- Peers of the CiliumNetworkPolicy and the NetworkPolicy. An empty value omits its rule.
+networkPolicyPeers:
+  # -- Namespaces that send to the collectors, for example the namespaces of the gateway controllers.
+  ingressNamespaces: []
+  # -- Namespaces of the backends. The rule allows the pods with the label app.kubernetes.io/component=distributor.
+  distributorNamespaces: []
+  # -- The pods behind selfTelemetry.endpoint. The rule allows port 4317.
+  selfTelemetry:
+    namespace: ""
+    podLabels: {}
+
+# -- The post-install and post-upgrade Job. It waits for the rollout of each collector Deployment.
+readinessHook:
+  image:
+    repository: dtzar/helm-kubectl
+    tag: "4.3.0"
+  # -- Timeout of each kubectl wait and kubectl rollout status call.
+  timeout: 4m
+  resources:
+    limits:
+      memory: 128Mi
+    requests:
+      cpu: 10m
+      memory: 128Mi
+  podSecurityContext:
+    fsGroup: 1001
+    runAsUser: 1001
+    runAsGroup: 1001
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    privileged: false

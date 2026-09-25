@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "restart-controller.fullname" . }}
+  labels:
+    {{- include "restart-controller.labels" . | nindent 4 }}
+  {{- with .Values.deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "restart-controller.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/script: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "restart-controller.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "restart-controller.fullname" . }}
+      terminationGracePeriodSeconds: 0
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: restart-controller
+          image: {{ printf "%s:%s" .Values.image.repository (toString .Values.image.tag) | quote }}
+          command:
+            - /scripts/script.sh
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: HOME
+              value: /tmp
+            - name: STATE_CONFIGMAP
+              value: {{ include "restart-controller.stateName" . | quote }}
+            - name: INTERVAL
+              value: {{ .Values.intervalSeconds | quote }}
+            - name: REMOVAL_LABEL
+              value: {{ .Values.triggers.apiserverRemoval.label | quote }}
+            - name: REMOVAL_ANNOTATION
+              value: {{ .Values.triggers.apiserverRemoval.annotation | quote }}
+            - name: REMOVAL_SETTLE
+              value: {{ .Values.triggers.apiserverRemoval.settleSeconds | quote }}
+            - name: CRD_LABEL
+              value: {{ .Values.triggers.crdChange.label | quote }}
+            - name: CRD_ANNOTATION
+              value: {{ .Values.triggers.crdChange.annotation | quote }}
+            - name: CRD_SETTLE
+              value: {{ .Values.triggers.crdChange.settleSeconds | quote }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - 'test $(( $(date +%s) - $(cat /tmp/heartbeat) )) -lt 120'
+            periodSeconds: 30
+            timeoutSeconds: 5
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: script
+          configMap:
+            name: {{ include "restart-controller.fullname" . }}
+            defaultMode: 0755
+        - name: tmp
+          emptyDir: {}

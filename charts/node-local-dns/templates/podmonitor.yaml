@@ -1,0 +1,21 @@
+{{- if .Values.podMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "node-local-dns.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "node-local-dns.labels" . | nindent 4 }}
+spec:
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  podMetricsEndpoints:
+    - port: metrics
+    - port: nld-metrics
+  sampleLimit: 1000
+  selector:
+    matchLabels:
+      {{- include "node-local-dns.selectorLabels" . | nindent 6 }}
+{{- end }}

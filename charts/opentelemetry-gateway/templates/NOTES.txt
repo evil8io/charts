@@ -1,0 +1,12 @@
+OpenTelemetry gateway collectors in the namespace {{ .Release.Namespace }}:
+{{- range $signal := splitList " " (include "opentelemetry-gateway.signals" .) }}
+  {{ $signal }}: Service {{ include "opentelemetry-gateway.fullname" $ }}-{{ $signal }}-collector
+{{- end }}
+
+Ports: 4318 OTLP/HTTP, 4317 OTLP gRPC and OTel Arrow, 4319 OTLP gRPC for profiles.
+{{- if .Values.httpRoute.enabled }}
+HTTPRoute hostnames: {{ join ", " .Values.httpRoute.hostnames }}
+{{- end }}
+{{- if .Values.grpcRoute.enabled }}
+GRPCRoute hostnames: {{ join ", " .Values.grpcRoute.hostnames }}
+{{- end }}

@@ -1,0 +1,51 @@
+{{- $fullname := include "opentelemetry-gateway.fullname" . }}
+{{- $hook := .Values.readinessHook }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $fullname }}-ready
+  labels:
+    {{- include "opentelemetry-gateway.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        {{- include "opentelemetry-gateway.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: readiness-hook
+    spec:
+      serviceAccountName: {{ $fullname }}-ready
+      restartPolicy: OnFailure
+      terminationGracePeriodSeconds: 0
+      {{- with $hook.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: rollout-status
+          image: "{{ $hook.image.repository }}:{{ $hook.image.tag }}"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              {{- range $signal := splitList " " (include "opentelemetry-gateway.signals" .) }}
+              kubectl --namespace="$NAMESPACE" wait --for=create deployment/{{ $fullname }}-{{ $signal }}-collector --timeout={{ $hook.timeout }}
+              kubectl --namespace="$NAMESPACE" rollout status deployment/{{ $fullname }}-{{ $signal }}-collector --timeout={{ $hook.timeout }}
+              {{- end }}
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          {{- with $hook.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $hook.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

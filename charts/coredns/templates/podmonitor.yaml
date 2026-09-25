@@ -1,0 +1,20 @@
+{{- if .Values.podMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "coredns.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "coredns.labels" . | nindent 4 }}
+spec:
+  jobLabel: app.kubernetes.io/name
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  podMetricsEndpoints:
+    - port: metrics
+  sampleLimit: 1000
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "coredns.name" . }}
+{{- end }}

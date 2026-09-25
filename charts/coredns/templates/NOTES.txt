@@ -1,0 +1,8 @@
+{{ include "coredns.fullname" . }} answers DNS requests on the Service {{ .Release.Namespace }}/{{ .Values.service.name }}{{ with .Values.service.clusterIP }} ({{ . }}){{ end }}.
+{{- if .Values.autoscaling.enabled }}
+
+An autoscaler sets the replica count. An upgrade keeps the count of the live Deployment.
+{{- end }}
+
+Show the pods:
+  kubectl --namespace {{ .Release.Namespace }} get pods --selector app.kubernetes.io/name={{ include "coredns.name" . }}

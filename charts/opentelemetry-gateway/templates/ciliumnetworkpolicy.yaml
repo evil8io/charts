@@ -1,0 +1,56 @@
+{{- if .Values.ciliumNetworkPolicy.enabled }}
+{{- $peers := .Values.networkPolicyPeers }}
+{{- $egress := or $peers.distributorNamespaces $peers.selfTelemetry.namespace }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "opentelemetry-gateway.fullname" . }}
+  labels:
+    {{- include "opentelemetry-gateway.labels" . | nindent 4 }}
+specs:
+  - endpointSelector: {}
+    egress:
+      - toEntities:
+          - kube-apiserver
+  {{- if or $peers.ingressNamespaces $egress }}
+
+  - endpointSelector:
+      matchLabels:
+        {{- include "opentelemetry-gateway.otelOperatorLabels" . | nindent 8 }}
+    {{- with $peers.ingressNamespaces }}
+    ingress:
+      - fromEndpoints:
+          - matchExpressions:
+              - key: k8s:io.kubernetes.pod.namespace
+                operator: In
+                values: {{ toJson . }}
+    {{- end }}
+    {{- if $egress }}
+    egress:
+      {{- with $peers.distributorNamespaces }}
+      - toEndpoints:
+          - matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values:
+                  - distributor
+              - key: k8s:io.kubernetes.pod.namespace
+                operator: In
+                values:
+                  {{- toYaml . | nindent 18 }}
+      {{- end }}
+      {{- with $peers.selfTelemetry.namespace }}
+      - toEndpoints:
+          - matchLabels:
+              k8s:io.kubernetes.pod.namespace: {{ . }}
+              {{- with $peers.selfTelemetry.podLabels }}
+              {{- toYaml . | nindent 14 }}
+              {{- end }}
+        toPorts:
+          - ports:
+              - port: "4317"
+                protocol: TCP
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}

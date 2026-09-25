@@ -1,0 +1,85 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $peers := .Values.networkPolicyPeers }}
+{{- $egress := or $peers.distributorNamespaces $peers.selfTelemetry.namespace }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "opentelemetry-gateway.fullname" . }}
+  labels:
+    {{- include "opentelemetry-gateway.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # A NetworkPolicy cannot select the kube-apiserver, so this rule allows the ports to every destination.
+    - ports:
+        - port: 443
+          protocol: TCP
+        - port: 6443
+          protocol: TCP
+{{- if or $peers.ingressNamespaces $egress }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "opentelemetry-gateway.fullname" . }}-collectors
+  labels:
+    {{- include "opentelemetry-gateway.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "opentelemetry-gateway.otelOperatorLabels" . | nindent 6 }}
+  policyTypes:
+    {{- if $peers.ingressNamespaces }}
+    - Ingress
+    {{- end }}
+    {{- if $egress }}
+    - Egress
+    {{- end }}
+  {{- with $peers.ingressNamespaces }}
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values:
+                  {{- toYaml . | nindent 18 }}
+  {{- end }}
+  {{- if $egress }}
+  egress:
+    {{- with $peers.distributorNamespaces }}
+    - to:
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values:
+                  {{- toYaml . | nindent 18 }}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: distributor
+    {{- end }}
+    {{- with $peers.selfTelemetry.namespace }}
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+          {{- with $peers.selfTelemetry.podLabels }}
+          podSelector:
+            matchLabels:
+              {{- toYaml . | nindent 14 }}
+          {{- end }}
+      ports:
+        - port: 4317
+          protocol: TCP
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

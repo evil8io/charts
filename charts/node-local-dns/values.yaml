@@ -1,0 +1,99 @@
+---
+nameOverride: ""
+fullnameOverride: ""
+platform: generic
+
+image:
+  repository: registry.k8s.io/dns/k8s-dns-node-cache
+  tag: "1.26.8"
+
+localIp: 172.20.0.1
+
+extraArgs:
+  - -skipteardown=true
+  - -setupiptables=false
+  - -setupinterface=false
+
+upstreamService:
+  name: kube-dns-upstream
+  selector:
+    app.kubernetes.io/name: coredns
+
+corefile: |
+  (common) {
+    log error
+    loop
+    errors
+    prometheus :9253
+    bind 0.0.0.0
+    forward . __PILLAR__CLUSTER__DNS__ {
+    }
+  }
+  cluster.local:53 {
+    import common
+    cache {
+      success 9984 30
+      denial 9984 5
+    }
+  }
+  in-addr.arpa:53 {
+    import common
+    cache 60
+  }
+  ip6.arpa:53 {
+    import common
+    cache 60
+  }
+  .:53 {
+    import common
+    cache 60
+    health {
+      lameduck 120s
+    }
+  }
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 50Mi
+
+podAnnotations:
+  io.cilium.no-track-port: "53"
+
+dnsConfig:
+  nameservers:
+    - 127.0.0.1
+  options:
+    - name: timeout
+      value: "2"
+    - name: attempts
+      value: "5"
+
+tolerations:
+  - operator: Exists
+
+priorityClassName: system-node-critical
+terminationGracePeriodSeconds: 125
+
+updateStrategy:
+  type: OnDelete
+
+kubectl:
+  image:
+    repository: dtzar/helm-kubectl
+    tag: "4.3.0"
+
+nodeRoleLabel:
+  enabled: false
+  key: node.evil8.io/role
+
+taintRemover:
+  enabled: false
+  taint: startup-taint.cluster-autoscaler.kubernetes.io/dns-not-ready
+  resources:
+    requests:
+      cpu: 25m
+      memory: 50Mi
+
+podMonitor:
+  enabled: false

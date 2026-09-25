@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "coredns.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "coredns.labels" . | nindent 4 }}
+data:
+  Corefile: |
+    {{- .Values.corefile | trim | nindent 4 }}

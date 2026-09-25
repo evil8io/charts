@@ -1,0 +1,6 @@
+{{ include "node-local-dns.fullname" . }} runs a DNS cache on each node. It forwards cluster queries to the Service {{ .Release.Namespace }}/{{ .Values.upstreamService.name }}.
+
+The chart does not redirect DNS traffic to the cache. Apply a CiliumLocalRedirectPolicy for the cluster DNS Service after Cilium and after both DNS releases. The chart README has an example.
+
+Show the pods:
+  kubectl --namespace {{ .Release.Namespace }} get pods --selector {{ include "node-local-dns.selectorLabels" . | replace ": " "=" }}

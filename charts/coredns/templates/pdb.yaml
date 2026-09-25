@@ -1,0 +1,14 @@
+{{- with .Values.podDisruptionBudget }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "coredns.fullname" $ }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "coredns.labels" $ | nindent 4 }}
+spec:
+  {{- toYaml . | nindent 2 }}
+  selector:
+    matchLabels:
+      {{- include "coredns.selectorLabels" $ | nindent 6 }}
+{{- end }}

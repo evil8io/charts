@@ -1,0 +1,28 @@
+{{- if .Values.autoscaling.keda.enabled }}
+{{- $fullname := include "opentelemetry-gateway.fullname" . }}
+{{- range $signal := splitList " " (include "opentelemetry-gateway.signals" .) }}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ $fullname }}-{{ $signal }}
+  labels:
+    {{- include "opentelemetry-gateway.labels" $ | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: opentelemetry.io/v1beta1
+    kind: OpenTelemetryCollector
+    name: {{ $fullname }}-{{ $signal }}
+  minReplicaCount: {{ $.Values.autoscaling.keda.minReplicas }}
+  maxReplicaCount: {{ $.Values.autoscaling.keda.maxReplicas }}
+  triggers:
+    - type: cpu
+      metricType: Utilization
+      metadata:
+        value: {{ $.Values.autoscaling.keda.targetCPUUtilizationPercentage | quote }}
+    - type: memory
+      metricType: Utilization
+      metadata:
+        value: {{ $.Values.autoscaling.keda.targetMemoryUtilizationPercentage | quote }}
+{{- end }}
+{{- end }}

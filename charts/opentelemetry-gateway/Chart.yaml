@@ -1,0 +1,7 @@
+---
+apiVersion: v2
+name: opentelemetry-gateway
+description: OpenTelemetry gateway collectors, one per signal, managed by the opentelemetry-operator
+type: application
+version: 0.1.0
+appVersion: "0.161.0"

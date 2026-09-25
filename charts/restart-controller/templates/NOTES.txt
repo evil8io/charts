@@ -1,0 +1,9 @@
+{{ include "restart-controller.fullname" . }} restarts the Deployments, DaemonSets, and StatefulSets that have one of these labels with the value "true":
+
+  {{ .Values.triggers.apiserverRemoval.label }}
+  {{ .Values.triggers.crdChange.label }}
+
+Put the label on the workload object, not on the pod template.
+
+Show the log:
+  kubectl --namespace {{ .Release.Namespace }} logs deployment/{{ include "restart-controller.fullname" . }}

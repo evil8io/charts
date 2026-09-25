@@ -1,0 +1,86 @@
+---
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: registry.k8s.io/coredns/coredns
+  tag: "v1.14.3"
+
+replicaCount: 3
+
+autoscaling:
+  enabled: true
+
+corefile: |
+  .:53 {
+    log error
+    errors
+    ready
+    health {
+      lameduck 30s
+    }
+    kubernetes cluster.local in-addr.arpa ip6.arpa {
+      pods insecure
+      fallthrough in-addr.arpa ip6.arpa
+    }
+    prometheus :9153
+    forward . /etc/resolv.conf {
+      prefer_udp
+    }
+    cache 30
+    loop
+    reload
+    loadbalance
+  }
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 70Mi
+
+deploymentAnnotations: {}
+podAnnotations: {}
+tolerations: []
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/os
+              operator: In
+              values:
+                - linux
+            - key: kubernetes.io/arch
+              operator: In
+              values:
+                - amd64
+                - arm64
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: k8s-app
+                operator: In
+                values:
+                  - kube-dns
+          topologyKey: kubernetes.io/hostname
+        weight: 100
+
+priorityClassName: system-cluster-critical
+terminationGracePeriodSeconds: 35
+
+service:
+  name: kube-dns
+  clusterIP: ""
+
+rbac:
+  clusterRoleName: system:coredns
+
+podDisruptionBudget:
+  maxUnavailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+
+podMonitor:
+  enabled: false
