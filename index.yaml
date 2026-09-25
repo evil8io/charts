@@ -13,6 +13,20 @@ entries:
     version: 0.1.0
   drover:
   - apiVersion: v2
+    appVersion: 0.18.0
+    created: "2026-09-25T20:22:43.274539411Z"
+    description: Tenancy extensions for Rancher
+    digest: 1de3e3397bffe5b444ee12d1708c7467e984d0ce6d5c476bf82f85647cc52e58
+    home: https://github.com/evil8io/drover
+    kubeVersion: '>=1.27.0-0'
+    name: drover
+    sources:
+    - https://github.com/evil8io/drover
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/drover-0.23.0/drover-0.23.0.tgz
+    version: 0.23.0
+  - apiVersion: v2
     appVersion: 0.17.0
     created: "2026-09-25T11:46:17.872966295Z"
     description: Tenancy extensions for Rancher
@@ -549,4 +563,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-09-25T16:03:53.562743466Z"
+generated: "2026-09-25T20:22:43.274614444Z"
