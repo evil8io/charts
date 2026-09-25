@@ -1,5 +1,16 @@
 apiVersion: v1
 entries:
+  coredns:
+  - apiVersion: v2
+    appVersion: 1.14.3
+    created: "2026-09-25T16:03:52.994887793Z"
+    description: CoreDNS as the cluster DNS server, with the kube-dns Service
+    digest: 7ded39495f358c06c47fbd01d42079a1497b3a052c7d457c2971ef601bc8482a
+    name: coredns
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/coredns-0.1.0/coredns-0.1.0.tgz
+    version: 0.1.0
   drover:
   - apiVersion: v2
     appVersion: 0.17.0
@@ -137,6 +148,30 @@ entries:
     type: application
     urls:
     - https://github.com/evil8io/charts/releases/download/idle-0.1.0/idle-0.1.0.tgz
+    version: 0.1.0
+  node-local-dns:
+  - apiVersion: v2
+    appVersion: 1.26.8
+    created: "2026-09-25T16:03:53.162005446Z"
+    description: NodeLocal DNSCache on each node, for traffic that a Cilium local
+      redirect policy sends to it
+    digest: 9ef4d5b010a54b3b6ffce8e2d780e59ab999f95cb002592f40a8b005650375bf
+    name: node-local-dns
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/node-local-dns-0.1.0/node-local-dns-0.1.0.tgz
+    version: 0.1.0
+  opentelemetry-gateway:
+  - apiVersion: v2
+    appVersion: 0.161.0
+    created: "2026-09-25T16:03:53.357897785Z"
+    description: OpenTelemetry gateway collectors, one per signal, managed by the
+      opentelemetry-operator
+    digest: f9e476ed521f30113bca1fd2987e2595726c34a478137a204b2b43579e3c33d1
+    name: opentelemetry-gateway
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/opentelemetry-gateway-0.1.0/opentelemetry-gateway-0.1.0.tgz
     version: 0.1.0
   opentelemetry-syslog-collector:
   - apiVersion: v2
@@ -410,6 +445,17 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/opentelemetry-syslog-collector-0.1.0/opentelemetry-syslog-collector-0.1.0.tgz
     version: 0.1.0
+  restart-controller:
+  - apiVersion: v2
+    created: "2026-09-25T16:03:53.562606701Z"
+    description: Restart subscribed workloads when an API server leaves or a CRD is
+      created
+    digest: 091312474fe5a262675b229a4d73aae2a3d881e266b7931147ee28d15ffae253
+    name: restart-controller
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/restart-controller-0.1.0/restart-controller-0.1.0.tgz
+    version: 0.1.0
   simple-cronjob:
   - apiVersion: v2
     appVersion: 1.1.1
@@ -503,4 +549,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-09-25T11:46:17.873026318Z"
+generated: "2026-09-25T16:03:53.562743466Z"
