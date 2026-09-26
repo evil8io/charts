@@ -1,0 +1,27 @@
+{{- $roleVerbs := dict "view" (list "get" "list" "watch") "edit" (list "create" "update" "patch" "delete" "deletecollection") "admin" (list "create" "update" "patch" "delete" "deletecollection") }}
+{{- range $role := (list "view" "edit" "admin") }}
+{{- $kinds := index $.Values.tenantRoles $role }}
+{{- if $kinds }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: drover:aggregate-to-{{ $role }}
+  labels:
+    {{- include "drover-policies.labels" $ | nindent 4 }}
+    rbac.authorization.k8s.io/aggregate-to-{{ $role }}: "true"
+rules:
+  {{- range $group := (keys $kinds | sortAlpha) }}
+  - apiGroups:
+      - {{ $group | quote }}
+    resources:
+      {{- range (index $kinds $group | uniq | sortAlpha) }}
+      - {{ . }}
+      {{- end }}
+    verbs:
+      {{- range index $roleVerbs $role }}
+      - {{ . }}
+      {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

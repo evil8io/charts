@@ -1,0 +1,169 @@
+---
+suite: tenant roles
+
+templates:
+  - templates/tenant-roles.yaml
+  - templates/rancher-users.yaml
+
+release:
+  name: drover-policies
+  namespace: kyverno
+
+tests:
+  - it: renders no role and no Rancher RBAC by default
+    asserts:
+      - template: templates/tenant-roles.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/rancher-users.yaml
+        hasDocuments:
+          count: 0
+  - it: aggregates a sorted, de-duplicated view role with the get, list, watch verbs
+    set:
+      tenantRoles.view:
+        keda.sh:
+          - scaledobjects
+          - scaledjobs
+          - scaledobjects
+        "":
+          - pods
+    template: templates/tenant-roles.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: drover:aggregate-to-view
+      - equal:
+          path: metadata.labels["rbac.authorization.k8s.io/aggregate-to-view"]
+          value: "true"
+      - equal:
+          path: rules[0].apiGroups
+          value:
+            - ""
+      - equal:
+          path: rules[0].resources
+          value:
+            - pods
+      - equal:
+          path: rules[1].apiGroups
+          value:
+            - keda.sh
+      - equal:
+          path: rules[1].resources
+          value:
+            - scaledjobs
+            - scaledobjects
+      - equal:
+          path: rules[0].verbs
+          value:
+            - get
+            - list
+            - watch
+  - it: aggregates the edit role with the write verbs, and renders no view or admin role
+    set:
+      tenantRoles.edit:
+        keda.sh:
+          - scaledobjects
+    template: templates/tenant-roles.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: drover:aggregate-to-edit
+      - equal:
+          path: metadata.labels["rbac.authorization.k8s.io/aggregate-to-edit"]
+          value: "true"
+      - equal:
+          path: rules[0].verbs
+          value:
+            - create
+            - update
+            - patch
+            - delete
+            - deletecollection
+  - it: aggregates the admin role only when it is set
+    set:
+      tenantRoles.admin:
+        keda.sh:
+          - scaledobjects
+    template: templates/tenant-roles.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: drover:aggregate-to-admin
+      - equal:
+          path: metadata.labels["rbac.authorization.k8s.io/aggregate-to-admin"]
+          value: "true"
+  - it: grants Rancher users a read on principals and roletemplates when enabled
+    set:
+      rancherUsers.enabled: true
+    template: templates/rancher-users.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        equal:
+          path: metadata.name
+          value: drover:users
+      - documentIndex: 0
+        equal:
+          path: rules[0]
+          value:
+            apiGroups:
+              - management.cattle.io
+            resources:
+              - principals
+              - roletemplates
+            verbs:
+              - get
+              - list
+              - watch
+      - documentIndex: 1
+        equal:
+          path: metadata.name
+          value: drover:users
+      - documentIndex: 1
+        equal:
+          path: roleRef
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: drover:users
+      - documentIndex: 1
+        equal:
+          path: subjects[0]
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Group
+            name: system:cattle:authenticated
+  - it: rejects a wildcard plural
+    set:
+      tenantRoles.view:
+        keda.sh:
+          - "*"
+    template: templates/tenant-roles.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: does not match pattern
+  - it: rejects a wildcard API group
+    set:
+      tenantRoles.view:
+        "*":
+          - scaledobjects
+    template: templates/tenant-roles.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: invalid propertyName '\*'
+  - it: rejects a subresource plural
+    set:
+      tenantRoles.view:
+        "":
+          - certificates/status
+    template: templates/tenant-roles.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: does not match pattern

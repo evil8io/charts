@@ -9,6 +9,16 @@ kyverno:
 externalDns:
   annotationPrefix: external-dns.alpha.kubernetes.io/
 
+# The namespaced kinds that tenants get through the Kubernetes view, edit, and admin roles, as a map from API group to resource plurals. The verbs are fixed in the templates: get, list, and watch for view; create, update, patch, delete, and deletecollection for edit and admin. List each kind of edit or admin under view too, because the verb lists of edit and admin include no read verb. Helm renders no ClusterRole for an empty map.
+tenantRoles:
+  view: {}
+  edit: {}
+  admin: {}
+
+# When true, Helm installs the ClusterRole drover:users and binds it to the group system:cattle:authenticated, so that every Rancher user can read principals and roletemplates. The Rancher UI reads both when a project owner adds members to a project. Rancher checks this access in the Rancher management cluster only, so enable it there.
+rancherUsers:
+  enabled: false
+
 policies:
   namespace-project:
     enabled: true

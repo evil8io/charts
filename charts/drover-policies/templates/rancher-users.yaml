@@ -1,0 +1,34 @@
+{{- if .Values.rancherUsers.enabled }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: drover:users
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - management.cattle.io
+    resources:
+      - principals
+      - roletemplates
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: drover:users
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: drover:users
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:cattle:authenticated
+{{- end }}

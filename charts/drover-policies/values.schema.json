@@ -22,6 +22,20 @@
         "enabled"
       ],
       "type": "object"
+    },
+    "tenantRoleKinds": {
+      "additionalProperties": {
+        "items": {
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "description": "The namespaced kinds of one tenant role, as a map from API group to resource plurals.",
+      "propertyNames": {
+        "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)?$"
+      },
+      "type": "object"
     }
   },
   "properties": {
@@ -155,6 +169,40 @@
         "route-hostname"
       ],
       "type": "object"
+    },
+    "rancherUsers": {
+      "additionalProperties": false,
+      "description": "When enabled is true, Helm installs the ClusterRole drover:users and binds it to the group system:cattle:authenticated. Enable it in the Rancher management cluster only.",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "tenantRoles": {
+      "additionalProperties": false,
+      "description": "The namespaced kinds of the view, edit, and admin tenant roles. The verbs are fixed in the templates.",
+      "properties": {
+        "admin": {
+          "$ref": "#/definitions/tenantRoleKinds"
+        },
+        "edit": {
+          "$ref": "#/definitions/tenantRoleKinds"
+        },
+        "view": {
+          "$ref": "#/definitions/tenantRoleKinds"
+        }
+      },
+      "required": [
+        "admin",
+        "edit",
+        "view"
+      ],
+      "type": "object"
     }
   },
   "required": [
@@ -162,7 +210,9 @@
     "globalContextEntries",
     "kyverno",
     "platform",
-    "policies"
+    "policies",
+    "rancherUsers",
+    "tenantRoles"
   ],
   "title": "drover-policies values",
   "type": "object"
