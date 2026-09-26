@@ -3,5 +3,5 @@ apiVersion: v2
 name: coredns
 description: CoreDNS as the cluster DNS server, with the kube-dns Service
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "1.14.3"
