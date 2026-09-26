@@ -14,6 +14,20 @@ entries:
   drover:
   - apiVersion: v2
     appVersion: 0.18.0
+    created: "2026-09-26T10:16:17.097478617Z"
+    description: Tenancy extensions for Rancher
+    digest: b5cd1103d2010294c99fefe1d7de8e154d299778559cd1993c38d7a5bdeed205
+    home: https://github.com/evil8io/drover
+    kubeVersion: '>=1.27.0-0'
+    name: drover
+    sources:
+    - https://github.com/evil8io/drover
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/drover-0.24.0/drover-0.24.0.tgz
+    version: 0.24.0
+  - apiVersion: v2
+    appVersion: 0.18.0
     created: "2026-09-25T20:22:43.274539411Z"
     description: Tenancy extensions for Rancher
     digest: 1de3e3397bffe5b444ee12d1708c7467e984d0ce6d5c476bf82f85647cc52e58
@@ -83,6 +97,19 @@ entries:
     - https://github.com/evil8io/charts/releases/download/drover-0.18.0/drover-0.18.0.tgz
     version: 0.18.0
   drover-policies:
+  - apiVersion: v2
+    created: "2026-09-26T10:16:17.289668594Z"
+    description: Drover multi-tenancy policies
+    digest: 7e029da27cf0f30beafc51af95379c5c2720003c30cbee4610720ddc553cbba3
+    home: https://github.com/evil8io/drover
+    kubeVersion: '>=1.30.0-0'
+    name: drover-policies
+    sources:
+    - https://github.com/evil8io/drover
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/drover-policies-0.4.0/drover-policies-0.4.0.tgz
+    version: 0.4.0
   - apiVersion: v2
     created: "2026-09-24T19:17:17.220585549Z"
     description: Drover multi-tenancy policies
@@ -563,4 +590,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-09-25T20:22:43.274614444Z"
+generated: "2026-09-26T10:16:17.289768661Z"
