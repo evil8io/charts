@@ -6,6 +6,7 @@ templates:
   - templates/namespace-project.validatingpolicy.yaml
   - templates/namespace-quotas.generatingpolicy.yaml
   - templates/namespace-metadata.validatingpolicy.yaml
+  - templates/namespace-orphan.validatingpolicy.yaml
   - templates/route-hostname.validatingpolicy.yaml
   - templates/listenerset-hostname.validatingpolicy.yaml
   - templates/prometheus-monitors.mutatingpolicy.yaml
@@ -36,6 +37,10 @@ tests:
         equal:
           path: metadata.name
           value: drover.namespace-metadata
+      - template: templates/namespace-orphan.validatingpolicy.yaml
+        equal:
+          path: metadata.name
+          value: drover.namespace-orphan
       - template: templates/route-hostname.validatingpolicy.yaml
         equal:
           path: metadata.name
@@ -132,13 +137,32 @@ tests:
       - matchRegex:
           path: spec.matchConditions[0].expression
           pattern: '\.split\(","\)'
+  - it: fails closed, matches update only, and skips the rancher namespace service accounts
+    set:
+      rancher.namespace: cattle-test
+    template: templates/namespace-orphan.validatingpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.failurePolicy
+          value: Fail
+      - equal:
+          path: spec.matchConstraints.resourceRules[0].operations
+          value:
+            - UPDATE
+      - matchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: 'system:serviceaccount:cattle-test:'
   - it: renders nothing for a disabled policy
     set:
       policies.route-hostname.enabled: false
       policies.prometheus-monitors.enabled: false
       policies.namespace-metadata.enabled: false
+      policies.namespace-orphan.enabled: false
     asserts:
       - template: templates/namespace-metadata.validatingpolicy.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/namespace-orphan.validatingpolicy.yaml
         hasDocuments:
           count: 0
       - template: templates/route-hostname.validatingpolicy.yaml

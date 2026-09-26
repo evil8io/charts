@@ -12,7 +12,7 @@ set:
   rancher.url: https://rancher.cattle-system.svc
 
 tests:
-  - it: restricts the Role to the token Secret
+  - it: restricts the Role to both token Secrets
     documentIndex: 0
     asserts:
       - isKind:
@@ -29,6 +29,7 @@ tests:
                 - secrets
               resourceNames:
                 - drover-token
+                - drover-project-sync-token
               verbs:
                 - get
                 - patch

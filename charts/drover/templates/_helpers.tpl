@@ -82,11 +82,85 @@ capabilities:
 {{ include "drover.fullname" . }}-project-sync
 {{- end }}
 
+{{- define "drover.projectSync.user" -}}
+u-drover-project-sync
+{{- end }}
+
+{{- define "drover.projectSync.tokenSecretName" -}}
+{{- printf "%s-token" (include "drover.projectSync.fullname" .) }}
+{{- end }}
+
+{{- define "drover.projectSync.credentialsName" -}}
+{{- printf "%s-credentials" (include "drover.projectSync.fullname" .) }}
+{{- end }}
+
 {{- define "drover.serviceUser.rancherRbac.fullname" -}}
 {{ include "drover.fullname" . }}-rancher-rbac
 {{- end }}
 
-{{- define "drover.serviceUser.rules" -}}
+{{- define "drover.apiFilter.rules" -}}
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - get
+    - list
+    - watch
+{{- end }}
+
+{{- define "drover.projectSync.rules" -}}
+{{- if .Values.projectSync.serviceAccounts.enabled -}}
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - "*"
+- apiGroups:
+    - management.cattle.io
+  resources:
+    - projects
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - manage-namespaces
+- apiGroups:
+    - ""
+  resources:
+    - serviceaccounts
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - delete
+- apiGroups:
+    - rbac.authorization.k8s.io
+  resources:
+    - rolebindings
+    - clusterrolebindings
+  verbs:
+    - get
+    - list
+    - watch
+    - create
+    - update
+    - delete
+- apiGroups:
+    - rbac.authorization.k8s.io
+  resources:
+    - clusterroles
+  resourceNames:
+    - admin
+    - edit
+    - view
+    - create-ns
+  verbs:
+    - bind
+{{- else -}}
 - apiGroups:
     - ""
   resources:
@@ -104,6 +178,7 @@ capabilities:
     - get
     - list
     - watch
+{{- end }}
 {{- end }}
 
 {{- define "drover.serviceUser.hookAnnotations" -}}

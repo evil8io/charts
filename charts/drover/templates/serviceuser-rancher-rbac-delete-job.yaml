@@ -1,6 +1,7 @@
 {{- $component := dict "root" . "component" "rancher-rbac" }}
 {{- $name := include "drover.serviceUser.rancherRbac.fullname" . }}
 {{- $fullname := include "drover.fullname" . }}
+{{- $projectSync := include "drover.projectSync.fullname" . }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -37,13 +38,25 @@ spec:
                 exit 0
               fi
               kubectl delete clusterroletemplatebinding.management.cattle.io --namespace local {{ $fullname }}-local --ignore-not-found --wait=false
+              kubectl delete clusterroletemplatebinding.management.cattle.io --namespace local {{ $projectSync }}-local --ignore-not-found --wait=false
               kubectl delete globalrolebinding.management.cattle.io {{ $fullname }} --ignore-not-found --wait=false
               kubectl delete globalrolebinding.management.cattle.io {{ $fullname }}-user-base --ignore-not-found --wait=false
+              kubectl delete globalrolebinding.management.cattle.io {{ $projectSync }} --ignore-not-found --wait=false
+              kubectl delete globalrolebinding.management.cattle.io {{ $projectSync }}-user-base --ignore-not-found --wait=false
               kubectl delete globalrole.management.cattle.io {{ $fullname }} --ignore-not-found --wait=false
+              kubectl delete globalrole.management.cattle.io {{ $projectSync }} --ignore-not-found --wait=false
               deadline=$(($(date +%s) + 120))
               until kubectl delete roletemplate.management.cattle.io {{ $fullname }} --ignore-not-found --wait=false; do
                 if [ "$(date +%s)" -ge "$deadline" ]; then
                   echo "the role template {{ $fullname }} still has an inherited binding after 120s"
+                  exit 1
+                fi
+                sleep 5
+              done
+              deadline=$(($(date +%s) + 120))
+              until kubectl delete roletemplate.management.cattle.io {{ $projectSync }} --ignore-not-found --wait=false; do
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "the role template {{ $projectSync }} still has an inherited binding after 120s"
                   exit 1
                 fi
                 sleep 5

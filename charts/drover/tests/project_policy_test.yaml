@@ -57,20 +57,25 @@ tests:
     asserts:
       - lengthEqual:
           path: spec.matchConditions
-          count: 2
+          count: 3
       - equal:
           path: spec.matchConditions[0]
           value:
             name: not-rancher-serviceaccount
             expression: '!request.userInfo.username.startsWith("system:serviceaccount:rancher-system:")'
       - equal:
-          path: spec.matchConditions[1].name
+          path: spec.matchConditions[1]
+          value:
+            name: not-project-sync-user
+            expression: request.userInfo.username != "u-drover-project-sync"
+      - equal:
+          path: spec.matchConditions[2].name
           value: create-or-required-key-changed
       - matchRegex:
-          path: spec.matchConditions[1].expression
+          path: spec.matchConditions[2].expression
           pattern: '\["evil8\.io/cost-center"\]\.exists\(k, .*object\.metadata\.labels'
       - matchRegex:
-          path: spec.matchConditions[1].expression
+          path: spec.matchConditions[2].expression
           pattern: '\["evil8\.io/owner"\]\.exists\(k, .*object\.metadata\.annotations'
   - it: fails the render when a required label is not synced
     values:

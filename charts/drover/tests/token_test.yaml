@@ -5,6 +5,7 @@ templates:
   - templates/api-filter-deployment.yaml
   - templates/project-sync-deployment.yaml
   - templates/token-secret.yaml
+  - templates/project-sync-token-secret.yaml
 
 release:
   name: drover
@@ -14,12 +15,16 @@ set:
   rancher.url: https://rancher.cattle-system.svc
 
 tests:
-  - it: mounts the same Secret in the project sync
+  - it: mounts the api-filter token in the filter and the project-sync token in the sync
     asserts:
-      - template: templates/project-sync-deployment.yaml
+      - template: templates/api-filter-deployment.yaml
         equal:
           path: spec.template.spec.volumes[0].secret.secretName
           value: drover-token
+      - template: templates/project-sync-deployment.yaml
+        equal:
+          path: spec.template.spec.volumes[0].secret.secretName
+          value: drover-project-sync-token
       - template: templates/project-sync-deployment.yaml
         equal:
           path: spec.template.spec.containers[0].volumeMounts[0]
@@ -27,7 +32,7 @@ tests:
             name: token
             mountPath: /var/run/secrets/drover/token
             readOnly: true
-  - it: creates the Secret without a data field
+  - it: creates the api-filter token Secret without a data field
     asserts:
       - template: templates/token-secret.yaml
         equal:
@@ -43,3 +48,18 @@ tests:
         equal:
           path: spec.template.spec.volumes[0].secret.secretName
           value: drover-token
+  - it: creates the project-sync token Secret without a data field
+    asserts:
+      - template: templates/project-sync-token-secret.yaml
+        isKind:
+          of: Secret
+      - template: templates/project-sync-token-secret.yaml
+        equal:
+          path: metadata.name
+          value: drover-project-sync-token
+      - template: templates/project-sync-token-secret.yaml
+        isNull:
+          path: data
+      - template: templates/project-sync-token-secret.yaml
+        isNull:
+          path: stringData

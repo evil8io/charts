@@ -25,7 +25,8 @@ metadata:
     policies.kyverno.io/description: >-
       Denies a Rancher Project that is created without a required label or
       annotation, and an update that removes or empties one. Skips the writes of
-      the ServiceAccounts in the Rancher namespace.
+      the ServiceAccounts in the Rancher namespace and of the project-sync
+      service user.
 spec:
   failurePolicy: {{ .Values.projectPolicy.failurePolicy }}
   evaluation:
@@ -47,6 +48,8 @@ spec:
   matchConditions:
     - name: not-rancher-serviceaccount
       expression: '!request.userInfo.username.startsWith({{ printf "system:serviceaccount:%s:" .Values.rancher.namespace | quote }})'
+    - name: not-project-sync-user
+      expression: 'request.userInfo.username != {{ include "drover.projectSync.user" . | quote }}'
     - name: create-or-required-key-changed
       expression: >-
         request.operation == 'CREATE'

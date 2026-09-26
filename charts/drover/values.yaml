@@ -94,6 +94,9 @@ projectSync:
   nameLabel: ""
   # Annotation key that gets the display name. Empty turns it off.
   nameAnnotation: ""
+  # Keeps three ServiceAccounts per Rancher project, one per project role, in a hidden project.
+  serviceAccounts:
+    enabled: false
   annotations: {}
   resources:
     requests:

@@ -1,6 +1,8 @@
 {{- $component := dict "root" . "component" "rancher-rbac" }}
 {{- $name := include "drover.serviceUser.rancherRbac.fullname" . }}
 {{- $fullname := include "drover.fullname" . }}
+{{- $projectSync := include "drover.projectSync.fullname" . }}
+{{- $projectSyncUser := include "drover.projectSync.user" . }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -38,10 +40,21 @@ spec:
               metadata:
                 name: {{ $fullname }}
               displayName: {{ $fullname }}
-              description: Grants the drover service user the namespace metadata and the project list of a cluster.
+              description: Grants the service user of the drover API filter the namespace list of a cluster.
               context: cluster
               rules:
-                {{- include "drover.serviceUser.rules" . | nindent 16 }}
+                {{- include "drover.apiFilter.rules" . | nindent 16 }}
+              EOF
+              kubectl apply -f - <<EOF
+              apiVersion: management.cattle.io/v3
+              kind: RoleTemplate
+              metadata:
+                name: {{ $projectSync }}
+              displayName: {{ $projectSync }}
+              description: Grants the service user of drover project-sync the namespace and project rights of a cluster.
+              context: cluster
+              rules:
+                {{- include "drover.projectSync.rules" . | nindent 16 }}
               EOF
               kubectl apply -f - <<EOF
               apiVersion: management.cattle.io/v3
@@ -49,10 +62,21 @@ spec:
               metadata:
                 name: {{ $fullname }}
               displayName: {{ $fullname }}
-              description: Grants the drover service user the drover role template on every downstream cluster.
+              description: Grants the service user of the drover API filter its RoleTemplate on every downstream cluster.
               newUserDefault: false
               inheritedClusterRoles:
                 - {{ $fullname }}
+              EOF
+              kubectl apply -f - <<EOF
+              apiVersion: management.cattle.io/v3
+              kind: GlobalRole
+              metadata:
+                name: {{ $projectSync }}
+              displayName: {{ $projectSync }}
+              description: Grants the service user of drover project-sync its RoleTemplate on every downstream cluster.
+              newUserDefault: false
+              inheritedClusterRoles:
+                - {{ $projectSync }}
               EOF
               kubectl get globalrolebinding.management.cattle.io {{ $fullname }} >/dev/null 2>&1 || kubectl create -f - <<EOF
               apiVersion: management.cattle.io/v3
@@ -70,6 +94,22 @@ spec:
               globalRoleName: user-base
               userName: u-drover
               EOF
+              kubectl get globalrolebinding.management.cattle.io {{ $projectSync }} >/dev/null 2>&1 || kubectl create -f - <<EOF
+              apiVersion: management.cattle.io/v3
+              kind: GlobalRoleBinding
+              metadata:
+                name: {{ $projectSync }}
+              globalRoleName: {{ $projectSync }}
+              userName: {{ $projectSyncUser }}
+              EOF
+              kubectl get globalrolebinding.management.cattle.io {{ $projectSync }}-user-base >/dev/null 2>&1 || kubectl create -f - <<EOF
+              apiVersion: management.cattle.io/v3
+              kind: GlobalRoleBinding
+              metadata:
+                name: {{ $projectSync }}-user-base
+              globalRoleName: user-base
+              userName: {{ $projectSyncUser }}
+              EOF
               kubectl get clusterroletemplatebinding.management.cattle.io --namespace local {{ $fullname }}-local >/dev/null 2>&1 || kubectl create -f - <<EOF
               apiVersion: management.cattle.io/v3
               kind: ClusterRoleTemplateBinding
@@ -80,6 +120,17 @@ spec:
               roleTemplateName: {{ $fullname }}
               userName: u-drover
               userPrincipalName: local://u-drover
+              EOF
+              kubectl get clusterroletemplatebinding.management.cattle.io --namespace local {{ $projectSync }}-local >/dev/null 2>&1 || kubectl create -f - <<EOF
+              apiVersion: management.cattle.io/v3
+              kind: ClusterRoleTemplateBinding
+              metadata:
+                name: {{ $projectSync }}-local
+                namespace: local
+              clusterName: local
+              roleTemplateName: {{ $projectSync }}
+              userName: {{ $projectSyncUser }}
+              userPrincipalName: local://{{ $projectSyncUser }}
               EOF
           env:
             - name: HOME

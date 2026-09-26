@@ -112,6 +112,9 @@
         "namespace-metadata": {
           "$ref": "#/definitions/policy"
         },
+        "namespace-orphan": {
+          "$ref": "#/definitions/policy"
+        },
         "namespace-project": {
           "additionalProperties": false,
           "properties": {
@@ -163,10 +166,24 @@
         "generated-integrity",
         "listenerset-hostname",
         "namespace-metadata",
+        "namespace-orphan",
         "namespace-project",
         "namespace-quotas",
         "prometheus-monitors",
         "route-hostname"
+      ],
+      "type": "object"
+    },
+    "rancher": {
+      "additionalProperties": false,
+      "properties": {
+        "namespace": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "namespace"
       ],
       "type": "object"
     },
@@ -211,6 +228,7 @@
     "kyverno",
     "platform",
     "policies",
+    "rancher",
     "rancherUsers",
     "tenantRoles"
   ],

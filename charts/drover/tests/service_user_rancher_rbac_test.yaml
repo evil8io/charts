@@ -76,6 +76,14 @@ tests:
                 - get
                 - list
                 - watch
+            - apiGroups:
+                - ""
+              resources:
+                - namespaces
+              verbs:
+                - get
+                - list
+                - watch
                 - patch
             - apiGroups:
                 - management.cattle.io
@@ -102,10 +110,85 @@ tests:
                 - globalroles
               resourceNames:
                 - drover
+                - drover-project-sync
                 - user-base
               verbs:
                 - bind
                 - escalate
+  - it: keeps the hook rules narrow by default
+    template: templates/serviceuser-rancher-rbac.yaml
+    documentIndex: 1
+    asserts:
+      - notContains:
+          path: rules
+          content:
+            apiGroups:
+              - ""
+            resources:
+              - serviceaccounts
+            verbs:
+              - get
+              - list
+              - watch
+              - create
+              - delete
+  - it: widens the hook rules when project-sync keeps ServiceAccounts
+    template: templates/serviceuser-rancher-rbac.yaml
+    documentIndex: 1
+    set:
+      projectSync.serviceAccounts.enabled: true
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - ""
+            resources:
+              - namespaces
+            verbs:
+              - "*"
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - ""
+            resources:
+              - serviceaccounts
+            verbs:
+              - get
+              - list
+              - watch
+              - create
+              - delete
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - rbac.authorization.k8s.io
+            resources:
+              - rolebindings
+              - clusterrolebindings
+            verbs:
+              - get
+              - list
+              - watch
+              - create
+              - update
+              - delete
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - rbac.authorization.k8s.io
+            resources:
+              - clusterroles
+            resourceNames:
+              - admin
+              - edit
+              - view
+              - create-ns
+            verbs:
+              - bind
   - it: binds the cluster role to the hook service account
     template: templates/serviceuser-rancher-rbac.yaml
     documentIndex: 2
@@ -181,7 +264,8 @@ tests:
     asserts:
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
-          pattern: '(?s)kind: RoleTemplate.*kind: GlobalRole\n.*globalRoleName: drover\n.*globalRoleName: user-base.*kind: ClusterRoleTemplateBinding'
+          pattern: '(?s)kind: RoleTemplate\nmetadata:\n  name: drover\n.*kind: RoleTemplate\nmetadata:\n  name: drover-project-sync\n.*kind: GlobalRole\nmetadata:\n  name: drover\n.*kind: GlobalRole\nmetadata:\n  name:
+            drover-project-sync\n.*globalRoleName: drover\n.*globalRoleName: user-base.*globalRoleName: drover-project-sync\n.*globalRoleName: user-base.*kind: ClusterRoleTemplateBinding'
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: '(?s)kind: RoleTemplate.*context: cluster.*rules:\n  - apiGroups:\n      - ""\n    resources:\n      - namespaces'
@@ -190,16 +274,31 @@ tests:
           pattern: '(?s)kind: GlobalRole\n.*newUserDefault: false\n.*inheritedClusterRoles:\n  - drover\n'
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)kind: GlobalRole\nmetadata:\n  name: drover-project-sync\n.*newUserDefault: false\n.*inheritedClusterRoles:\n  - drover-project-sync\n'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
           pattern: 'kubectl get globalrolebinding\.management\.cattle\.io drover >/dev/null 2>&1 \|\| kubectl create -f -'
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: 'kubectl get globalrolebinding\.management\.cattle\.io drover-user-base >/dev/null 2>&1 \|\| kubectl create -f -'
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
+          pattern: 'kubectl get globalrolebinding\.management\.cattle\.io drover-project-sync >/dev/null 2>&1 \|\| kubectl create -f -'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'kubectl get globalrolebinding\.management\.cattle\.io drover-project-sync-user-base >/dev/null 2>&1 \|\| kubectl create -f -'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
           pattern: 'kubectl get clusterroletemplatebinding\.management\.cattle\.io --namespace local drover-local >/dev/null 2>&1 \|\| kubectl create -f -'
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
-          pattern: '(?s)clusterName: local\nroleTemplateName: drover\nuserName: u-drover\nuserPrincipalName: local://u-drover'
+          pattern: 'kubectl get clusterroletemplatebinding\.management\.cattle\.io --namespace local drover-project-sync-local >/dev/null 2>&1 \|\| kubectl create -f -'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)clusterName: local\nroleTemplateName: drover\nuserName: u-drover\nuserPrincipalName: local://u-drover\n'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)clusterName: local\nroleTemplateName: drover-project-sync\nuserName: u-drover-project-sync\nuserPrincipalName: local://u-drover-project-sync'
   - it: runs the delete hook before the release goes
     template: templates/serviceuser-rancher-rbac-delete-job.yaml
     asserts:
@@ -234,6 +333,22 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: 'date \+%s\) \+ 120'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)delete clusterroletemplatebinding\.management\.cattle\.io --namespace local drover-project-sync-local --ignore-not-found --wait=false\nkubectl delete globalrolebinding\.management\.cattle\.io
+            drover --ignore-not-found --wait=false'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)delete globalrole\.management\.cattle\.io drover-project-sync --ignore-not-found --wait=false\ndeadline='
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)deadline=\$\(\(\$\(date \+%s\) \+ 120\)\)\nuntil kubectl delete roletemplate\.management\.cattle\.io drover --ignore-not-found --wait=false; do'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)deadline=\$\(\(\$\(date \+%s\) \+ 120\)\)\nuntil kubectl delete roletemplate\.management\.cattle\.io drover-project-sync --ignore-not-found --wait=false; do'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)until kubectl delete roletemplate\.management\.cattle\.io drover-project-sync --ignore-not-found --wait=false; do.*sleep 5'
   - it: gives both hook Jobs the same pod spec
     asserts:
       - template: templates/serviceuser-rancher-rbac-job.yaml

@@ -1,9 +1,11 @@
 ---
-suite: service user
+suite: service users
 
 templates:
   - templates/serviceuser-user.yaml
+  - templates/serviceuser-project-sync-user.yaml
   - templates/serviceuser-password-secret.yaml
+  - templates/serviceuser-project-sync-password-secret.yaml
   - templates/serviceuser-password-rbac.yaml
   - templates/credentials-externalsecret.yaml
   - templates/rotate-token-cronjob.yaml
@@ -49,6 +51,31 @@ tests:
           path: principalIds
           value:
             - local://u-drover
+  - it: creates the User object of the project-sync service user
+    asserts:
+      - template: templates/serviceuser-project-sync-user.yaml
+        isKind:
+          of: User
+      - template: templates/serviceuser-project-sync-user.yaml
+        isAPIVersion:
+          of: management.cattle.io/v3
+      - template: templates/serviceuser-project-sync-user.yaml
+        equal:
+          path: metadata.name
+          value: u-drover-project-sync
+      - template: templates/serviceuser-project-sync-user.yaml
+        equal:
+          path: username
+          value: drover-project-sync
+      - template: templates/serviceuser-project-sync-user.yaml
+        equal:
+          path: displayName
+          value: drover-project-sync
+      - template: templates/serviceuser-project-sync-user.yaml
+        equal:
+          path: principalIds
+          value:
+            - local://u-drover-project-sync
   - it: creates the password Secret without a data field
     asserts:
       - template: templates/serviceuser-password-secret.yaml
@@ -76,7 +103,30 @@ tests:
       - template: templates/serviceuser-password-secret.yaml
         isNull:
           path: stringData
-  - it: restricts the password Role to the password Secret
+  - it: creates the project-sync password Secret without a data field
+    asserts:
+      - template: templates/serviceuser-project-sync-password-secret.yaml
+        isKind:
+          of: Secret
+      - template: templates/serviceuser-project-sync-password-secret.yaml
+        equal:
+          path: metadata.name
+          value: u-drover-project-sync
+      - template: templates/serviceuser-project-sync-password-secret.yaml
+        equal:
+          path: metadata.namespace
+          value: cattle-local-user-passwords
+      - template: templates/serviceuser-project-sync-password-secret.yaml
+        equal:
+          path: metadata.annotations["cattle.io/password-hash"]
+          value: pbkdf2sha3512
+      - template: templates/serviceuser-project-sync-password-secret.yaml
+        isNull:
+          path: data
+      - template: templates/serviceuser-project-sync-password-secret.yaml
+        isNull:
+          path: stringData
+  - it: restricts the password Role to both password Secrets
     template: templates/serviceuser-password-rbac.yaml
     documentIndex: 0
     asserts:
@@ -97,6 +147,7 @@ tests:
                 - secrets
               resourceNames:
                 - u-drover
+                - u-drover-project-sync
               verbs:
                 - get
                 - patch
@@ -180,6 +231,29 @@ tests:
                   apiVersion: generators.external-secrets.io/v1alpha1
                   kind: Password
                   name: drover-password
+  - it: writes the same generated password into the project-sync credentials Secret
+    template: templates/credentials-externalsecret.yaml
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: ExternalSecret
+      - equal:
+          path: metadata.name
+          value: drover-project-sync-credentials
+      - equal:
+          path: spec.target.name
+          value: drover-project-sync-credentials
+      - equal:
+          path: spec.target.template.data.username
+          value: drover-project-sync
+      - equal:
+          path: spec.dataFrom
+          value:
+            - sourceRef:
+                generatorRef:
+                  apiVersion: generators.external-secrets.io/v1alpha1
+                  kind: Password
+                  name: drover-password
   - it: follows the generator values
     set:
       serviceUser.password.refreshInterval: 720h
@@ -195,15 +269,21 @@ tests:
         equal:
           path: spec.refreshInterval
           value: 720h
-  - it: passes the password Secret to the rotation run
+  - it: passes each password Secret to its own container of the rotation run
     template: templates/rotate-token-cronjob.yaml
     asserts:
       - contains:
           path: spec.jobTemplate.spec.template.spec.containers[0].args
           content: --password-secret=cattle-local-user-passwords/u-drover
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[1].args
+          content: --password-secret=cattle-local-user-passwords/u-drover-project-sync
       - equal:
           path: spec.jobTemplate.spec.template.spec.volumes
           value:
             - name: credentials
               secret:
                 secretName: drover-credentials
+            - name: project-sync-credentials
+              secret:
+                secretName: drover-project-sync-credentials

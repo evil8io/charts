@@ -12,6 +12,7 @@ rules:
       - secrets
     resourceNames:
       - {{ include "drover.tokenSecretName" . }}
+      - {{ include "drover.projectSync.tokenSecretName" . }}
     verbs:
       - get
       - patch

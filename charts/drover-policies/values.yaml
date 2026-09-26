@@ -6,6 +6,10 @@ kyverno:
   # The namespace of the Kyverno controllers. Their ServiceAccounts may write generated objects.
   namespace: kyverno
 
+rancher:
+  # The namespace of the Rancher Deployment. The namespace-orphan policy skips the writes of its ServiceAccounts.
+  namespace: cattle-system
+
 externalDns:
   annotationPrefix: external-dns.alpha.kubernetes.io/
 
@@ -40,6 +44,8 @@ policies:
       count/services.nodeports: "0"
       count/services.loadbalancers: "0"
   namespace-metadata:
+    enabled: true
+  namespace-orphan:
     enabled: true
   route-hostname:
     enabled: true

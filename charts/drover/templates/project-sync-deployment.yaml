@@ -45,6 +45,9 @@ spec:
             {{- with .Values.projectSync.nameAnnotation }}
             - "--name-annotation={{ . }}"
             {{- end }}
+            {{- if .Values.projectSync.serviceAccounts.enabled }}
+            - "--service-accounts"
+            {{- end }}
             - "--interval={{ .Values.projectSync.interval }}"
             - "--log-level={{ .Values.logLevel }}"
             {{- if .Values.rancher.insecureSkipVerify }}
@@ -85,4 +88,4 @@ spec:
       volumes:
         - name: token
           secret:
-            secretName: {{ include "drover.tokenSecretName" . }}
+            secretName: {{ include "drover.projectSync.tokenSecretName" . }}

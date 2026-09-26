@@ -36,7 +36,15 @@ tests:
       - equal:
           path: spec.jobTemplate.spec.backoffLimit
           value: 6
-  - it: builds the args in a fixed order
+  - it: runs one container per service user
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[0].name
+          value: api-filter
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[1].name
+          value: project-sync
+  - it: builds the api-filter args in a fixed order
     asserts:
       - equal:
           path: spec.jobTemplate.spec.template.spec.containers[0].args
@@ -47,6 +55,21 @@ tests:
             - --token-secret=cattle-system/drover-token
             - --token-key=token
             - --password-secret=cattle-local-user-passwords/u-drover
+            - --ttl=48h
+            - --renew-before=24h
+            - --keep=2
+            - --log-level=info
+  - it: builds the project-sync args in a fixed order
+    asserts:
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[1].args
+          value:
+            - rotate-token
+            - --rancher-url=https://rancher.cattle-system.svc
+            - --credentials-dir=/var/run/secrets/drover/credentials
+            - --token-secret=cattle-system/drover-project-sync-token
+            - --token-key=token
+            - --password-secret=cattle-local-user-passwords/u-drover-project-sync
             - --ttl=48h
             - --renew-before=24h
             - --keep=2
@@ -109,7 +132,7 @@ tests:
       - contains:
           path: spec.jobTemplate.spec.template.spec.containers[0].args
           content: --rancher-insecure-skip-verify
-  - it: mounts the credentials Secret and no token Secret
+  - it: mounts each container's own credentials Secret and no token Secret
     asserts:
       - equal:
           path: spec.jobTemplate.spec.template.spec.volumes
@@ -117,19 +140,31 @@ tests:
             - name: credentials
               secret:
                 secretName: drover-credentials
+            - name: project-sync-credentials
+              secret:
+                secretName: drover-project-sync-credentials
       - equal:
           path: spec.jobTemplate.spec.template.spec.containers[0].volumeMounts
           value:
             - name: credentials
               mountPath: /var/run/secrets/drover/credentials
               readOnly: true
-  - it: sets GOMEMLIMIT from the container memory limit
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[1].volumeMounts
+          value:
+            - name: project-sync-credentials
+              mountPath: /var/run/secrets/drover/credentials
+              readOnly: true
+  - it: sets GOMEMLIMIT from the container memory limit on both containers
     asserts:
       - equal:
           path: spec.jobTemplate.spec.template.spec.containers[0].env
-          value:
+          value: &gomemlimit
             - name: GOMEMLIMIT
               valueFrom:
                 resourceFieldRef:
                   resource: limits.memory
                   divisor: "1"
+      - equal:
+          path: spec.jobTemplate.spec.template.spec.containers[1].env
+          value: *gomemlimit

@@ -1,6 +1,7 @@
 {{- $component := dict "root" . "component" "rancher-rbac" }}
 {{- $name := include "drover.serviceUser.rancherRbac.fullname" . }}
 {{- $fullname := include "drover.fullname" . }}
+{{- $projectSync := include "drover.projectSync.fullname" . }}
 {{- $annotations := dict "hook" "pre-delete,post-install,post-upgrade" "weight" 0 }}
 apiVersion: v1
 kind: ServiceAccount
@@ -21,7 +22,8 @@ metadata:
   annotations:
     {{- include "drover.serviceUser.hookAnnotations" $annotations | nindent 4 }}
 rules:
-  {{- include "drover.serviceUser.rules" . | nindent 2 }}
+  {{- include "drover.apiFilter.rules" . | nindent 2 }}
+  {{- include "drover.projectSync.rules" . | nindent 2 }}
   - apiGroups:
       - management.cattle.io
     resources:
@@ -39,6 +41,7 @@ rules:
       - globalroles
     resourceNames:
       - {{ $fullname }}
+      - {{ $projectSync }}
       - user-base
     verbs:
       - bind

@@ -11,6 +11,7 @@ and Kubernetes 1.30+.
 | `drover.namespace-project` | MutatingPolicy, ValidatingPolicy | A namespace that a tenant creates without the `field.cattle.io/projectId` annotation is assigned to the Rancher project of the tenant. A requester with more than one project gets a deny that lists the values to choose from, with the display name of each project that has a namespace. |
 | `drover.namespace-quotas.<revision>` | GeneratingPolicy | Generates a ResourceQuota `counts.<revision>` and a LimitRange `default.<revision>` in every namespace of a Rancher project, except the System and the Default project. |
 | `drover.namespace-metadata` | ValidatingPolicy | Denies an update of a namespace that sets, changes, or removes a key that the drover project sync recorded on that namespace, or one of the two records `drover-managed-labels` and `drover-managed-annotations`. Exempt is a requester that may patch every namespace, for example the Rancher user of the sync, a cluster owner, or an admin. |
+| `drover.namespace-orphan` | ValidatingPolicy | Denies an update of a namespace that removes or empties the annotation `field.cattle.io/projectId`. Exempt is a requester that may manage the namespaces of every Rancher project, and every ServiceAccount of the Rancher namespace. |
 | `drover.route-hostname` | ValidatingPolicy | A Gateway-parented HTTPRoute, GRPCRoute, or TLSRoute in a project namespace requires at least one hostname. The policy denies a wildcard hostname, and a hostname that a route or an external-dns Service outside the project already uses. |
 | `drover.listenerset-hostname` | ValidatingPolicy | A ListenerSet in a project namespace requires that a hostname is configured on every listener, and no hostname of a ListenerSet outside the project. |
 | `drover.prometheus-monitors`, `drover.prometheus-monitors-existing` | MutatingPolicy | Restricts a PodMonitor or a ServiceMonitor in a namespace of a user project to its own namespace. The second policy applies the restriction again when the project of a namespace changes. |
@@ -65,6 +66,7 @@ policy goes with its objects, and the new policy generates them again.
 |---|---|---|
 | `platform` | `generic` | The platform that the cluster runs on: `generic`, `aws`, or `azure`. It selects the cloud-specific policies. This policy set has none yet. |
 | `kyverno.namespace` | `kyverno` | The namespace of the Kyverno controllers. Their ServiceAccounts may write generated objects. |
+| `rancher.namespace` | `cattle-system` | The namespace of the Rancher Deployment. The namespace-orphan policy skips the writes of its ServiceAccounts. |
 | `externalDns.annotationPrefix` | `external-dns.alpha.kubernetes.io/` | The annotation prefix that the route-hostname policy reads on Services. |
 | `tenantRoles.view` | `{}` | The kinds of the `view` role, as a map from API group to resource plurals. See Tenant roles. |
 | `tenantRoles.edit` | `{}` | The kinds of the `edit` role, as a map from API group to resource plurals. See Tenant roles. |

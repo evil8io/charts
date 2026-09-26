@@ -217,6 +217,15 @@
         },
         "resources": {
           "type": "object"
+        },
+        "serviceAccounts": {
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "type": "object"
         }
       },
       "type": "object"
