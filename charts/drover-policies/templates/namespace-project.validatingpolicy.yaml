@@ -64,7 +64,9 @@ spec:
           has(b.subjects) && b.subjects != null &&
           b.subjects.exists(s,
             (s.kind == "User" && s.name == request.userInfo.username) ||
-            (s.kind == "Group" && s.name in request.userInfo.groups)
+            (s.kind == "Group" && s.name in request.userInfo.groups) ||
+            (s.kind == "ServiceAccount" && has(s.namespace) &&
+              request.userInfo.username == "system:serviceaccount:" + s.namespace + ":" + s.name)
           )
         ).map(b, b.roleRef.name.substring(0, b.roleRef.name.size() - "-namespaces-edit".size())).distinct()
     - name: unrestricted
