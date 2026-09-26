@@ -1,0 +1,104 @@
+---
+suite: project policy
+
+templates:
+  - templates/project-policy.validatingpolicy.yaml
+  - templates/kyverno-rbac.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: renders no policy by default
+    template: templates/project-policy.validatingpolicy.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: requires the listed keys on a created or updated Rancher project
+    values:
+      - ../ci/all-components-values.yaml
+    template: templates/project-policy.validatingpolicy.yaml
+    asserts:
+      - isKind:
+          of: ValidatingPolicy
+      - isAPIVersion:
+          of: policies.kyverno.io/v1
+      - equal:
+          path: metadata.name
+          value: drover-projects
+      - equal:
+          path: spec.failurePolicy
+          value: Fail
+      - equal:
+          path: spec.evaluation.background.enabled
+          value: false
+      - equal:
+          path: spec.matchConstraints.resourceRules
+          value:
+            - apiGroups:
+                - management.cattle.io
+              apiVersions:
+                - v3
+              operations:
+                - CREATE
+                - UPDATE
+              resources:
+                - projects
+  - it: skips the Rancher ServiceAccounts and the updates that change no required key
+    values:
+      - ../ci/all-components-values.yaml
+    set:
+      rancher.namespace: rancher-system
+    template: templates/project-policy.validatingpolicy.yaml
+    asserts:
+      - lengthEqual:
+          path: spec.matchConditions
+          count: 2
+      - equal:
+          path: spec.matchConditions[0]
+          value:
+            name: not-rancher-serviceaccount
+            expression: '!request.userInfo.username.startsWith("system:serviceaccount:rancher-system:")'
+      - equal:
+          path: spec.matchConditions[1].name
+          value: create-or-required-key-changed
+      - matchRegex:
+          path: spec.matchConditions[1].expression
+          pattern: '\["evil8\.io/cost-center"\]\.exists\(k, .*object\.metadata\.labels'
+      - matchRegex:
+          path: spec.matchConditions[1].expression
+          pattern: '\["evil8\.io/owner"\]\.exists\(k, .*object\.metadata\.annotations'
+  - it: fails the render when a required label is not synced
+    values:
+      - ../ci/all-components-values.yaml
+    set:
+      projectPolicy.requiredLabels:
+        - evil8.io/team
+    template: templates/project-policy.validatingpolicy.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: projectPolicy.requiredLabels must be a subset of projectSync.labelKeys, because a key that the sync does not copy reaches no namespace
+  - it: sets the failure policy from the values
+    values:
+      - ../ci/all-components-values.yaml
+    set:
+      projectPolicy.failurePolicy: Ignore
+    template: templates/project-policy.validatingpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.failurePolicy
+          value: Ignore
+  - it: grants the kyverno admission and reports controllers a read on the projects
+    template: templates/kyverno-rbac.yaml
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: metadata.name
+          value: drover-kyverno-read
+      - contains:
+          path: rules[1].resources
+          content: projects

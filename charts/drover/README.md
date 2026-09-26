@@ -69,6 +69,15 @@ A `rancherBackendRef` in another namespace needs a `ReferenceGrant` in that name
 The chart does not create it, because it owns its own namespace only. Without the
 grant, the gateway answers `500`.
 
+## Project policy
+
+A Kyverno `ValidatingPolicy` denies a new project without a key of
+`projectPolicy.requiredLabels` or `projectPolicy.requiredAnnotations`, and it skips the
+writes of the ServiceAccounts in `rancher.namespace`. It denies an update only when the
+update removes or empties a key, so the System and the Default project stay editable.
+`projectPolicy.failurePolicy` is `Fail`, so a project write is denied when Kyverno does not
+answer; `Ignore` lets it through.
+
 ## Values
 
 See [values.yaml](values.yaml). A comment describes each key whose name does not explain

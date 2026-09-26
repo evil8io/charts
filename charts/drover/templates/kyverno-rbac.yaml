@@ -48,6 +48,7 @@ rules:
       - management.cattle.io
     resources:
       - clusters
+      - projects
     verbs:
       - get
       - list

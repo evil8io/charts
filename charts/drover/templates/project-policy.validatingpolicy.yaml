@@ -1,0 +1,92 @@
+{{- $labels := .Values.projectPolicy.requiredLabels }}
+{{- $annotations := .Values.projectPolicy.requiredAnnotations }}
+{{- if or $labels $annotations }}
+{{- range $labels }}
+{{- if not (has . $.Values.projectSync.labelKeys) }}
+{{- fail "projectPolicy.requiredLabels must be a subset of projectSync.labelKeys, because a key that the sync does not copy reaches no namespace" }}
+{{- end }}
+{{- end }}
+{{- range $annotations }}
+{{- if not (has . $.Values.projectSync.annotationKeys) }}
+{{- fail "projectPolicy.requiredAnnotations must be a subset of projectSync.annotationKeys, because a key that the sync does not copy reaches no namespace" }}
+{{- end }}
+{{- end }}
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: {{ include "drover.fullname" . }}-projects
+  labels:
+    {{- include "drover.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Project Metadata Required
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Project
+    policies.kyverno.io/description: >-
+      Denies a Rancher Project that is created without a required label or
+      annotation, and an update that removes or empties one. Skips the writes of
+      the ServiceAccounts in the Rancher namespace.
+spec:
+  failurePolicy: {{ .Values.projectPolicy.failurePolicy }}
+  evaluation:
+    background:
+      enabled: false
+  validationActions:
+    - Deny
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - management.cattle.io
+        apiVersions:
+          - v3
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - projects
+  matchConditions:
+    - name: not-rancher-serviceaccount
+      expression: '!request.userInfo.username.startsWith({{ printf "system:serviceaccount:%s:" .Values.rancher.namespace | quote }})'
+    - name: create-or-required-key-changed
+      expression: >-
+        request.operation == 'CREATE'
+        {{- with $labels }} ||
+        {{ include "drover.celLiteral" . }}.exists(k,
+        (has(object.metadata.labels) && k in object.metadata.labels ? object.metadata.labels[k] : "") !=
+        (has(oldObject.metadata.labels) && k in oldObject.metadata.labels ? oldObject.metadata.labels[k] : ""))
+        {{- end }}
+        {{- with $annotations }} ||
+        {{ include "drover.celLiteral" . }}.exists(k,
+        (has(object.metadata.annotations) && k in object.metadata.annotations ? object.metadata.annotations[k] : "") !=
+        (has(oldObject.metadata.annotations) && k in oldObject.metadata.annotations ? oldObject.metadata.annotations[k] : ""))
+        {{- end }}
+  variables:
+    - name: labels
+      expression: 'has(object.metadata.labels) ? object.metadata.labels : {}'
+    - name: annotations
+      expression: 'has(object.metadata.annotations) ? object.metadata.annotations : {}'
+    - name: oldLabels
+      expression: 'request.operation == "UPDATE" && has(oldObject.metadata.labels) ? oldObject.metadata.labels : {}'
+    - name: oldAnnotations
+      expression: 'request.operation == "UPDATE" && has(oldObject.metadata.annotations) ? oldObject.metadata.annotations : {}'
+    - name: missingLabels
+      expression: {{ if $labels }}'{{ include "drover.celLiteral" $labels }}.filter(k, !(k in variables.labels) || variables.labels[k] == "")'{{ else }}'[]'{{ end }}
+    - name: missingAnnotations
+      expression: {{ if $annotations }}'{{ include "drover.celLiteral" $annotations }}.filter(k, !(k in variables.annotations) || variables.annotations[k] == "")'{{ else }}'[]'{{ end }}
+    - name: removedLabels
+      expression: 'variables.missingLabels.filter(k, k in variables.oldLabels && variables.oldLabels[k] != "")'
+    - name: removedAnnotations
+      expression: 'variables.missingAnnotations.filter(k, k in variables.oldAnnotations && variables.oldAnnotations[k] != "")'
+    - name: deniedLabels
+      expression: 'request.operation == "CREATE" ? variables.missingLabels : variables.removedLabels'
+    - name: deniedAnnotations
+      expression: 'request.operation == "CREATE" ? variables.missingAnnotations : variables.removedAnnotations'
+  validations:
+    - expression: variables.deniedLabels.size() == 0 && variables.deniedAnnotations.size() == 0
+      messageExpression: >-
+        'A Rancher project must have ' +
+        (variables.deniedLabels.size() > 0 ? 'the labels ' + variables.deniedLabels.join(', ') : '') +
+        (variables.deniedLabels.size() > 0 && variables.deniedAnnotations.size() > 0 ? ' and ' : '') +
+        (variables.deniedAnnotations.size() > 0 ? 'the annotations ' + variables.deniedAnnotations.join(', ') : '') +
+        '. Set them on the project.'
+{{- end }}

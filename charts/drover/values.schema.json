@@ -155,6 +155,33 @@
       },
       "type": "object"
     },
+    "projectPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "failurePolicy": {
+          "enum": [
+            "Fail",
+            "Ignore"
+          ],
+          "type": "string"
+        },
+        "requiredAnnotations": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "requiredLabels": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "projectSync": {
       "additionalProperties": false,
       "properties": {
@@ -199,6 +226,10 @@
       "properties": {
         "insecureSkipVerify": {
           "type": "boolean"
+        },
+        "namespace": {
+          "minLength": 1,
+          "type": "string"
         },
         "url": {
           "minLength": 1,

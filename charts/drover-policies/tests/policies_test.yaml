@@ -5,6 +5,7 @@ templates:
   - templates/namespace-project.mutatingpolicy.yaml
   - templates/namespace-project.validatingpolicy.yaml
   - templates/namespace-quotas.generatingpolicy.yaml
+  - templates/namespace-metadata.validatingpolicy.yaml
   - templates/route-hostname.validatingpolicy.yaml
   - templates/listenerset-hostname.validatingpolicy.yaml
   - templates/prometheus-monitors.mutatingpolicy.yaml
@@ -31,6 +32,10 @@ tests:
         equal:
           path: metadata.name
           value: drover.namespace-quotas.1
+      - template: templates/namespace-metadata.validatingpolicy.yaml
+        equal:
+          path: metadata.name
+          value: drover.namespace-metadata
       - template: templates/route-hostname.validatingpolicy.yaml
         equal:
           path: metadata.name
@@ -111,11 +116,31 @@ tests:
       - matchRegex:
           path: spec.variables[7].expression
           pattern: '"example.com/name" in ns.metadata.annotations'
+  - it: protects the keys that the two ownership records list, on update only
+    template: templates/namespace-metadata.validatingpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.matchConstraints.resourceRules[0].operations
+          value:
+            - UPDATE
+      - matchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: '"drover-managed-labels"'
+      - matchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: '"drover-managed-annotations"'
+      - matchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: '\.split\(","\)'
   - it: renders nothing for a disabled policy
     set:
       policies.route-hostname.enabled: false
       policies.prometheus-monitors.enabled: false
+      policies.namespace-metadata.enabled: false
     asserts:
+      - template: templates/namespace-metadata.validatingpolicy.yaml
+        hasDocuments:
+          count: 0
       - template: templates/route-hostname.validatingpolicy.yaml
         hasDocuments:
           count: 0

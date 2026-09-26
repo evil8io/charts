@@ -15,6 +15,8 @@ rancher:
   url: ""
   # Skips the certificate verification of the url. For a Service inside the cluster whose certificate the deployment does not copy.
   insecureSkipVerify: false
+  # The namespace of the Rancher Deployment. The project policy skips the writes of the ServiceAccounts in it.
+  namespace: cattle-system
 
 serviceUser:
   # The external-secrets Password generator writes the password into the credentials Secret.
@@ -99,6 +101,15 @@ projectSync:
       memory: 64Mi
     limits:
       memory: 64Mi
+
+# A ValidatingPolicy on the Rancher projects. It renders when a key is listed.
+projectPolicy:
+  # Label keys that every project must have. Each key must be in projectSync.labelKeys.
+  requiredLabels: []
+  # Annotation keys that every project must have. Each key must be in projectSync.annotationKeys.
+  requiredAnnotations: []
+  # Fail denies a project write when Kyverno does not answer. Ignore lets it through.
+  failurePolicy: Fail
 
 httpRoute:
   # For example [{name: rancher, namespace: gateway}].

@@ -185,7 +185,7 @@ tests:
                 - get
                 - list
                 - watch
-  - it: grants the kyverno admission and reports controllers a read on the routes and the clusters
+  - it: grants the kyverno admission and reports controllers a read on the routes, the clusters, and the projects
     values:
       - ../ci/all-components-values.yaml
     template: templates/kyverno-rbac.yaml
@@ -212,3 +212,4 @@ tests:
           path: rules[1].resources
           value:
             - clusters
+            - projects

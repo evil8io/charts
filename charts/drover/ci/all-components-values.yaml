@@ -20,6 +20,12 @@ projectSync:
   nameLabel: evil8.io/project-name
   nameAnnotation: evil8.io/project-display-name
 
+projectPolicy:
+  requiredLabels:
+    - evil8.io/cost-center
+  requiredAnnotations:
+    - evil8.io/owner
+
 httpRoute:
   parentRefs:
     - name: rancher

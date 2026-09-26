@@ -95,6 +95,9 @@
         "listenerset-hostname": {
           "$ref": "#/definitions/policy"
         },
+        "namespace-metadata": {
+          "$ref": "#/definitions/policy"
+        },
         "namespace-project": {
           "additionalProperties": false,
           "properties": {
@@ -145,6 +148,7 @@
       "required": [
         "generated-integrity",
         "listenerset-hostname",
+        "namespace-metadata",
         "namespace-project",
         "namespace-quotas",
         "prometheus-monitors",

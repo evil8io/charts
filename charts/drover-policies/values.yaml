@@ -29,6 +29,8 @@ policies:
       count/replicationcontrollers: "0"
       count/services.nodeports: "0"
       count/services.loadbalancers: "0"
+  namespace-metadata:
+    enabled: true
   route-hostname:
     enabled: true
   listenerset-hostname:

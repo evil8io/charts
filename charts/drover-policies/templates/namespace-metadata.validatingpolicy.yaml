@@ -1,0 +1,95 @@
+{{- $policy := index .Values.policies "namespace-metadata" }}
+{{- if $policy.enabled }}
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: drover.namespace-metadata
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Namespace Metadata Ownership
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Namespace
+    policies.kyverno.io/description: >-
+      Denies an update of a Namespace that sets, changes, or removes a key that
+      the drover project sync recorded in the annotations drover-managed-labels
+      or drover-managed-annotations, or one of those two records, when the
+      requester may not patch every namespace of the cluster.
+spec:
+  evaluation:
+    background:
+      enabled: false
+  validationActions:
+    - Deny
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - UPDATE
+        resources:
+          - namespaces
+  matchConditions:
+    - name: recorded-key-touched
+      expression: |-
+        has(oldObject.metadata.annotations) && (
+          ["drover-managed-labels", "drover-managed-annotations"].exists(k,
+            (k in oldObject.metadata.annotations ? oldObject.metadata.annotations[k] : "") !=
+            (has(object.metadata.annotations) && k in object.metadata.annotations ? object.metadata.annotations[k] : "")) ||
+          ("drover-managed-labels" in oldObject.metadata.annotations &&
+            oldObject.metadata.annotations["drover-managed-labels"].split(",").exists(k,
+              (has(oldObject.metadata.labels) && k in oldObject.metadata.labels ? oldObject.metadata.labels[k] : "") !=
+              (has(object.metadata.labels) && k in object.metadata.labels ? object.metadata.labels[k] : ""))) ||
+          ("drover-managed-annotations" in oldObject.metadata.annotations &&
+            oldObject.metadata.annotations["drover-managed-annotations"].split(",").exists(k,
+              (k in oldObject.metadata.annotations ? oldObject.metadata.annotations[k] : "") !=
+              (has(object.metadata.annotations) && k in object.metadata.annotations ? object.metadata.annotations[k] : "")))
+        )
+  variables:
+    - name: labels
+      expression: 'has(object.metadata.labels) ? object.metadata.labels : {}'
+    - name: oldLabels
+      expression: 'has(oldObject.metadata.labels) ? oldObject.metadata.labels : {}'
+    - name: annotations
+      expression: 'has(object.metadata.annotations) ? object.metadata.annotations : {}'
+    - name: oldAnnotations
+      expression: 'has(oldObject.metadata.annotations) ? oldObject.metadata.annotations : {}'
+    - name: recordedLabels
+      expression: |-
+        ("drover-managed-labels" in variables.oldAnnotations ? variables.oldAnnotations["drover-managed-labels"] : "").split(",")
+    - name: recordedAnnotations
+      expression: |-
+        (["drover-managed-labels", "drover-managed-annotations"] + ("drover-managed-annotations" in variables.oldAnnotations ? variables.oldAnnotations["drover-managed-annotations"] : "").split(","))
+    - name: touchedLabels
+      expression: |-
+        variables.recordedLabels.filter(k, (k in variables.labels ? variables.labels[k] : "") != (k in variables.oldLabels ? variables.oldLabels[k] : ""))
+    - name: touchedAnnotations
+      expression: |-
+        variables.recordedAnnotations.filter(k, (k in variables.annotations ? variables.annotations[k] : "") != (k in variables.oldAnnotations ? variables.oldAnnotations[k] : ""))
+    - name: allowed
+      expression: |-
+        resource.Post("authorization.k8s.io/v1", "subjectaccessreviews", "", {
+          "apiVersion": dyn("authorization.k8s.io/v1"),
+          "kind": dyn("SubjectAccessReview"),
+          "spec": dyn({
+            "user": dyn(request.userInfo.username),
+            "groups": dyn(request.userInfo.groups),
+            "extra": has(request.userInfo.extra) ? dyn(request.userInfo.extra) : dyn({}),
+            "resourceAttributes": dyn({
+              "group": "",
+              "resource": "namespaces",
+              "verb": "patch"
+            })
+          })
+        }).status.allowed == true
+  validations:
+    - expression: variables.allowed
+      messageExpression: >-
+        'The drover project sync owns these keys on this namespace: ' +
+        (variables.touchedLabels + variables.touchedAnnotations).join(', ') +
+        '. A synced key takes its value from the Rancher project.'
+{{- end }}
