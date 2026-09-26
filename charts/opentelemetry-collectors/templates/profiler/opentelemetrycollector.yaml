@@ -1,0 +1,32 @@
+{{- if .Values.collectors.profiler.enabled }}
+{{- $v := .Values.collectors.profiler }}
+{{- $name := include "opentelemetry-collectors.collectorName" (dict "root" . "key" "profiler") }}
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "opentelemetry-collectors.collectorLabels" . | nindent 4 }}
+  {{- with $v.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  mode: daemonset
+  serviceAccount: {{ $name }}
+  image: {{ include "opentelemetry-collectors.image" (dict "root" . "image" $v.image) | quote }}
+  args:
+    feature-gates: {{ list .Values.featureGates "service.profilesSupport" | compact | join "," }}
+  hostPID: true
+  {{- include "opentelemetry-collectors.podFields" (dict "root" . "collector" $v) | nindent 2 }}
+  volumes:
+    - name: tracefs
+      hostPath:
+        path: /sys/kernel/tracing
+  volumeMounts:
+    - name: tracefs
+      mountPath: /sys/kernel/tracing
+      readOnly: true
+  config:
+    {{- include "opentelemetry-collectors.mergeConfig" (dict "name" "profiler" "base" (include "opentelemetry-collectors.profiler.config" .) "overrides" $v.configOverrides) | nindent 4 }}
+{{- end }}

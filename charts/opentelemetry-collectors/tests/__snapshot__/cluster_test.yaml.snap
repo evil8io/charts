@@ -1,0 +1,188 @@
+matches the snapshot with aws and fargate enabled:
+  1: |
+    exporters:
+      debug:
+        sampling_initial: 5
+        sampling_thereafter: 200
+        verbosity: detailed
+      otlp_http:
+        endpoint: http://gateway.example.com:4318
+    processors:
+      batch:
+        send_batch_size: 8192
+        timeout: 2s
+      resource/k8s_cluster_name:
+        attributes:
+          - action: insert
+            key: k8s.cluster.name
+            value: test-cluster
+      resource_detection/env:
+        detectors:
+          - eks
+        eks:
+          node_from_env_var: K8S_NODE_NAME
+          resource_attributes:
+            cloud.account.id:
+              enabled: true
+            cloud.region:
+              enabled: true
+            k8s.cluster.name:
+              enabled: true
+        fail_on_missing_metadata: true
+        override: false
+        timeout: 15s
+    receivers:
+      prometheus:
+        config:
+          global:
+            always_scrape_classic_histograms: false
+            scrape_native_histograms: true
+            scrape_protocols:
+              - PrometheusProto
+              - PrometheusText0.0.4
+              - OpenMetricsText0.0.1
+              - OpenMetricsText1.0.0
+          scrape_configs:
+            - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+              honor_labels: true
+              honor_timestamps: true
+              job_name: fargate-kubelet
+              kubernetes_sd_configs:
+                - role: node
+              metric_relabel_configs:
+                - replacement: opentelemetry-collector/kubelet
+                  target_label: job
+                - action: drop
+                  regex: (csi_operations|storage_operation_duration)_seconds_bucket;(0.25|2.5|15|25|120|600)
+                  source_labels:
+                    - __name__
+                    - le
+              metrics_path: /metrics
+              relabel_configs:
+                - action: keep
+                  regex: fargate
+                  source_labels:
+                    - __meta_kubernetes_node_label_eks_amazonaws_com_compute_type
+                - action: replace
+                  regex: (.+):(.+)
+                  replacement: ${1}:10250
+                  source_labels:
+                    - __address__
+                  target_label: __address__
+                - source_labels:
+                    - __meta_kubernetes_node_name
+                  target_label: node
+              scheme: https
+              scrape_interval: 30s
+              tls_config:
+                insecure_skip_verify: true
+            - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+              honor_labels: true
+              honor_timestamps: true
+              job_name: fargate-kubelet-cadvisor
+              kubernetes_sd_configs:
+                - role: node
+              metric_relabel_configs:
+                - replacement: opentelemetry-collector/kubelet
+                  target_label: job
+                - action: drop
+                  regex: container_cpu_(load_average_10s|system_seconds_total|user_seconds_total)
+                  source_labels:
+                    - __name__
+                - action: drop
+                  regex: container_fs_(io_current|reads_merged_total|sector_reads_total|sector_writes_total|writes_merged_total)
+                  source_labels:
+                    - __name__
+                - action: drop
+                  regex: container_memory_(failures_total|mapped_file|swap)
+                  source_labels:
+                    - __name__
+                - action: drop
+                  regex: container_(file_descriptors|tasks_state|threads_max)
+                  source_labels:
+                    - __name__
+                - action: drop
+                  regex: container_spec.*
+                  source_labels:
+                    - __name__
+                - action: drop
+                  regex: .+;
+                  source_labels:
+                    - id
+                    - pod
+              metrics_path: /metrics/cadvisor
+              relabel_configs:
+                - action: keep
+                  regex: fargate
+                  source_labels:
+                    - __meta_kubernetes_node_label_eks_amazonaws_com_compute_type
+                - action: replace
+                  regex: (.+):(.+)
+                  replacement: ${1}:10250
+                  source_labels:
+                    - __address__
+                  target_label: __address__
+                - source_labels:
+                    - __meta_kubernetes_node_name
+                  target_label: node
+              scheme: https
+              scrape_interval: 30s
+              tls_config:
+                insecure_skip_verify: true
+            - bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+              honor_labels: true
+              honor_timestamps: true
+              job_name: kube-apiserver
+              kubernetes_sd_configs:
+                - namespaces:
+                    names:
+                      - default
+                  role: endpoints
+              metric_relabel_configs:
+                - replacement: kube-apiserver
+                  target_label: job
+                - action: drop
+                  regex: etcd_request_duration_seconds_bucket
+                  source_labels:
+                    - __name__
+                - action: drop
+                  regex: apiserver_request_duration_seconds_bucket;(0.15|0.2|0.3|0.35|0.4|0.45|0.6|0.7|0.8|0.9|1.25|1.5|1.75|2|3|3.5|4|4.5|6|7|8|9|15|25|40|50)
+                  source_labels:
+                    - __name__
+                    - le
+              relabel_configs:
+                - action: keep
+                  regex: kubernetes;https
+                  source_labels:
+                    - __meta_kubernetes_service_name
+                    - __meta_kubernetes_endpoint_port_name
+              scheme: https
+              scrape_interval: 30s
+              tls_config:
+                ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+                server_name: kubernetes
+    service:
+      pipelines:
+        metrics:
+          exporters:
+            - otlp_http
+          processors:
+            - resource/k8s_cluster_name
+            - resource_detection/env
+            - batch
+          receivers:
+            - prometheus
+      telemetry:
+        logs:
+          encoding: json
+        metrics:
+          level: detailed
+        resource:
+          service.name: ""
+          service.version: ""
+        traces:
+          sampler:
+            parent_based:
+              root:
+                trace_id_ratio_based:
+                  ratio: 0.01

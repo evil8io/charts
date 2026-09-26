@@ -1,0 +1,156 @@
+---
+suite: network policies
+
+templates:
+  - templates/ciliumnetworkpolicy.yaml
+  - templates/networkpolicy.yaml
+
+release:
+  name: opentelemetry-collectors
+  namespace: opentelemetry-collector
+
+set:
+  clusterName: test-cluster
+  exporter.endpoint: http://gateway.example.com:4318
+  fullnameOverride: opentelemetry
+
+tests:
+  - it: renders nothing by default
+    asserts:
+      - template: templates/ciliumnetworkpolicy.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/networkpolicy.yaml
+        hasDocuments:
+          count: 0
+  - it: adds a CiliumNetworkPolicy spec per enabled collector
+    set:
+      ciliumNetworkPolicy.enabled: true
+    asserts:
+      - template: templates/ciliumnetworkpolicy.yaml
+        equal:
+          path: metadata.name
+          value: opentelemetry-collectors
+      - template: templates/ciliumnetworkpolicy.yaml
+        equal:
+          path: specs
+          value:
+            - description: opentelemetry-node-collector
+              endpointSelector:
+                matchLabels:
+                  app.kubernetes.io/name: opentelemetry-node-collector
+              ingress:
+                - fromEntities:
+                    - all
+              egress:
+                - toEntities:
+                    - all
+            - description: opentelemetry-cluster-collector
+              endpointSelector:
+                matchLabels:
+                  app.kubernetes.io/name: opentelemetry-cluster-collector
+              egress:
+                - toEntities:
+                    - all
+            - description: opentelemetry-events-collector
+              endpointSelector:
+                matchLabels:
+                  app.kubernetes.io/name: opentelemetry-events-collector
+              egress:
+                - toEntities:
+                    - all
+  - it: adds the cloudwatch collector spec only when aws.cloudwatch is enabled
+    set:
+      ciliumNetworkPolicy.enabled: true
+      aws.enabled: true
+      aws.cloudwatch.enabled: true
+      aws.cloudwatch.region: eu-west-1
+      aws.cloudwatch.sources.controlPlane.logGroup: /aws/eks/test/cluster
+      aws.cloudwatch.sources.fargate.logGroup: /aws/eks/test/fargate
+    asserts:
+      - template: templates/ciliumnetworkpolicy.yaml
+        contains:
+          path: specs
+          any: true
+          content:
+            description: opentelemetry-cloudwatch-collector
+      - template: templates/ciliumnetworkpolicy.yaml
+        equal:
+          path: specs[3].egress
+          value:
+            - toEntities:
+                - kube-apiserver
+            - toPorts:
+                - ports:
+                    - port: "443"
+                      protocol: TCP
+            - toEndpoints:
+                - matchLabels:
+                    app.kubernetes.io/name: opentelemetry-node-collector
+              toPorts:
+                - ports:
+                    - port: "4317"
+                      protocol: TCP
+  - it: narrows the cloudwatch NetworkPolicy to DNS, the API ports, and the node collector
+    set:
+      networkPolicy.enabled: true
+      aws.enabled: true
+      aws.cloudwatch.enabled: true
+      aws.cloudwatch.region: eu-west-1
+      aws.cloudwatch.sources.controlPlane.logGroup: /aws/eks/test/cluster
+      aws.cloudwatch.sources.fargate.logGroup: /aws/eks/test/fargate
+    asserts:
+      - template: templates/networkpolicy.yaml
+        documentIndex: 0
+        equal:
+          path: spec.podSelector.matchExpressions[0].values
+          value:
+            - opentelemetry-cloudwatch-collector
+      - template: templates/networkpolicy.yaml
+        documentIndex: 1
+        equal:
+          path: metadata.name
+          value: opentelemetry-cloudwatch-collector
+      - template: templates/networkpolicy.yaml
+        documentIndex: 1
+        equal:
+          path: spec.egress[2].to[0].podSelector.matchLabels
+          value:
+            app.kubernetes.io/name: opentelemetry-node-collector
+  - it: creates a default-deny egress-only NetworkPolicy and a node ingress NetworkPolicy
+    set:
+      networkPolicy.enabled: true
+    asserts:
+      - template: templates/networkpolicy.yaml
+        hasDocuments:
+          count: 2
+      - template: templates/networkpolicy.yaml
+        documentIndex: 0
+        equal:
+          path: metadata.name
+          value: opentelemetry-collectors
+      - template: templates/networkpolicy.yaml
+        documentIndex: 0
+        equal:
+          path: spec.policyTypes
+          value:
+            - Egress
+      - template: templates/networkpolicy.yaml
+        documentIndex: 1
+        equal:
+          path: metadata.name
+          value: opentelemetry-node-collector
+      - template: templates/networkpolicy.yaml
+        documentIndex: 1
+        equal:
+          path: spec.policyTypes
+          value:
+            - Ingress
+  - it: omits the node ingress NetworkPolicy when the node collector is disabled
+    set:
+      networkPolicy.enabled: true
+      collectors.node.enabled: false
+    asserts:
+      - template: templates/networkpolicy.yaml
+        hasDocuments:
+          count: 1

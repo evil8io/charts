@@ -1,0 +1,184 @@
+---
+suite: cloudwatch collector
+
+templates:
+  - templates/aws/cloudwatch/opentelemetrycollector.yaml
+  - templates/aws/cloudwatch/rbac.yaml
+
+release:
+  name: opentelemetry-collectors
+  namespace: opentelemetry-collector
+
+set:
+  clusterName: test-cluster
+  exporter.endpoint: http://gateway.example.com:4318
+  fullnameOverride: opentelemetry
+
+tests:
+  - it: renders nothing by default
+    asserts:
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/aws/cloudwatch/rbac.yaml
+        hasDocuments:
+          count: 0
+  - it: renders nothing with aws.cloudwatch.enabled alone, because it also needs aws.enabled
+    set:
+      aws.cloudwatch.enabled: true
+    asserts:
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/aws/cloudwatch/rbac.yaml
+        hasDocuments:
+          count: 0
+  - it: fails when aws.cloudwatch.sources.controlPlane.logGroup is empty
+    set:
+      aws.enabled: true
+      aws.cloudwatch.enabled: true
+      aws.cloudwatch.region: eu-west-1
+    asserts:
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        failedTemplate:
+          errorMessage: aws.cloudwatch.sources.controlPlane.logGroup is required
+  - it: names the CR opentelemetry-cloudwatch with both sources configured
+    set:
+      aws.enabled: true
+      aws.cloudwatch.enabled: true
+      aws.cloudwatch.region: eu-west-1
+      aws.cloudwatch.sources.controlPlane.logGroup: /aws/eks/test/cluster
+      aws.cloudwatch.sources.fargate.logGroup: /aws/eks/test/fargate
+    asserts:
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        equal:
+          path: metadata.name
+          value: opentelemetry-cloudwatch
+  - it: receives from awscloudwatch/cluster and awscloudwatch/fargate
+    set:
+      aws.enabled: true
+      aws.cloudwatch.enabled: true
+      aws.cloudwatch.region: eu-west-1
+      aws.cloudwatch.sources.controlPlane.logGroup: /aws/eks/test/cluster
+      aws.cloudwatch.sources.fargate.logGroup: /aws/eks/test/fargate
+    asserts:
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        exists:
+          path: spec.config.receivers["awscloudwatch/cluster"]
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        exists:
+          path: spec.config.receivers["awscloudwatch/fargate"]
+  - it: sends the logs/cluster and logs/fargate pipelines
+    set:
+      aws.enabled: true
+      aws.cloudwatch.enabled: true
+      aws.cloudwatch.region: eu-west-1
+      aws.cloudwatch.sources.controlPlane.logGroup: /aws/eks/test/cluster
+      aws.cloudwatch.sources.fargate.logGroup: /aws/eks/test/fargate
+    asserts:
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        exists:
+          path: spec.config.service.pipelines["logs/cluster"]
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        exists:
+          path: spec.config.service.pipelines["logs/fargate"]
+  - it: omits the cloudfront receiver and pipeline by default
+    set:
+      aws.enabled: true
+      aws.cloudwatch.enabled: true
+      aws.cloudwatch.region: eu-west-1
+      aws.cloudwatch.sources.controlPlane.logGroup: /aws/eks/test/cluster
+      aws.cloudwatch.sources.fargate.logGroup: /aws/eks/test/fargate
+    asserts:
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        notExists:
+          path: spec.config.receivers["awscloudwatch/cloudfront"]
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        notExists:
+          path: spec.config.service.pipelines["logs/cloudfront"]
+  - it: adds the awscloudwatch/cloudfront receiver and pipeline only with the cloudfront source
+    set:
+      aws.enabled: true
+      aws.cloudwatch.enabled: true
+      aws.cloudwatch.region: eu-west-1
+      aws.cloudwatch.sources.controlPlane.logGroup: /aws/eks/test/cluster
+      aws.cloudwatch.sources.fargate.logGroup: /aws/eks/test/fargate
+      aws.cloudwatch.sources.cloudfront.enabled: true
+      aws.cloudwatch.sources.cloudfront.logGroup: /aws/cloudfront/test
+    asserts:
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        exists:
+          path: spec.config.receivers["awscloudwatch/cloudfront"]
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        exists:
+          path: spec.config.service.pipelines["logs/cloudfront"]
+  - it: adds the geoip processor and the init container only with geoip enabled
+    set:
+      aws.enabled: true
+      aws.cloudwatch.enabled: true
+      aws.cloudwatch.region: eu-west-1
+      aws.cloudwatch.sources.controlPlane.logGroup: /aws/eks/test/cluster
+      aws.cloudwatch.sources.fargate.logGroup: /aws/eks/test/fargate
+      aws.cloudwatch.sources.cloudfront.enabled: true
+      aws.cloudwatch.sources.cloudfront.logGroup: /aws/cloudfront/test
+      aws.cloudwatch.sources.cloudfront.geoip.enabled: true
+      aws.cloudwatch.sources.cloudfront.geoip.mirror: https://example.com/geoip
+    asserts:
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        exists:
+          path: spec.config.processors.geoip
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        contains:
+          path: spec.initContainers
+          any: true
+          content:
+            name: download-geoip-db
+  - it: omits the geoip processor and the init container without geoip
+    set:
+      aws.enabled: true
+      aws.cloudwatch.enabled: true
+      aws.cloudwatch.region: eu-west-1
+      aws.cloudwatch.sources.controlPlane.logGroup: /aws/eks/test/cluster
+      aws.cloudwatch.sources.fargate.logGroup: /aws/eks/test/fargate
+      aws.cloudwatch.sources.cloudfront.enabled: true
+      aws.cloudwatch.sources.cloudfront.logGroup: /aws/cloudfront/test
+    asserts:
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        notExists:
+          path: spec.config.processors.geoip
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        notExists:
+          path: spec.initContainers
+  - it: creates a named logGroups entry and a prefix autodiscover entry
+    set:
+      aws.enabled: true
+      aws.cloudwatch.enabled: true
+      aws.cloudwatch.region: eu-west-1
+      aws.cloudwatch.sources.controlPlane.logGroup: /aws/eks/test/cluster
+      aws.cloudwatch.sources.fargate.logGroup: /aws/eks/test/fargate
+      aws.cloudwatch.logGroups:
+        app:
+          name: /aws/app
+        lambda:
+          prefix: /aws/lambda/
+    asserts:
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        equal:
+          path: spec.config.receivers["awscloudwatch/app"].logs.groups.named
+          value:
+            /aws/app: {}
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        equal:
+          path: spec.config.receivers["awscloudwatch/lambda"].logs.groups.autodiscover.prefix
+          value: /aws/lambda/
+  - it: matches the snapshot with both sources enabled
+    set:
+      aws.enabled: true
+      aws.cloudwatch.enabled: true
+      aws.cloudwatch.region: eu-west-1
+      aws.cloudwatch.sources.controlPlane.logGroup: /aws/eks/test/cluster
+      aws.cloudwatch.sources.fargate.logGroup: /aws/eks/test/fargate
+    asserts:
+      - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
+        matchSnapshot:
+          path: spec.config

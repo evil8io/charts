@@ -1,0 +1,13 @@
+OpenTelemetry collectors in the namespace {{ .Release.Namespace }}:
+{{- range $key := list "node" "cluster" "events" "profiler" }}
+{{- if (index $.Values.collectors $key).enabled }}
+  {{ $key }}: {{ include "opentelemetry-collectors.collectorName" (dict "root" $ "key" $key) }}
+{{- end }}
+{{- end }}
+{{- if and .Values.aws.enabled .Values.aws.cloudwatch.enabled }}
+  cloudwatch: {{ include "opentelemetry-collectors.collectorName" (dict "root" . "key" "cloudwatch") }}
+{{- end }}
+{{- if .Values.collectors.node.enabled }}
+
+OTLP endpoint of the node collector: {{ include "opentelemetry-collectors.collectorName" (dict "root" . "key" "node") }}-collector.{{ .Release.Namespace }}.svc.cluster.local.:4317 (gRPC and OTel Arrow), :4318 (HTTP)
+{{- end }}

@@ -1,0 +1,80 @@
+---
+suite: profiler collector
+
+templates:
+  - templates/profiler/opentelemetrycollector.yaml
+
+release:
+  name: opentelemetry-collectors
+  namespace: opentelemetry-collector
+
+set:
+  clusterName: test-cluster
+  exporter.endpoint: http://gateway.example.com:4318
+  fullnameOverride: opentelemetry
+
+tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: runs the profiler as a hostPID daemonset when enabled
+    set:
+      collectors.profiler.enabled: true
+    asserts:
+      - equal:
+          path: metadata.name
+          value: opentelemetry-profiler
+      - equal:
+          path: spec.mode
+          value: daemonset
+      - equal:
+          path: spec.hostPID
+          value: true
+  - it: mounts the tracefs volume
+    set:
+      collectors.profiler.enabled: true
+    asserts:
+      - contains:
+          path: spec.volumes
+          any: true
+          content:
+            name: tracefs
+      - contains:
+          path: spec.volumeMounts
+          any: true
+          content:
+            name: tracefs
+            mountPath: /sys/kernel/tracing
+            readOnly: true
+  - it: sets feature-gates to service.profilesSupport alone by default
+    set:
+      collectors.profiler.enabled: true
+    asserts:
+      - equal:
+          path: spec.args["feature-gates"]
+          value: service.profilesSupport
+  - it: prepends featureGates to feature-gates
+    set:
+      collectors.profiler.enabled: true
+      featureGates: "a,b"
+    asserts:
+      - equal:
+          path: spec.args["feature-gates"]
+          value: a,b,service.profilesSupport
+  - it: receives OTel profiles
+    set:
+      collectors.profiler.enabled: true
+    asserts:
+      - exists:
+          path: spec.config.receivers.profiling
+  - it: associates a profile with its pod by container.id first
+    set:
+      collectors.profiler.enabled: true
+    asserts:
+      - equal:
+          path: spec.config.processors.k8s_attributes.pod_association[0]
+          value:
+            sources:
+              - from: resource_attribute
+                name: container.id

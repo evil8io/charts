@@ -1,0 +1,76 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $fullname := include "opentelemetry-collectors.fullname" . }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "opentelemetry-collectors.clusterRoleName" . }}
+  labels:
+    {{- include "opentelemetry-collectors.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: opentelemetry-collector
+      app.kubernetes.io/managed-by: opentelemetry-operator
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: NotIn
+        values:
+          - {{ $fullname }}-cloudwatch-collector
+  policyTypes:
+    - Egress
+  egress:
+    - {}
+{{- if and .Values.aws.enabled .Values.aws.cloudwatch.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-cloudwatch-collector
+  labels:
+    {{- include "opentelemetry-collectors.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $fullname }}-cloudwatch-collector
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # A NetworkPolicy cannot select the kube-apiserver, so this rule allows the ports to every destination.
+    - ports:
+        - port: 443
+          protocol: TCP
+        - port: 6443
+          protocol: TCP
+    {{- if .Values.collectors.node.enabled }}
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $fullname }}-node-collector
+      ports:
+        - port: 4317
+          protocol: TCP
+    {{- end }}
+{{- end }}
+{{- if .Values.collectors.node.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-node-collector
+  labels:
+    {{- include "opentelemetry-collectors.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $fullname }}-node-collector
+  policyTypes:
+    - Ingress
+  ingress:
+    - {}
+{{- end }}
+{{- end }}

@@ -1,0 +1,237 @@
+matches the snapshot with aws enabled:
+  1: |
+    exporters:
+      debug:
+        sampling_initial: 5
+        sampling_thereafter: 200
+        verbosity: detailed
+      otlp_http:
+        endpoint: http://gateway.example.com:4318
+        sending_queue:
+          storage: file_storage
+    extensions:
+      file_storage:
+        directory: /var/lib/otelcol/file_storage
+    processors:
+      batch:
+        send_batch_size: 8192
+        timeout: 2s
+      groupbyattrs:
+        keys:
+          - k8s.namespace.name
+          - k8s.pod.name
+          - k8s.pod.uid
+          - k8s.node.name
+          - k8s.pod.start_time
+          - k8s.deployment.name
+          - k8s.replicaset.name
+          - k8s.replicaset.uid
+          - k8s.daemonset.name
+          - k8s.daemonset.uid
+          - k8s.job.name
+          - k8s.job.uid
+          - k8s.container.name
+          - k8s.cronjob.name
+          - k8s.statefulset.name
+          - k8s.statefulset.uid
+          - container.image.tag
+          - container.image.name
+          - k8s.cluster.uid
+          - service.namespace
+          - service.name
+          - service.version
+          - service.instance.id
+      k8s_attributes:
+        extract:
+          labels:
+            - from: pod
+              key: app.kubernetes.io/instance
+              tag_name: k8s.app.instance
+            - from: pod
+              key: app.kubernetes.io/component
+              tag_name: k8s.app.component
+          metadata:
+            - k8s.namespace.name
+            - k8s.pod.name
+            - k8s.pod.uid
+            - k8s.node.name
+            - k8s.pod.start_time
+            - k8s.deployment.name
+            - k8s.replicaset.name
+            - k8s.replicaset.uid
+            - k8s.daemonset.name
+            - k8s.daemonset.uid
+            - k8s.job.name
+            - k8s.job.uid
+            - k8s.container.name
+            - k8s.cronjob.name
+            - k8s.statefulset.name
+            - k8s.statefulset.uid
+            - container.image.tag
+            - container.image.name
+            - k8s.cluster.uid
+            - service.namespace
+            - service.name
+            - service.version
+            - service.instance.id
+          otel_annotations: true
+        passthrough: false
+        pod_association:
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.uid
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.name
+              - from: resource_attribute
+                name: k8s.namespace.name
+              - from: resource_attribute
+                name: k8s.node.name
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.ip
+          - sources:
+              - from: resource_attribute
+                name: k8s.pod.name
+              - from: resource_attribute
+                name: k8s.namespace.name
+          - sources:
+              - from: connection
+        wait_for_metadata: true
+        wait_for_metadata_timeout: 10s
+      resource/k8s_cluster_name:
+        attributes:
+          - action: insert
+            key: k8s.cluster.name
+            value: test-cluster
+      resource_detection/env:
+        detectors:
+          - eks
+        eks:
+          node_from_env_var: K8S_NODE_NAME
+          resource_attributes:
+            cloud.account.id:
+              enabled: true
+            cloud.region:
+              enabled: true
+            k8s.cluster.name:
+              enabled: true
+        fail_on_missing_metadata: true
+        override: false
+        timeout: 15s
+      transform/kubernetes_events:
+        error_mode: ignore
+        log_statements:
+          - context: resource
+            statements:
+              - set(resource.attributes["service.name"], "kubernetes-events")
+          - context: log
+            statements:
+              - set(log.cache, log.body)
+              - flatten(log.cache)
+              - delete_key(log.attributes, "event.domain")
+              - delete_key(log.attributes, "event.name")
+              - delete_key(log.attributes, "k8s.resource.name")
+              - set(log.time, Time(log.cache["object.metadata.creationTimestamp"], "%Y-%m-%dT%H:%M:%SZ"))
+              - set(log.time, Time(log.cache["object.deprecatedLastTimestamp"], "%Y-%m-%dT%H:%M:%SZ")) where log.cache["object.deprecatedLastTimestamp"] != nil
+              - set(log.time, Time(log.cache["object.eventTime"], "%Y-%m-%dT%H:%M:%S.%fZ")) where log.cache["object.eventTime"] != nil
+              - set(log.time, Time(log.cache["object.series.lastObservedTime"], "%Y-%m-%dT%H:%M:%S.%fZ")) where log.cache["object.series.lastObservedTime"] != nil
+              - set(log.severity_text, ConvertCase(log.cache["object.type"], "lower"))
+              - set(log.severity_text, "info") where log.cache["object.type"] == "Normal"
+              - set(log.severity_text, "error") where IsMatch(log.cache["object.reason"], "(?i)(error|emerg|fatal)")
+              - set(log.severity_number, SEVERITY_NUMBER_INFO) where log.severity_text == "info"
+              - set(log.severity_number, SEVERITY_NUMBER_WARN) where log.severity_text == "warning"
+              - set(log.severity_number, SEVERITY_NUMBER_ERROR) where log.severity_text == "error"
+              - set(log.attributes["k8s.event.name"], log.cache["object.metadata.name"])
+              - set(log.attributes["k8s.event.uid"], log.cache["object.metadata.uid"])
+              - set(log.attributes["k8s.event.reason"], log.cache["object.reason"])
+              - set(log.attributes["k8s.event.action"], log.cache["object.action"]) where log.cache["object.action"] != nil
+              - set(log.attributes["k8s.event.start_time"], log.cache["object.metadata.creationTimestamp"])
+              - set(log.attributes["k8s.event.count"], log.cache["object.deprecatedCount"]) where log.cache["object.deprecatedCount"] != nil
+              - set(log.attributes["k8s.event.count"], log.cache["object.series.count"]) where log.cache["object.series.count"] != nil
+              - set(log.attributes["k8s.event.regarding.kind"], log.cache["object.regarding.kind"])
+              - set(log.attributes["k8s.event.regarding.name"], log.cache["object.regarding.name"])
+              - set(log.attributes["k8s.event.regarding.namespace"], log.cache["object.regarding.namespace"]) where log.cache["object.regarding.namespace"] != nil
+              - set(log.attributes["k8s.event.regarding.uid"], log.cache["object.regarding.uid"])
+              - set(log.attributes["k8s.event.regarding.field_path"], log.cache["object.regarding.fieldPath"]) where log.cache["object.regarding.fieldPath"] != nil
+              - set(log.attributes["k8s.event.reporting_controller"], log.cache["object.reportingController"]) where log.cache["object.reportingController"] != nil
+              - |-
+                set(
+                  log.attributes[
+                    Concat(
+                      [
+                        "k8s",
+                        ConvertCase(log.cache["object.regarding.kind"], "lower"),
+                        "name"
+                      ],
+                      "."
+                    )
+                  ],
+                  log.cache["object.regarding.name"]
+                ) where (
+                  log.cache["object.regarding.kind"] != nil
+                  and log.cache["object.regarding.name"] != nil
+                )
+              - |-
+                set(
+                  log.attributes[
+                    Concat(
+                      [
+                        "k8s",
+                        ConvertCase(log.cache["object.regarding.kind"], "lower"),
+                        "uid"
+                      ],
+                      "."
+                    )
+                  ],
+                  log.cache["object.regarding.uid"]
+                ) where (
+                  log.cache["object.regarding.kind"] != nil
+                  and log.cache["object.regarding.uid"] != nil
+                )
+              - set(log.attributes["k8s.hpa.name"], log.attributes["k8s.horizontalpodautoscaler.name"]) where log.attributes["k8s.horizontalpodautoscaler.name"] != nil
+              - set(log.attributes["k8s.hpa.uid"], log.attributes["k8s.horizontalpodautoscaler.uid"]) where log.attributes["k8s.horizontalpodautoscaler.uid"] != nil
+              - delete_key(log.attributes, "k8s.horizontalpodautoscaler.name")
+              - delete_key(log.attributes, "k8s.horizontalpodautoscaler.uid")
+              - set(log.body, log.cache["object.note"]) where log.cache["object.note"] != nil
+              - set(log.body, log.cache["object.reason"]) where log.cache["object.note"] == nil
+    receivers:
+      k8s_objects:
+        include_initial_state: true
+        objects:
+          - exclude_watch_type:
+              - DELETED
+            group: events.k8s.io
+            mode: watch
+            name: events
+        storage: file_storage
+    service:
+      extensions:
+        - file_storage
+      pipelines:
+        logs/k8sevents:
+          exporters:
+            - otlp_http
+          processors:
+            - resource/k8s_cluster_name
+            - transform/kubernetes_events
+            - batch
+            - groupbyattrs
+            - k8s_attributes
+            - resource_detection/env
+          receivers:
+            - k8s_objects
+      telemetry:
+        logs:
+          encoding: json
+        metrics:
+          level: detailed
+        resource:
+          service.name: ""
+          service.version: ""
+        traces:
+          sampler:
+            parent_based:
+              root:
+                trace_id_ratio_based:
+                  ratio: 0.01

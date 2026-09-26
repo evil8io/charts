@@ -1,0 +1,45 @@
+{{- if .Values.collectors.events.enabled }}
+{{- $v := .Values.collectors.events }}
+{{- $name := include "opentelemetry-collectors.collectorName" (dict "root" . "key" "events") }}
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "opentelemetry-collectors.collectorLabels" . | nindent 4 }}
+  {{- with $v.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  mode: statefulset
+  replicas: 1
+  serviceAccount: {{ $name }}
+  image: {{ include "opentelemetry-collectors.image" (dict "root" . "image" .Values.image) | quote }}
+  {{- with .Values.featureGates }}
+  args:
+    feature-gates: {{ . }}
+  {{- end }}
+  {{- with $v.podDisruptionBudget }}
+  podDisruptionBudget:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- include "opentelemetry-collectors.podFields" (dict "root" . "collector" $v) | nindent 2 }}
+  volumeMounts:
+    - name: file-storage
+      mountPath: /var/lib/otelcol/file_storage
+  volumeClaimTemplates:
+    - metadata:
+        name: file-storage
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- with $v.storage.className }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $v.storage.size }}
+  config:
+    {{- include "opentelemetry-collectors.mergeConfig" (dict "name" "events" "base" (include "opentelemetry-collectors.events.config" .) "overrides" $v.configOverrides) | nindent 4 }}
+{{- end }}

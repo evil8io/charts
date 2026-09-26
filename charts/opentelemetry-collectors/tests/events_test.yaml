@@ -1,0 +1,71 @@
+---
+suite: events collector
+
+templates:
+  - templates/events/opentelemetrycollector.yaml
+
+release:
+  name: opentelemetry-collectors
+  namespace: opentelemetry-collector
+
+set:
+  clusterName: test-cluster
+  exporter.endpoint: http://gateway.example.com:4318
+  fullnameOverride: opentelemetry
+
+tests:
+  - it: names the CR opentelemetry-events and runs it as a statefulset with 1 replica
+    asserts:
+      - equal:
+          path: metadata.name
+          value: opentelemetry-events
+      - equal:
+          path: spec.mode
+          value: statefulset
+      - equal:
+          path: spec.replicas
+          value: 1
+  - it: sizes the volumeClaimTemplate from collectors.events.storage.size
+    set:
+      collectors.events.storage.size: 5Gi
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+          value: 5Gi
+  - it: omits storageClassName by default
+    asserts:
+      - notExists:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+  - it: sets storageClassName only with collectors.events.storage.className
+    set:
+      collectors.events.storage.className: gp3
+    asserts:
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          value: gp3
+  - it: receives Kubernetes events with the k8s_objects receiver
+    asserts:
+      - exists:
+          path: spec.config.receivers.k8s_objects
+      - equal:
+          path: spec.config.receivers.k8s_objects.objects[0].group
+          value: events.k8s.io
+  - it: sends the logs/k8sevents pipeline from the k8s_objects receiver
+    asserts:
+      - exists:
+          path: spec.config.service.pipelines["logs/k8sevents"]
+      - equal:
+          path: spec.config.service.pipelines["logs/k8sevents"].receivers
+          value:
+            - k8s_objects
+  - it: sets service.name to kubernetes-events
+    asserts:
+      - contains:
+          path: spec.config.processors["transform/kubernetes_events"].log_statements[0].statements
+          content: set(resource.attributes["service.name"], "kubernetes-events")
+  - it: matches the snapshot with aws enabled
+    set:
+      aws.enabled: true
+    asserts:
+      - matchSnapshot:
+          path: spec.config

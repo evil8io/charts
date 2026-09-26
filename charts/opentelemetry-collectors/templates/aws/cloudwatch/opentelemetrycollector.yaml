@@ -1,0 +1,74 @@
+{{- if and .Values.aws.enabled .Values.aws.cloudwatch.enabled }}
+{{- $v := .Values.aws.cloudwatch }}
+{{- $geoip := and $v.sources.cloudfront.enabled $v.sources.cloudfront.geoip.enabled }}
+{{- $name := include "opentelemetry-collectors.collectorName" (dict "root" . "key" "cloudwatch") }}
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "opentelemetry-collectors.collectorLabels" . | nindent 4 }}
+  {{- with $v.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  mode: statefulset
+  replicas: 1
+  serviceAccount: {{ $name }}
+  image: {{ include "opentelemetry-collectors.image" (dict "root" . "image" $v.image) | quote }}
+  {{- with .Values.featureGates }}
+  args:
+    feature-gates: {{ . }}
+  {{- end }}
+  {{- with $v.podDisruptionBudget }}
+  podDisruptionBudget:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- include "opentelemetry-collectors.podFields" (dict "root" . "collector" $v) | nindent 2 }}
+  {{- if $geoip }}
+  initContainers:
+    - name: download-geoip-db
+      image: {{ printf "%s:%s" $v.sources.cloudfront.geoip.image.repository $v.sources.cloudfront.geoip.image.tag | quote }}
+      securityContext:
+        runAsUser: 101
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+      command:
+        - /bin/sh
+        - -xec
+        - |
+          {{- range $v.sources.cloudfront.geoip.databases }}
+          curl --silent --show-error --location --remote-name --output-dir /var/lib/otelcol/geoip {{ printf "%s/%s.mmdb" (required "aws.cloudwatch.sources.cloudfront.geoip.mirror is required" $v.sources.cloudfront.geoip.mirror) . }}
+          {{- end }}
+      volumeMounts:
+        - name: geoip-db
+          mountPath: /var/lib/otelcol/geoip
+  volumes:
+    - name: geoip-db
+      emptyDir: {}
+  {{- end }}
+  volumeMounts:
+    - name: file-storage
+      mountPath: /var/lib/otelcol/file_storage
+    {{- if $geoip }}
+    - name: geoip-db
+      mountPath: /var/lib/otelcol/geoip
+    {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: file-storage
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- with $v.storage.className }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $v.storage.size }}
+  config:
+    {{- include "opentelemetry-collectors.mergeConfig" (dict "name" "cloudwatch" "base" (include "opentelemetry-collectors.cloudwatch.config" .) "overrides" $v.configOverrides) | nindent 4 }}
+{{- end }}

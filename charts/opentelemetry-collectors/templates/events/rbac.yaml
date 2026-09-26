@@ -1,0 +1,28 @@
+{{- if .Values.collectors.events.enabled }}
+{{- $name := include "opentelemetry-collectors.collectorName" (dict "root" . "key" "events") }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "opentelemetry-collectors.labels" . | nindent 4 }}
+  {{- with .Values.aws.roleArn }}
+  annotations:
+    eks.amazonaws.com/role-arn: {{ . }}
+  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ $name }}-collector
+  labels:
+    {{- include "opentelemetry-collectors.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "opentelemetry-collectors.clusterRoleName" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

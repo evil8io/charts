@@ -1,0 +1,50 @@
+{{- if .Values.collectors.cluster.enabled }}
+{{- $v := .Values.collectors.cluster }}
+{{- $name := include "opentelemetry-collectors.collectorName" (dict "root" . "key" "cluster") }}
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "opentelemetry-collectors.collectorLabels" . | nindent 4 }}
+  {{- with $v.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  mode: statefulset
+  replicas: {{ $v.replicas }}
+  serviceAccount: {{ $name }}
+  image: {{ include "opentelemetry-collectors.image" (dict "root" . "image" .Values.image) | quote }}
+  {{- with .Values.featureGates }}
+  args:
+    feature-gates: {{ . }}
+  {{- end }}
+  {{- with $v.podDisruptionBudget }}
+  podDisruptionBudget:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- include "opentelemetry-collectors.podFields" (dict "root" . "collector" $v) | nindent 2 }}
+  {{- if $v.targetAllocator.enabled }}
+  targetAllocator:
+    enabled: true
+    image: {{ include "opentelemetry-collectors.targetAllocatorImage" . }}
+    allocationStrategy: consistent-hashing
+    filterStrategy: relabel-config
+    prometheusCR:
+      enabled: true
+      scrapeInterval: {{ .Values.targetAllocator.scrapeInterval | quote }}
+      allowNamespaces:
+        - {{ .Release.Namespace }}
+        {{- range $v.targetAllocator.allowNamespaces }}
+        - {{ . }}
+        {{- end }}
+      {{- range $selector := list "podMonitorSelector" "serviceMonitorSelector" "probeSelector" "scrapeConfigSelector" }}
+      {{ $selector }}:
+        matchLabels:
+          {{- toYaml $v.targetAllocator.matchLabels | nindent 10 }}
+      {{- end }}
+  {{- end }}
+  config:
+    {{- include "opentelemetry-collectors.mergeConfig" (dict "name" "cluster" "base" (include "opentelemetry-collectors.cluster.config" .) "overrides" $v.configOverrides) | nindent 4 }}
+{{- end }}

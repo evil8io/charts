@@ -1,0 +1,55 @@
+{{- if .Values.ciliumNetworkPolicy.enabled }}
+{{- $fullname := include "opentelemetry-collectors.fullname" . }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "opentelemetry-collectors.clusterRoleName" . }}
+  labels:
+    {{- include "opentelemetry-collectors.labels" . | nindent 4 }}
+specs:
+  {{- if .Values.collectors.node.enabled }}
+  - description: {{ $fullname }}-node-collector
+    endpointSelector:
+      matchLabels:
+        app.kubernetes.io/name: {{ $fullname }}-node-collector
+    ingress:
+      - fromEntities:
+          - all
+    egress:
+      - toEntities:
+          - all
+  {{- end }}
+  {{- range $key := list "cluster" "events" "profiler" }}
+  {{- if (index $.Values.collectors $key).enabled }}
+  - description: {{ $fullname }}-{{ $key }}-collector
+    endpointSelector:
+      matchLabels:
+        app.kubernetes.io/name: {{ $fullname }}-{{ $key }}-collector
+    egress:
+      - toEntities:
+          - all
+  {{- end }}
+  {{- end }}
+  {{- if and .Values.aws.enabled .Values.aws.cloudwatch.enabled }}
+  - description: {{ $fullname }}-cloudwatch-collector
+    endpointSelector:
+      matchLabels:
+        app.kubernetes.io/name: {{ $fullname }}-cloudwatch-collector
+    egress:
+      - toEntities:
+          - kube-apiserver
+      - toPorts:
+          - ports:
+              - port: "443"
+                protocol: TCP
+      {{- if .Values.collectors.node.enabled }}
+      - toEndpoints:
+          - matchLabels:
+              app.kubernetes.io/name: {{ $fullname }}-node-collector
+        toPorts:
+          - ports:
+              - port: "4317"
+                protocol: TCP
+      {{- end }}
+  {{- end }}
+{{- end }}

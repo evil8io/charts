@@ -1,0 +1,276 @@
+---
+suite: node collector
+
+templates:
+  - templates/node/opentelemetrycollector.yaml
+  - templates/node/rbac.yaml
+
+release:
+  name: opentelemetry-collectors
+  namespace: opentelemetry-collector
+
+set:
+  clusterName: test-cluster
+  exporter.endpoint: http://gateway.example.com:4318
+  fullnameOverride: opentelemetry
+
+tests:
+  - it: names the CR opentelemetry-node and runs it as a daemonset
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: metadata.name
+          value: opentelemetry-node
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.mode
+          value: daemonset
+  - it: names the ServiceAccount opentelemetry-node
+    asserts:
+      - template: templates/node/rbac.yaml
+        documentIndex: 0
+        equal:
+          path: metadata.name
+          value: opentelemetry-node
+  - it: annotates the ServiceAccount with the IRSA role when aws.roleArn is set
+    set:
+      aws.roleArn: arn:aws:iam::123456789012:role/otel-node
+    asserts:
+      - template: templates/node/rbac.yaml
+        documentIndex: 0
+        equal:
+          path: metadata.annotations["eks.amazonaws.com/role-arn"]
+          value: arn:aws:iam::123456789012:role/otel-node
+  - it: omits the IRSA annotation by default
+    asserts:
+      - template: templates/node/rbac.yaml
+        documentIndex: 0
+        notExists:
+          path: metadata.annotations
+  - it: adds the target allocator ServiceAccount to the ClusterRoleBinding by default
+    asserts:
+      - template: templates/node/rbac.yaml
+        documentIndex: 1
+        equal:
+          path: subjects[1].name
+          value: opentelemetry-node-targetallocator
+  - it: omits the target allocator ServiceAccount when collectors.node.targetAllocator.enabled is false
+    set:
+      collectors.node.targetAllocator.enabled: false
+    asserts:
+      - template: templates/node/rbac.yaml
+        documentIndex: 1
+        lengthEqual:
+          path: subjects
+          count: 1
+  - it: adds the file_log receiver and the /var/log/pods volume by default
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        exists:
+          path: spec.config.receivers.file_log
+      - template: templates/node/opentelemetrycollector.yaml
+        contains:
+          path: spec.volumes
+          any: true
+          content:
+            name: varlogpods
+  - it: omits the file_log receiver and the /var/log/pods volume when logs are disabled
+    set:
+      collectors.node.logs.enabled: false
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        notExists:
+          path: spec.config.receivers.file_log
+      - template: templates/node/opentelemetrycollector.yaml
+        notContains:
+          path: spec.volumes
+          any: true
+          content:
+            name: varlogpods
+  - it: adds the kubelet and cadvisor scrape jobs by default
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        contains:
+          path: spec.config.receivers.prometheus.config.scrape_configs
+          any: true
+          content:
+            job_name: kubelet
+      - template: templates/node/opentelemetrycollector.yaml
+        contains:
+          path: spec.config.receivers.prometheus.config.scrape_configs
+          any: true
+          content:
+            job_name: kubelet-cadvisor
+  - it: omits the kubelet job when collectors.node.kubelet.enabled is false
+    set:
+      collectors.node.kubelet.enabled: false
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        notContains:
+          path: spec.config.receivers.prometheus.config.scrape_configs
+          any: true
+          content:
+            job_name: kubelet
+      - template: templates/node/opentelemetrycollector.yaml
+        contains:
+          path: spec.config.receivers.prometheus.config.scrape_configs
+          any: true
+          content:
+            job_name: kubelet-cadvisor
+  - it: omits the cadvisor job when collectors.node.cadvisor.enabled is false
+    set:
+      collectors.node.cadvisor.enabled: false
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        contains:
+          path: spec.config.receivers.prometheus.config.scrape_configs
+          any: true
+          content:
+            job_name: kubelet
+      - template: templates/node/opentelemetrycollector.yaml
+        notContains:
+          path: spec.config.receivers.prometheus.config.scrape_configs
+          any: true
+          content:
+            job_name: kubelet-cadvisor
+  - it: omits the fargate drop relabel by default
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        notContains:
+          path: spec.config.receivers.prometheus.config.scrape_configs[0].relabel_configs
+          any: true
+          content:
+            action: drop
+            regex: fargate
+  - it: drops the fargate nodes from the kubelet scrapes only when aws.fargate.enabled is true
+    set:
+      aws.fargate.enabled: true
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        contains:
+          path: spec.config.receivers.prometheus.config.scrape_configs[0].relabel_configs
+          any: true
+          content:
+            action: drop
+            regex: fargate
+  - it: detects env and k8s_api without aws
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.config.processors["resource_detection/env"].detectors
+          value:
+            - env
+            - k8s_api
+  - it: adds the eks detector between env and k8s_api when aws.enabled is true
+    set:
+      aws.enabled: true
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.config.processors["resource_detection/env"].detectors
+          value:
+            - env
+            - eks
+            - k8s_api
+  - it: reports self telemetry to selfTelemetry.endpoint
+    set:
+      selfTelemetry.endpoint: collector.example.com:4317
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.config.service.telemetry.metrics.readers[0].periodic.exporter.otlp.endpoint
+          value: http://localhost:4317
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.config.service.telemetry.traces.processors[0].batch.exporter.otlp.endpoint
+          value: http://localhost:4317
+  - it: sends no telemetry readers when selfTelemetry.endpoint is empty
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        notExists:
+          path: spec.config.service.telemetry.metrics.readers
+      - template: templates/node/opentelemetrycollector.yaml
+        notExists:
+          path: spec.config.service.telemetry.traces.processors
+  - it: sets the X-Scope-OrgID header only with exporter.tenant
+    set:
+      exporter.tenant: acme
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.config.exporters.otlp_http.headers["X-Scope-OrgID"]
+          value: acme
+  - it: omits the X-Scope-OrgID header by default
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        notExists:
+          path: spec.config.exporters.otlp_http.headers
+  - it: adds the basicauth extension only with exporter.basicAuth.username
+    set:
+      exporter.basicAuth.username: user1
+      exporter.basicAuth.password: pass1
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.config.extensions.basicauth.client_auth.username
+          value: user1
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.config.exporters.otlp_http.auth.authenticator
+          value: basicauth
+      - template: templates/node/opentelemetrycollector.yaml
+        contains:
+          path: spec.config.service.extensions
+          content: basicauth
+  - it: omits the basicauth extension by default
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        notExists:
+          path: spec.config.extensions.basicauth
+      - template: templates/node/opentelemetrycollector.yaml
+        notContains:
+          path: spec.config.service.extensions
+          content: basicauth
+  - it: builds the node target allocator selectors from collectors.cluster.targetAllocator.matchLabels
+    set:
+      collectors.cluster.targetAllocator.matchLabels.target: custom-cluster-collector
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.targetAllocator.prometheusCR.podMonitorSelector.matchExpressions
+          value:
+            - key: target
+              operator: NotIn
+              values:
+                - custom-cluster-collector
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.targetAllocator.prometheusCR.scrapeConfigSelector.matchExpressions
+          value:
+            - key: target
+              operator: NotIn
+              values:
+                - custom-cluster-collector
+  - it: merges configOverrides into spec.config
+    set:
+      collectors.node.configOverrides:
+        exporters:
+          debug:
+            verbosity: normal
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.config.exporters.debug.verbosity
+          value: normal
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.config.exporters.otlp_http.endpoint
+          value: http://gateway.example.com:4318
+  - it: matches the snapshot with aws and fargate enabled
+    set:
+      aws.enabled: true
+      aws.fargate.enabled: true
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        matchSnapshot:
+          path: spec.config

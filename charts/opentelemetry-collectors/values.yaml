@@ -1,0 +1,363 @@
+---
+# -- Name part of the object names. The collectors are named <fullname>-<collector>.
+nameOverride: ""
+fullnameOverride: ""
+
+# -- Name of the cluster, the k8s.cluster.name resource attribute of every signal.
+clusterName: ""
+
+# -- Collector image of the node, cluster, and events collectors. An empty tag selects the chart appVersion.
+image:
+  repository: otel/opentelemetry-collector-k8s
+  tag: ""
+
+# -- Feature gates of every collector, comma-separated.
+featureGates: ""
+
+# -- The OTLP/HTTP exporter of every collector.
+exporter:
+  # -- OTLP/HTTP endpoint, for example an OpenTelemetry gateway.
+  endpoint: ""
+  # -- Value of the X-Scope-OrgID header. An empty value sends no header.
+  tenant: ""
+  insecureSkipVerify: false
+  # -- Basic auth of the endpoint. An empty username sends no auth.
+  basicAuth:
+    username: ""
+    password: ""
+
+selfTelemetry:
+  # -- OTLP gRPC endpoint (host:port) for the spans and metrics of the collectors. The node
+  # collector reports to itself. An empty value disables the export on every collector.
+  endpoint: ""
+  # -- Sample ratio for the root spans of the collectors.
+  tracesSampleRatio: 0.01
+
+# -- Static resource attributes, inserted on every signal of the node, cluster, and events
+# collectors. Use them on a platform without a resource detector.
+resourceAttributes: {}
+
+# -- The target allocator of the node and cluster collectors.
+targetAllocator:
+  image:
+    repository: ghcr.io/open-telemetry/opentelemetry-operator/target-allocator
+    tag: "v0.159.0"
+  scrapeInterval: 30s
+
+# -- Platform settings for AWS.
+aws:
+  # -- Adds the eks resource detector to the node, cluster, and events collectors.
+  enabled: false
+  # -- IAM role for the ServiceAccounts of the node, cluster, and events collectors (IRSA).
+  # The eks detector calls ec2:DescribeInstances.
+  roleArn: ""
+  fargate:
+    # -- Keeps the collectors off the Fargate nodes, and moves the kubelet scrapes of the
+    # Fargate nodes to the cluster collector.
+    enabled: false
+    # -- The node label of the Fargate nodes.
+    nodeSelector:
+      eks.amazonaws.com/compute-type: fargate
+  # -- The cloudwatch collector, a StatefulSet with one replica that reads CloudWatch log groups.
+  cloudwatch:
+    enabled: false
+    image:
+      repository: otel/opentelemetry-collector-contrib
+      tag: ""
+    # -- IAM role for the ServiceAccount of the cloudwatch collector (IRSA). The receiver calls
+    # logs:FilterLogEvents, and logs:DescribeLogGroups for an autodiscover entry of logGroups.
+    roleArn: ""
+    region: ""
+    pollInterval: 10s
+    annotations:
+      vpa.autopilot.kubernetes.io/min-memory: otc-container=250Mi
+    resources:
+      limits:
+        memory: 250Mi
+      requests:
+        cpu: 100m
+        memory: 250Mi
+    podDisruptionBudget:
+      maxUnavailable: 1
+    podSecurityContext:
+      runAsUser: 10001
+      fsGroup: 10001
+    securityContext: {}
+    priorityClassName: ""
+    nodeSelector: {}
+    tolerations: []
+    # -- The PersistentVolumeClaim for the receiver checkpoints and the exporter queue.
+    storage:
+      size: 1Gi
+      className: ""
+    fileStorage:
+      # -- Cap of each bbolt file in bytes. Keep it at a quarter of the storage size, because
+      # the compaction writes a second copy of the file.
+      maxSize: 268435456
+    sources:
+      # -- The control plane log group of an EKS cluster, /aws/eks/<cluster>/cluster.
+      controlPlane:
+        enabled: true
+        logGroup: ""
+      # -- The Fargate pod log group, /aws/eks/<cluster>/fargate.
+      fargate:
+        enabled: true
+        logGroup: ""
+      # -- A CloudFront standard log group. CloudFront logs go to us-east-1.
+      cloudfront:
+        enabled: false
+        logGroup: ""
+        region: us-east-1
+        geoip:
+          # -- Adds the client geolocation from a GeoLite2-City database that an init container downloads.
+          enabled: false
+          # -- URL prefix of the <database>.mmdb files.
+          mirror: ""
+          databases:
+            - GeoLite2-ASN
+            - GeoLite2-City
+            - GeoLite2-Country
+          image:
+            repository: curlimages/curl
+            tag: "8.22.0"
+    # -- Other log groups, one receiver and one pipeline per key. An entry has either a name,
+    # or a prefix or a pattern with a limit. The pattern is a case-sensitive substring.
+    # streams.names and streams.prefixes filter the log streams.
+    # logGroups:
+    #   app:
+    #     name: /aws/app
+    #     streams:
+    #       prefixes:
+    #         - web-
+    #   lambda:
+    #     prefix: /aws/lambda/
+    #     limit: 20
+    logGroups: {}
+    # -- Deep-merged on top of the cloudwatch collector config.
+    configOverrides: {}
+
+# -- Platform settings for Azure. Reserved.
+azure: {}
+
+collectors:
+  # -- The node collector, a DaemonSet. It receives OTLP from the pods of its node, reads the
+  # container logs, and scrapes the kubelet and the pods of its node.
+  node:
+    enabled: true
+    annotations:
+      vpa.autopilot.kubernetes.io/min-memory: otc-container=100Mi
+    resources:
+      requests:
+        cpu: 50m
+        memory: 100Mi
+    podSecurityContext: {}
+    securityContext:
+      readOnlyRootFilesystem: true
+      runAsUser: 0
+      runAsGroup: 0
+    priorityClassName: system-node-critical
+    nodeSelector:
+      kubernetes.io/os: linux
+    tolerations:
+      - operator: Exists
+    # -- The container logs of the node, from /var/log/pods.
+    logs:
+      enabled: true
+    # -- The kubelet metrics of the node.
+    kubelet:
+      enabled: true
+    # -- The cAdvisor metrics of the node.
+    cadvisor:
+      enabled: true
+    fileStorage:
+      # -- Cap of each bbolt file in bytes, on the node root volume.
+      maxSize: 1073741824
+    # -- The per-node target allocator. It scrapes every ServiceMonitor, PodMonitor, Probe, and
+    # ScrapeConfig without the labels of collectors.cluster.targetAllocator.matchLabels.
+    targetAllocator:
+      enabled: true
+    # -- Deep-merged on top of the node collector config.
+    configOverrides: {}
+
+  # -- The cluster collector, a StatefulSet. It scrapes the cluster-wide targets.
+  cluster:
+    enabled: true
+    replicas: 3
+    annotations:
+      vpa.autopilot.kubernetes.io/min-memory: otc-container=100Mi
+    resources:
+      limits:
+        memory: 500Mi
+      requests:
+        cpu: 50m
+        memory: 500Mi
+    podDisruptionBudget:
+      minAvailable: 1
+    podSecurityContext: {}
+    securityContext:
+      readOnlyRootFilesystem: true
+    priorityClassName: system-node-critical
+    nodeSelector:
+      kubernetes.io/os: linux
+    tolerations: []
+    scrapes:
+      # -- A static scrape job of the kube-apiserver, through the kubernetes Service in the default namespace.
+      apiserver:
+        enabled: true
+    # -- The target allocator with consistent hashing over the replicas.
+    targetAllocator:
+      enabled: true
+      # -- Namespaces of the ServiceMonitor, PodMonitor, Probe, and ScrapeConfig objects, next
+      # to the release namespace.
+      allowNamespaces: []
+      # -- Labels of the objects that the cluster collector scrapes.
+      matchLabels:
+        target: opentelemetry-cluster-collector
+    # -- Deep-merged on top of the cluster collector config.
+    configOverrides: {}
+
+  # -- The events collector, a StatefulSet with one replica. It watches the Kubernetes events
+  # and sends them as logs with the service name kubernetes-events.
+  events:
+    enabled: true
+    annotations:
+      vpa.autopilot.kubernetes.io/min-memory: otc-container=100Mi
+    resources:
+      limits:
+        memory: 500Mi
+      requests:
+        cpu: 50m
+        memory: 500Mi
+    podDisruptionBudget:
+      maxUnavailable: 1
+    podSecurityContext:
+      runAsUser: 10001
+      fsGroup: 10001
+    securityContext:
+      readOnlyRootFilesystem: true
+    priorityClassName: system-node-critical
+    nodeSelector:
+      kubernetes.io/os: linux
+    tolerations: []
+    # -- The PersistentVolumeClaim for the watch checkpoint and the exporter queue.
+    storage:
+      size: 1Gi
+      className: ""
+    # -- Deep-merged on top of the events collector config.
+    configOverrides: {}
+
+  # -- The profiler collector, a DaemonSet with the eBPF profiler distribution. It sends
+  # profiles to exporter.endpoint.
+  profiler:
+    enabled: false
+    image:
+      repository: otel/opentelemetry-collector-ebpf-profiler
+      tag: ""
+    resources:
+      requests:
+        cpu: 50m
+        memory: 250Mi
+    podSecurityContext: {}
+    # -- The profiler needs the capabilities and the unconfined profiles to attach its eBPF programs.
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
+      privileged: false
+      allowPrivilegeEscalation: false
+      seccompProfile:
+        type: Unconfined
+      appArmorProfile:
+        type: Unconfined
+      seLinuxOptions:
+        type: spc_t
+      capabilities:
+        drop:
+          - ALL
+        add:
+          - BPF
+          - PERFMON
+          - SYS_PTRACE
+          - SYS_RESOURCE
+          - DAC_READ_SEARCH
+          - SYSLOG
+          - CHECKPOINT_RESTORE
+          - IPC_LOCK
+    priorityClassName: system-node-critical
+    nodeSelector:
+      kubernetes.io/os: linux
+    tolerations:
+      - operator: Exists
+    # -- Deep-merged on top of the profiler collector config.
+    configOverrides: {}
+
+# -- The kube-state-metrics subchart. Its values are under the key kube-state-metrics.
+kubeStateMetrics:
+  enabled: false
+
+# -- The prometheus-node-exporter subchart. Its values are under the key prometheus-node-exporter.
+nodeExporter:
+  enabled: false
+
+# -- CiliumNetworkPolicy for the collectors.
+ciliumNetworkPolicy:
+  enabled: false
+
+# -- NetworkPolicy objects for a cluster without Cilium.
+networkPolicy:
+  enabled: false
+
+kube-state-metrics:
+  fullnameOverride: kube-state-metrics
+  releaseLabel: true
+  prometheusScrape: false
+  annotations:
+    vpa.autopilot.kubernetes.io/min-memory: 100Mi
+  metricLabelsAllowlist:
+    - nodes=[node.evil8.io/role,node.kubernetes.io/instance-type,topology.kubernetes.io/zone,topology.kubernetes.io/region,kubernetes.io/arch,kubernetes.io/os]
+    - namespaces=[*]
+  prometheus:
+    monitor:
+      enabled: true
+      additionalLabels:
+        target: opentelemetry-cluster-collector
+      http:
+        honorLabels: true
+      metrics:
+        honorLabels: true
+  selfMonitor:
+    enabled: false
+
+prometheus-node-exporter:
+  fullnameOverride: node-exporter
+  releaseLabel: true
+  podLabels:
+    jobLabel: node-exporter
+  image:
+    distroless: true
+  extraArgs:
+    - --collector.ethtool
+    - --collector.ethtool.device-include=^(ens|eth).*$
+    - --collector.ethtool.metrics-include=^.*_exceeded$
+    - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+    - --collector.filesystem.fs-types-exclude=^(tmpfs|autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs)$
+  priorityClassName: system-node-critical
+  resources:
+    limits:
+      memory: 50Mi
+    requests:
+      cpu: 50m
+      memory: 50Mi
+  tolerations:
+    - operator: Exists
+  nodeSelector:
+    kubernetes.io/os: linux
+  service:
+    portName: http-metrics
+    labels:
+      jobLabel: node-exporter
+  prometheus:
+    monitor:
+      enabled: true
+      jobLabel: jobLabel
+  rbac:
+    pspEnabled: false

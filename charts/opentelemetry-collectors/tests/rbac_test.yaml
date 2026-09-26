@@ -1,0 +1,60 @@
+---
+suite: cluster role
+
+templates:
+  - templates/clusterrole.yaml
+
+release:
+  name: opentelemetry-collectors
+  namespace: opentelemetry-collector
+
+set:
+  clusterName: test-cluster
+  exporter.endpoint: http://gateway.example.com:4318
+  fullnameOverride: opentelemetry
+
+tests:
+  - it: names the ClusterRole opentelemetry-collectors
+    asserts:
+      - equal:
+          path: metadata.name
+          value: opentelemetry-collectors
+  - it: grants list and watch on events.k8s.io events
+    asserts:
+      - contains:
+          path: rules
+          any: true
+          content:
+            apiGroups:
+              - events.k8s.io
+            resources:
+              - events
+            verbs:
+              - list
+              - watch
+  - it: never grants access to secrets
+    asserts:
+      - notContains:
+          path: rules[0].resources
+          content: secrets
+      - notContains:
+          path: rules[1].resources
+          content: secrets
+      - notContains:
+          path: rules[2].resources
+          content: secrets
+      - notContains:
+          path: rules[3].resources
+          content: secrets
+      - notContains:
+          path: rules[4].resources
+          content: secrets
+      - notContains:
+          path: rules[5].resources
+          content: secrets
+      - notContains:
+          path: rules[7].resources
+          content: secrets
+      - notContains:
+          path: rules[8].resources
+          content: secrets

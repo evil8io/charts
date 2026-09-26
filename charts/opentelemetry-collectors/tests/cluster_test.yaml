@@ -1,0 +1,142 @@
+---
+suite: cluster collector
+
+templates:
+  - templates/cluster/opentelemetrycollector.yaml
+
+release:
+  name: opentelemetry-collectors
+  namespace: opentelemetry-collector
+
+set:
+  clusterName: test-cluster
+  exporter.endpoint: http://gateway.example.com:4318
+  fullnameOverride: opentelemetry
+
+tests:
+  - it: names the CR opentelemetry-cluster and runs it as a statefulset with 3 replicas
+    asserts:
+      - equal:
+          path: metadata.name
+          value: opentelemetry-cluster
+      - equal:
+          path: spec.mode
+          value: statefulset
+      - equal:
+          path: spec.replicas
+          value: 3
+  - it: sets the replicas from collectors.cluster.replicas
+    set:
+      collectors.cluster.replicas: 5
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 5
+  - it: adds the kube-apiserver scrape job by default
+    asserts:
+      - contains:
+          path: spec.config.receivers.prometheus.config.scrape_configs
+          any: true
+          content:
+            job_name: kube-apiserver
+  - it: omits the kube-apiserver scrape job when collectors.cluster.scrapes.apiserver.enabled is false
+    set:
+      collectors.cluster.scrapes.apiserver.enabled: false
+    asserts:
+      - equal:
+          path: spec.config.receivers.prometheus.config.scrape_configs
+          value: []
+  - it: adds the fargate kubelet jobs only when aws.fargate.enabled is true
+    set:
+      aws.fargate.enabled: true
+    asserts:
+      - contains:
+          path: spec.config.receivers.prometheus.config.scrape_configs
+          any: true
+          content:
+            job_name: fargate-kubelet
+      - contains:
+          path: spec.config.receivers.prometheus.config.scrape_configs
+          any: true
+          content:
+            job_name: fargate-kubelet-cadvisor
+  - it: omits the fargate kubelet jobs by default
+    asserts:
+      - notContains:
+          path: spec.config.receivers.prometheus.config.scrape_configs
+          any: true
+          content:
+            job_name: fargate-kubelet
+      - notContains:
+          path: spec.config.receivers.prometheus.config.scrape_configs
+          any: true
+          content:
+            job_name: fargate-kubelet-cadvisor
+  - it: restricts allowNamespaces to the release namespace by default
+    asserts:
+      - equal:
+          path: spec.targetAllocator.prometheusCR.allowNamespaces
+          value:
+            - opentelemetry-collector
+  - it: adds collectors.cluster.targetAllocator.allowNamespaces next to the release namespace
+    set:
+      collectors.cluster.targetAllocator.allowNamespaces:
+        - extra-ns
+    asserts:
+      - equal:
+          path: spec.targetAllocator.prometheusCR.allowNamespaces
+          value:
+            - opentelemetry-collector
+            - extra-ns
+  - it: gives every selector the same matchLabels
+    asserts:
+      - equal:
+          path: spec.targetAllocator.prometheusCR.podMonitorSelector.matchLabels
+          value:
+            target: opentelemetry-cluster-collector
+      - equal:
+          path: spec.targetAllocator.prometheusCR.serviceMonitorSelector.matchLabels
+          value:
+            target: opentelemetry-cluster-collector
+      - equal:
+          path: spec.targetAllocator.prometheusCR.probeSelector.matchLabels
+          value:
+            target: opentelemetry-cluster-collector
+      - equal:
+          path: spec.targetAllocator.prometheusCR.scrapeConfigSelector.matchLabels
+          value:
+            target: opentelemetry-cluster-collector
+  - it: omits resource_detection/env without aws
+    asserts:
+      - notExists:
+          path: spec.config.processors["resource_detection/env"]
+  - it: adds resource_detection/env with the eks detector when aws.enabled is true
+    set:
+      aws.enabled: true
+    asserts:
+      - equal:
+          path: spec.config.processors["resource_detection/env"].detectors
+          value:
+            - eks
+  - it: omits resource/global without resourceAttributes
+    asserts:
+      - notExists:
+          path: spec.config.processors["resource/global"]
+  - it: adds resource/global from resourceAttributes
+    set:
+      resourceAttributes:
+        env: prod
+    asserts:
+      - equal:
+          path: spec.config.processors["resource/global"].attributes
+          value:
+            - action: insert
+              key: env
+              value: prod
+  - it: matches the snapshot with aws and fargate enabled
+    set:
+      aws.enabled: true
+      aws.fargate.enabled: true
+    asserts:
+      - matchSnapshot:
+          path: spec.config

@@ -1,0 +1,74 @@
+{{- if .Values.collectors.node.enabled }}
+{{- $v := .Values.collectors.node }}
+{{- $name := include "opentelemetry-collectors.collectorName" (dict "root" . "key" "node") }}
+{{- $cluster := include "opentelemetry-collectors.collectorName" (dict "root" . "key" "cluster") }}
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "opentelemetry-collectors.collectorLabels" . | nindent 4 }}
+  {{- with $v.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  mode: daemonset
+  serviceAccount: {{ $name }}
+  image: {{ include "opentelemetry-collectors.image" (dict "root" . "image" .Values.image) | quote }}
+  {{- with .Values.featureGates }}
+  args:
+    feature-gates: {{ . }}
+  {{- end }}
+  {{- include "opentelemetry-collectors.podFields" (dict "root" . "collector" $v) | nindent 2 }}
+  ports:
+    - name: grpc
+      port: 4317
+      targetPort: 4317
+      appProtocol: grpc
+  volumes:
+    - name: varlibotelcol
+      hostPath:
+        path: /var/lib/otelcol
+        type: DirectoryOrCreate
+    {{- if $v.logs.enabled }}
+    - name: varlogpods
+      hostPath:
+        path: /var/log/pods
+    - name: varlibdockercontainers
+      hostPath:
+        path: /var/lib/docker/containers
+    {{- end }}
+  volumeMounts:
+    - name: varlibotelcol
+      mountPath: /var/lib/otelcol
+    {{- if $v.logs.enabled }}
+    - name: varlogpods
+      mountPath: /var/log/pods
+      readOnly: true
+    - name: varlibdockercontainers
+      mountPath: /var/lib/docker/containers
+      readOnly: true
+    {{- end }}
+  {{- if $v.targetAllocator.enabled }}
+  targetAllocator:
+    enabled: true
+    image: {{ include "opentelemetry-collectors.targetAllocatorImage" . }}
+    allocationStrategy: per-node
+    prometheusCR:
+      enabled: true
+      scrapeInterval: {{ .Values.targetAllocator.scrapeInterval | quote }}
+      {{- range $selector := list "podMonitorSelector" "serviceMonitorSelector" "probeSelector" "scrapeConfigSelector" }}
+      {{ $selector }}:
+        matchExpressions:
+          {{- range $key, $value := $.Values.collectors.cluster.targetAllocator.matchLabels }}
+          - key: {{ $key }}
+            operator: NotIn
+            values:
+              - {{ $value }}
+          {{- end }}
+      {{- end }}
+  {{- end }}
+  config:
+    {{- include "opentelemetry-collectors.mergeConfig" (dict "name" "node" "base" (include "opentelemetry-collectors.node.config" .) "overrides" $v.configOverrides) | nindent 4 }}
+{{- end }}
