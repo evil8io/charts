@@ -1,0 +1,18 @@
+{{- if .Values.projectSync.serviceAccounts.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "drover.openbao.fullname" . }}
+  labels:
+    {{- include "drover.componentLabels" (dict "root" . "component" "openbao") | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "drover.openbao.selectorLabels" . | nindent 6 }}
+  podMetricsEndpoints:
+    - port: metrics
+      path: /v1/sys/metrics
+      params:
+        format:
+          - prometheus
+{{- end }}

@@ -82,6 +82,22 @@
       },
       "type": "object"
     },
+    "ciliumNetworkPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "gatewayNamespaces": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "clusterProxyConfig": {
       "additionalProperties": false,
       "properties": {
@@ -154,6 +170,9 @@
         "error"
       ],
       "type": "string"
+    },
+    "openbao": {
+      "type": "object"
     },
     "otlp": {
       "additionalProperties": false,

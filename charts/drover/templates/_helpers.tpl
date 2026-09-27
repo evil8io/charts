@@ -205,3 +205,32 @@ helm.sh/hook-weight: {{ .weight | quote }}
 {{- toJson . -}}
 {{- end -}}
 {{- end }}
+
+{{- define "drover.openbao.name" -}}
+{{- default "openbao" .Values.openbao.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "drover.openbao.fullname" -}}
+{{- $name := include "drover.openbao.name" . }}
+{{- if .Values.openbao.fullnameOverride }}
+{{- .Values.openbao.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else if contains $name .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+
+{{- define "drover.openbao.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "drover.openbao.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+component: server
+{{- end }}
+
+{{- define "drover.openbao.sealSecretName" -}}
+{{- (first .Values.openbao.server.extraVolumes).name }}
+{{- end }}
+
+{{- define "drover.openbaoSeal.fullname" -}}
+{{ include "drover.fullname" . }}-openbao-seal
+{{- end }}

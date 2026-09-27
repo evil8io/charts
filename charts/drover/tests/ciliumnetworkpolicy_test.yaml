@@ -1,0 +1,175 @@
+---
+suite: cilium network policy
+
+templates:
+  - templates/ciliumnetworkpolicy.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: renders one policy per component named after the fullname
+    asserts:
+      - hasDocuments:
+          count: 4
+      - documentIndex: 0
+        equal:
+          path: metadata.name
+          value: drover-api-filter
+      - documentIndex: 1
+        equal:
+          path: metadata.name
+          value: drover-project-sync
+      - documentIndex: 2
+        equal:
+          path: metadata.name
+          value: drover-rotate-token
+      - documentIndex: 3
+        equal:
+          path: metadata.name
+          value: drover-rancher-rbac
+  - it: renders no api-filter ingress without gateway namespaces
+    documentIndex: 0
+    asserts:
+      - notExists:
+          path: spec.ingress
+  - it: adds a gateway ingress rule to api-filter on port 8080 when gateway namespaces are set
+    set:
+      ciliumNetworkPolicy.gatewayNamespaces:
+        - kgateway
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.ingress
+          value:
+            - fromEndpoints:
+                - matchExpressions:
+                    - key: k8s:io.kubernetes.pod.namespace
+                      operator: In
+                      values:
+                        - kgateway
+              toPorts:
+                - ports:
+                    - port: "8080"
+                      protocol: TCP
+  - it: keeps rancher-rbac egress to the kube-apiserver only
+    documentIndex: 3
+    asserts:
+      - equal:
+          path: spec.egress
+          value:
+            - toEntities:
+                - kube-apiserver
+  - it: lets api-filter, project-sync and rotate-token also reach the rancher namespace
+    asserts:
+      - documentIndex: 0
+        contains:
+          path: spec.egress
+          content:
+            toEndpoints:
+              - matchLabels:
+                  k8s:io.kubernetes.pod.namespace: cattle-system
+      - documentIndex: 1
+        contains:
+          path: spec.egress
+          content:
+            toEndpoints:
+              - matchLabels:
+                  k8s:io.kubernetes.pod.namespace: cattle-system
+      - documentIndex: 2
+        contains:
+          path: spec.egress
+          content:
+            toEndpoints:
+              - matchLabels:
+                  k8s:io.kubernetes.pod.namespace: cattle-system
+  - it: follows the rancher namespace value on the three policies that reach rancher
+    set:
+      rancher.namespace: other-rancher
+    asserts:
+      - documentIndex: 0
+        contains:
+          path: spec.egress
+          content:
+            toEndpoints:
+              - matchLabels:
+                  k8s:io.kubernetes.pod.namespace: other-rancher
+  - it: adds an openbao policy when the gate is on
+    set:
+      projectSync.serviceAccounts.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 5
+      - documentIndex: 4
+        isKind:
+          of: CiliumNetworkPolicy
+      - documentIndex: 4
+        equal:
+          path: metadata.name
+          value: drover-openbao
+  - it: lets openbao pods reach each other on 8200 and 8201
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 4
+    asserts:
+      - equal:
+          path: spec.ingress[0]
+          value:
+            fromEndpoints:
+              - matchLabels:
+                  app.kubernetes.io/name: openbao
+                  app.kubernetes.io/instance: drover
+                  component: server
+            toPorts:
+              - ports:
+                  - port: "8200"
+                    protocol: TCP
+                  - port: "8201"
+                    protocol: TCP
+      - equal:
+          path: spec.egress
+          value:
+            - toEntities:
+                - kube-apiserver
+            - toEndpoints:
+                - matchLabels:
+                    app.kubernetes.io/name: openbao
+                    app.kubernetes.io/instance: drover
+                    component: server
+              toPorts:
+                - ports:
+                    - port: "8200"
+                      protocol: TCP
+                    - port: "8201"
+                      protocol: TCP
+  - it: adds a gateway ingress rule to openbao on port 8200 when gateway namespaces are set
+    set:
+      projectSync.serviceAccounts.enabled: true
+      ciliumNetworkPolicy.gatewayNamespaces:
+        - kgateway
+    documentIndex: 4
+    asserts:
+      - equal:
+          path: spec.ingress[1]
+          value:
+            fromEndpoints:
+              - matchExpressions:
+                  - key: k8s:io.kubernetes.pod.namespace
+                    operator: In
+                    values:
+                      - kgateway
+            toPorts:
+              - ports:
+                  - port: "8200"
+                    protocol: TCP
+  - it: renders nothing when turned off, even with the gate on
+    set:
+      ciliumNetworkPolicy.enabled: false
+      projectSync.serviceAccounts.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0

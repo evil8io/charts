@@ -134,3 +134,169 @@ httpRoute:
 # cluster except local. The Rancher proxy then accepts a ServiceAccount token of a downstream cluster.
 clusterProxyConfig:
   enabled: true
+
+# The CiliumNetworkPolicies of the drover pods.
+ciliumNetworkPolicy:
+  enabled: true
+  # The namespaces of the Gateway data plane, which reach the API filter and OpenBao.
+  gatewayNamespaces: []
+
+# OpenBao for the CI credentials of the project ServiceAccounts. It installs with
+# projectSync.serviceAccounts.enabled. The keys are those of https://github.com/openbao/openbao-helm.
+openbao:
+  injector:
+    enabled: false
+  server:
+    updateStrategyType: RollingUpdate
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 128Mi
+    dataStorage:
+      size: 1Gi
+    # The first entry is the Secret with the static seal key. A pre-install hook creates it once.
+    extraVolumes:
+      - type: secret
+        name: openbao-seal
+    # Only pod 0 initializes the cluster, and only while no other pod is initialized. A follower
+    # that initializes itself forms a separate cluster: https://github.com/openbao/openbao/issues/2274.
+    extraInitContainers:
+      - name: self-init
+        image: '{{ .Values.server.image.registry }}/{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default (trimPrefix "v" .Chart.AppVersion) }}'
+        command:
+          - /bin/sh
+          - -ec
+          - |
+            : > /openbao/self-init/self-init.hcl
+            [ "${POD_NAME##*-}" = 0 ] || exit 0
+            i=1
+            while [ "$i" -lt {{ .Values.server.ha.replicas }} ]; do
+              if bao operator init -status -address="http://{{ template "openbao.fullname" . }}-$i.{{ template "openbao.fullname" . }}-internal:8200" >/dev/null 2>&1; then
+                exit 0
+              fi
+              i=$((i + 1))
+            done
+            cat > /openbao/self-init/self-init.hcl <<'HCL'
+            initialize "auth" {
+              request "enable-kubernetes-auth" {
+                operation = "update"
+                path      = "sys/auth/kubernetes"
+                data = {
+                  type = "kubernetes"
+                }
+              }
+              request "configure-kubernetes-auth" {
+                operation = "update"
+                path      = "auth/kubernetes/config"
+                data = {
+                  kubernetes_host = "https://kubernetes.default.svc"
+                }
+              }
+            }
+            initialize "admin" {
+              request "admin-policy" {
+                operation = "update"
+                path      = "sys/policies/acl/admin"
+                data = {
+                  policy = <<-EOT
+                    path "*" {
+                      capabilities = ["create", "read", "update", "patch", "delete", "list", "sudo"]
+                    }
+                  EOT
+                }
+              }
+              request "admin-role" {
+                operation = "update"
+                path      = "auth/kubernetes/role/admin"
+                data = {
+                  bound_service_account_names      = ["{{ template "openbao.fullname" . }}-admin"]
+                  bound_service_account_namespaces = ["{{ .Release.Namespace }}"]
+                  token_policies                   = ["admin"]
+                  token_ttl                        = "1h"
+                }
+              }
+            }
+            HCL
+        env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: BAO_CLIENT_TIMEOUT
+            value: 5s
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            memory: 64Mi
+        volumeMounts:
+          - name: self-init
+            mountPath: /openbao/self-init
+    extraArgs: -config=/openbao/self-init/self-init.hcl
+    volumes:
+      - name: self-init
+        emptyDir: {}
+    volumeMounts:
+      - name: self-init
+        mountPath: /openbao/self-init
+        readOnly: true
+    extraPorts:
+      - name: metrics
+        containerPort: 8210
+    ha:
+      enabled: true
+      replicas: 3
+      disruptionBudget:
+        maxUnavailable: 1
+      raft:
+        enabled: true
+        setNodeId: true
+        # The API refuses an audit device, so the audit stanza declares it.
+        config: |
+          ui = true
+          listener "tcp" {
+            address         = "[::]:8200"
+            cluster_address = "[::]:8201"
+            tls_disable     = true
+          }
+
+          # Every TCP listener opens a cluster port, so this one binds to loopback.
+          listener "tcp" {
+            address         = "[::]:8210"
+            cluster_address = "127.0.0.1:8211"
+            tls_disable     = true
+            telemetry {
+              unauthenticated_metrics_access = true
+            }
+          }
+          telemetry {
+            prometheus_retention_time = "24h"
+            disable_hostname          = true
+          }
+          storage "raft" {
+            path = "/openbao/data"
+            retry_join {
+              leader_api_addr = "http://{{ template "openbao.fullname" . }}-active:8200"
+            }
+          }
+          seal "static" {
+            current_key_id = "1"
+            current_key    = "file:///openbao/userconfig/{{ (first .Values.server.extraVolumes).name }}/key"
+          }
+          audit "file" "stdout" {
+            options {
+              file_path = "stdout"
+            }
+          }
+          service_registration "kubernetes" {}
+    gateway:
+      httpRoute:
+        enabled: false
+        parentRefs: []
+        hosts: []

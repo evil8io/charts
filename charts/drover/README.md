@@ -117,6 +117,31 @@ The flag also widens `u-drover-project-sync`:
   `clusterrolebindings`.
 - `bind` on the `admin`, `edit`, `view`, and `create-ns` `ClusterRoles`.
 
+## OpenBao
+
+With `projectSync.serviceAccounts.enabled`, [OpenBao](https://openbao.org) runs in the
+release namespace from the [openbao chart](https://github.com/openbao/openbao-helm) under
+the `openbao` key, with three Raft replicas on PersistentVolumes and a static seal. A
+pre-install hook Job creates the seal key Secret, the first entry of
+`openbao.server.extraVolumes`, when the Secret does not exist. An uninstall keeps that
+Secret and the data volumes, so a reinstall unseals the old data. Without the key the
+data cannot be read, so delete the `data-*` PersistentVolumeClaims of OpenBao after a loss
+of the Secret. On the first start, pod 0 initializes the cluster, configures Kubernetes
+auth for the local cluster, and adds the `admin` policy with an `admin` role for the
+ServiceAccount `<openbao fullname>-admin` in the release namespace. OpenBao then revokes
+the root token, and it makes no recovery key. An admin logs in with
+`bao write auth/kubernetes/login role=admin jwt="$(kubectl -n <namespace> create token <openbao fullname>-admin)"`.
+The `PodMonitor` scrapes `/v1/sys/metrics` on a second listener at port 8210, and
+`openbao.server.gateway.httpRoute` sends traffic to port 8200 only.
+
+## Network policies
+
+With `ciliumNetworkPolicy.enabled`, each component has a `CiliumNetworkPolicy`. Every
+component can reach the API server. The API filter, project-sync, and the token rotation
+can also reach `rancher.namespace`. The API filter on port 8080 and OpenBao on port 8200
+accept traffic from `ciliumNetworkPolicy.gatewayNamespaces`, and the OpenBao pods reach
+each other on 8200 and 8201. DNS and the metric scrapes need a separate policy.
+
 ## Values
 
 See [values.yaml](values.yaml). A comment describes each key whose name does not explain

@@ -1,0 +1,121 @@
+---
+suite: openbao seal job
+
+templates:
+  - templates/openbao-seal-job.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders the hook objects and the job when the gate is on
+    set:
+      projectSync.serviceAccounts.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 5
+      - documentIndex: 0
+        equal:
+          path: metadata.annotations
+          value: &hookAnnotations
+            helm.sh/hook: pre-install,pre-upgrade
+            helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+            helm.sh/hook-weight: "0"
+      - documentIndex: 1
+        equal:
+          path: metadata.annotations
+          value: *hookAnnotations
+      - documentIndex: 2
+        equal:
+          path: metadata.annotations
+          value: *hookAnnotations
+      - documentIndex: 3
+        equal:
+          path: metadata.annotations
+          value: *hookAnnotations
+      - documentIndex: 4
+        equal:
+          path: metadata.annotations
+          value:
+            helm.sh/hook: pre-install,pre-upgrade
+            helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+            helm.sh/hook-weight: "1"
+      - documentIndex: 4
+        isKind:
+          of: Job
+  - it: grants get on the seal secret by name and create on secrets
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Role
+      - equal:
+          path: rules
+          value:
+            - apiGroups:
+                - ""
+              resources:
+                - secrets
+              resourceNames:
+                - openbao-seal
+              verbs:
+                - get
+            - apiGroups:
+                - ""
+              resources:
+                - secrets
+              verbs:
+                - create
+  - it: follows the seal secret name from the first extraVolumes entry
+    set:
+      projectSync.serviceAccounts.enabled: true
+      openbao.server.extraVolumes:
+        - type: secret
+          name: other-seal
+    asserts:
+      - documentIndex: 1
+        equal:
+          path: rules[0].resourceNames
+          value:
+            - other-seal
+      - documentIndex: 4
+        matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: kubectl get secret other-seal
+  - it: drops the CiliumNetworkPolicy when it is turned off
+    set:
+      projectSync.serviceAccounts.enabled: true
+      ciliumNetworkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 4
+      - documentIndex: 3
+        isKind:
+          of: Job
+  - it: confines the seal CiliumNetworkPolicy to egress toward the kube-apiserver
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 3
+    asserts:
+      - isKind:
+          of: CiliumNetworkPolicy
+      - equal:
+          path: spec.endpointSelector.matchLabels
+          value:
+            app.kubernetes.io/name: drover
+            app.kubernetes.io/instance: drover
+            app.kubernetes.io/component: openbao-seal
+      - equal:
+          path: spec.egress
+          value:
+            - toEntities:
+                - kube-apiserver

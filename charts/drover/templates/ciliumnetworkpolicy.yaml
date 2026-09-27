@@ -1,0 +1,87 @@
+{{- if .Values.ciliumNetworkPolicy.enabled }}
+{{- $gatewayNamespaces := .Values.ciliumNetworkPolicy.gatewayNamespaces }}
+{{- range $component := list "api-filter" "project-sync" "rotate-token" "rancher-rbac" }}
+{{- $labels := dict "root" $ "component" $component }}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "drover.fullname" $ }}-{{ $component }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    {{- include "drover.componentLabels" $labels | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "drover.componentSelectorLabels" $labels | nindent 6 }}
+  {{- if and (eq $component "api-filter") $gatewayNamespaces }}
+  ingress:
+    - fromEndpoints:
+        - matchExpressions:
+            - key: k8s:io.kubernetes.pod.namespace
+              operator: In
+              values:
+                {{- toYaml $gatewayNamespaces | nindent 16 }}
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+  {{- end }}
+  egress:
+    - toEntities:
+        - kube-apiserver
+    {{- if ne $component "rancher-rbac" }}
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ $.Values.rancher.namespace }}
+    {{- end }}
+{{- end }}
+{{- if .Values.projectSync.serviceAccounts.enabled }}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ include "drover.openbao.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "drover.componentLabels" (dict "root" . "component" "openbao") | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "drover.openbao.selectorLabels" . | nindent 6 }}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            {{- include "drover.openbao.selectorLabels" . | nindent 12 }}
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+            - port: "8201"
+              protocol: TCP
+    {{- with $gatewayNamespaces }}
+    - fromEndpoints:
+        - matchExpressions:
+            - key: k8s:io.kubernetes.pod.namespace
+              operator: In
+              values:
+                {{- toYaml . | nindent 16 }}
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+    {{- end }}
+  egress:
+    - toEntities:
+        - kube-apiserver
+    - toEndpoints:
+        - matchLabels:
+            {{- include "drover.openbao.selectorLabels" . | nindent 12 }}
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+            - port: "8201"
+              protocol: TCP
+{{- end }}
+{{- end }}

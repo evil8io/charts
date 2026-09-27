@@ -1,0 +1,57 @@
+---
+suite: openbao podmonitor
+
+templates:
+  - templates/openbao-podmonitor.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: scrapes the openbao metrics endpoint when the gate is on
+    set:
+      projectSync.serviceAccounts.enabled: true
+    asserts:
+      - isKind:
+          of: PodMonitor
+      - equal:
+          path: metadata.name
+          value: drover-openbao
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/name: openbao
+            app.kubernetes.io/instance: drover
+            component: server
+      - equal:
+          path: spec.podMetricsEndpoints
+          value:
+            - port: metrics
+              path: /v1/sys/metrics
+              params:
+                format:
+                  - prometheus
+  - it: follows the openbao name override in the selector
+    set:
+      projectSync.serviceAccounts.enabled: true
+      openbao.nameOverride: bao
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/name"]
+          value: bao
+  - it: follows the openbao fullname override in the resource name
+    set:
+      projectSync.serviceAccounts.enabled: true
+      openbao.fullnameOverride: vault-x
+    asserts:
+      - equal:
+          path: metadata.name
+          value: vault-x
