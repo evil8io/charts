@@ -1,0 +1,54 @@
+{{- if .Values.clusterProxyConfig.enabled }}
+apiVersion: policies.kyverno.io/v1
+kind: GeneratingPolicy
+metadata:
+  name: {{ include "drover.fullname" . }}-cluster-proxy-configs
+  labels:
+    {{- include "drover.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Generate Cluster Proxy Configs
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: ClusterProxyConfig
+    policies.kyverno.io/description: >-
+      Generates an enabled ClusterProxyConfig in the namespace of every Rancher
+      cluster object except the local cluster.
+spec:
+  evaluation:
+    generateExisting:
+      enabled: true
+    synchronize:
+      enabled: false
+    orphanDownstreamOnPolicyDelete:
+      enabled: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - management.cattle.io
+        apiVersions:
+          - v3
+        operations:
+          - CREATE
+        resources:
+          - clusters
+  matchConditions:
+    - name: not-local
+      expression: object.metadata.name != "local"
+  variables:
+    - name: configs
+      expression: |-
+        [
+          {
+            "apiVersion": dyn("management.cattle.io/v3"),
+            "kind": dyn("ClusterProxyConfig"),
+            "metadata": dyn({
+              "name": dyn("clusterproxyconfig"),
+              "namespace": dyn(object.metadata.name),
+              "labels": dyn({{ include "drover.celLiteral" (include "drover.selectorLabels" . | fromYaml) }})
+            }),
+            "enabled": dyn(true)
+          }
+        ]
+  generate:
+    - expression: generator.Apply(object.metadata.name, variables.configs)
+{{- end }}

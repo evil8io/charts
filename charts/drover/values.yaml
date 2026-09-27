@@ -129,3 +129,8 @@ httpRoute:
     name: ""
     namespace: ""
     port: 80
+
+# A Kyverno GeneratingPolicy that writes an enabled ClusterProxyConfig into the namespace of every
+# cluster except local. The Rancher proxy then accepts a ServiceAccount token of a downstream cluster.
+clusterProxyConfig:
+  enabled: true

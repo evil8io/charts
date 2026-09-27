@@ -1,0 +1,97 @@
+---
+suite: cluster proxy config policy
+
+templates:
+  - templates/clusterproxyconfig.generatingpolicy.yaml
+  - templates/kyverno-rbac.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+values:
+  - ../ci/default-values.yaml
+
+tests:
+  - it: triggers on a created Rancher cluster other than local
+    template: templates/clusterproxyconfig.generatingpolicy.yaml
+    asserts:
+      - isKind:
+          of: GeneratingPolicy
+      - equal:
+          path: metadata.name
+          value: drover-cluster-proxy-configs
+      - equal:
+          path: spec.matchConstraints.resourceRules
+          value:
+            - apiGroups:
+                - management.cattle.io
+              apiVersions:
+                - v3
+              operations:
+                - CREATE
+              resources:
+                - clusters
+      - equal:
+          path: spec.matchConditions
+          value:
+            - name: not-local
+              expression: object.metadata.name != "local"
+  - it: generates the existing clusters and never synchronizes
+    template: templates/clusterproxyconfig.generatingpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.evaluation.generateExisting.enabled
+          value: true
+      - equal:
+          path: spec.evaluation.synchronize.enabled
+          value: false
+      - equal:
+          path: spec.generate[0].expression
+          value: generator.Apply(object.metadata.name, variables.configs)
+  - it: writes an enabled config with the dashboard name into the cluster namespace
+    template: templates/clusterproxyconfig.generatingpolicy.yaml
+    asserts:
+      - matchRegex:
+          path: spec.variables[0].expression
+          pattern: '"kind": dyn\("ClusterProxyConfig"\)'
+      - matchRegex:
+          path: spec.variables[0].expression
+          pattern: '"name": dyn\("clusterproxyconfig"\)'
+      - matchRegex:
+          path: spec.variables[0].expression
+          pattern: '"namespace": dyn\(object\.metadata\.name\)'
+      - matchRegex:
+          path: spec.variables[0].expression
+          pattern: '"enabled": dyn\(true\)'
+  - it: renders no policy and no Kyverno rule when turned off
+    set:
+      clusterProxyConfig.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/clusterproxyconfig.generatingpolicy.yaml
+      - notContains:
+          path: rules
+          content:
+            apiGroups:
+              - management.cattle.io
+            resources:
+              - clusterproxyconfigs
+            verbs:
+              - create
+              - delete
+              - get
+              - list
+              - patch
+              - update
+              - watch
+        template: templates/kyverno-rbac.yaml
+        documentIndex: 0
+      - equal:
+          path: rules[1].resources
+          value:
+            - clusters
+            - projects
+        template: templates/kyverno-rbac.yaml
+        documentIndex: 1

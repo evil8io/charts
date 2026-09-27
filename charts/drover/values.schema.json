@@ -82,6 +82,15 @@
       },
       "type": "object"
     },
+    "clusterProxyConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
     "httpRoute": {
       "additionalProperties": false,
       "properties": {

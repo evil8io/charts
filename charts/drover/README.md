@@ -74,6 +74,17 @@ A `rancherBackendRef` in another namespace needs a `ReferenceGrant` in that name
 The chart does not create it, because it owns its own namespace only. Without the
 grant, the gateway answers `500`.
 
+## ServiceAccount tokens
+
+The Rancher proxy passes a ServiceAccount token to a downstream cluster only when the
+namespace of that cluster in the Rancher cluster has an enabled `ClusterProxyConfig`.
+The Rancher UI calls this setting JWT Authentication. With `clusterProxyConfig.enabled`,
+a second `GeneratingPolicy` writes the `ClusterProxyConfig` `clusterproxyconfig` into
+the namespace of every `clusters.management.cattle.io` object except `local`. The local
+cluster accepts a ServiceAccount token without the object. Kyverno deletes the objects of
+the policy when the policy is removed, so `clusterProxyConfig.enabled: false` and an
+uninstall stop the ServiceAccount tokens of every downstream cluster at the proxy.
+
 ## Project policy
 
 A Kyverno `ValidatingPolicy` denies a new project without a key of

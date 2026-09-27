@@ -148,7 +148,7 @@ tests:
       - notMatchRegex:
           path: spec.variables[1].expression
           pattern: hostnames
-  - it: grants the kyverno background controller the routes and the clusters
+  - it: grants the kyverno background controller the routes, the clusters, and the cluster proxy configs
     values:
       - ../ci/all-components-values.yaml
     template: templates/kyverno-rbac.yaml
@@ -185,7 +185,19 @@ tests:
                 - get
                 - list
                 - watch
-  - it: grants the kyverno admission and reports controllers a read on the routes, the clusters, and the projects
+            - apiGroups:
+                - management.cattle.io
+              resources:
+                - clusterproxyconfigs
+              verbs:
+                - create
+                - delete
+                - get
+                - list
+                - patch
+                - update
+                - watch
+  - it: grants the kyverno admission and reports controllers a read on the routes, the cluster proxy configs, the clusters, and the projects
     values:
       - ../ci/all-components-values.yaml
     template: templates/kyverno-rbac.yaml
@@ -211,5 +223,6 @@ tests:
       - equal:
           path: rules[1].resources
           value:
+            - clusterproxyconfigs
             - clusters
             - projects
