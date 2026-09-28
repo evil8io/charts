@@ -1,114 +1,132 @@
 # drover
 
-Tenancy extensions for Rancher ([evil8io/drover](https://github.com/evil8io/drover)).
-One image has three components. The API filter authenticates as the Rancher service
-user `u-drover`. project-sync authenticates as its own service user,
-`u-drover-project-sync`, because it needs rights that the filter must not hold.
+drover ([evil8io/drover](https://github.com/evil8io/drover)) is a set of tenancy
+extensions for Rancher. One image has three components. The API filter authenticates as
+the Rancher service user `u-drover`. project-sync authenticates as its own service user,
+`u-drover-project-sync`, because it needs rights that the API filter must not have.
 
-1. `apiFilter`: a reverse proxy in front of Rancher. It limits the namespace
-   list of a tenant to the namespaces of its projects. With `apiFilter.fanout.enabled`,
-   it also answers a cluster-wide list of a namespaced kind, for example
-   `kubectl get pods -A`, with one request per allowed namespace.
-2. `tokenRotation`: a CronJob with one container per service user. Each container logs
-   in as its own user and writes the API token into its own token Secret. A run renews
-   a token only when it expires inside `tokenRotation.renewBefore`. The CronJob is the
-   only writer of each token Secret.
-3. `projectSync`: copies `projectSync.labelKeys` and
-   `projectSync.annotationKeys` from a Rancher project to the namespaces of the project.
-   `projectSync.nameAnnotation` gets the display name of the project, and
-   `projectSync.nameLabel` gets a label-safe copy: a character outside `[A-Za-z0-9._-]`
-   becomes `-`, and the value is cut to 63 characters. The sync records the keys that it
-   wrote in the namespace annotations `drover-managed-labels` and
-   `drover-managed-annotations`. It removes a key of that record once the project drops
-   it, and a key outside the record belongs to the tenant. With
-   `projectSync.serviceAccounts.enabled`, it also keeps a set of project
-   ServiceAccounts; see [Project ServiceAccounts](#project-serviceaccounts) below.
+1. The API filter (`apiFilter`) is a reverse proxy in front of Rancher. It limits the
+   namespace list of a tenant to the namespaces of the projects of that tenant. When
+   `apiFilter.fanout.enabled` is true, the API filter also answers a cluster-wide list
+   of a namespaced kind, for example `kubectl get pods -A`. For such a list, the API
+   filter sends one request for each allowed namespace.
+2. The token rotation (`tokenRotation`) is a CronJob with one container for each service
+   user. Each container logs in as its own user and writes the API token into its own
+   token Secret. A run renews a token only when the token expires within
+   `tokenRotation.renewBefore`. Only the CronJob writes to a token Secret.
+3. project-sync (`projectSync`) copies the labels in `projectSync.labelKeys` and the
+   annotations in `projectSync.annotationKeys` from a Rancher project to the namespaces
+   of the project. project-sync writes the display name of the project into the
+   annotation that is named in `projectSync.nameAnnotation`. It writes a label-safe copy
+   of the name into the label that is named in `projectSync.nameLabel`. In this copy,
+   project-sync replaces each character outside `[A-Za-z0-9._-]` with `-`, and it cuts
+   the value to 63 characters.
 
-The chart needs `rancher.url` and `httpRoute.parentRefs`. The filter reads the token
-file on every use, so a new token needs no restart.
+   In the namespace annotations `drover-managed-labels` and `drover-managed-annotations`,
+   project-sync lists the keys that it wrote. When the project no longer has a key from
+   that list, project-sync removes the key from the namespace. A key outside that list
+   belongs to the tenant. When `projectSync.serviceAccounts.enabled` is true,
+   project-sync also keeps a set of project ServiceAccounts. See
+   [Project ServiceAccounts](#project-serviceaccounts) below.
+
+The values `rancher.url` and `httpRoute.parentRefs` are required. The API filter reads
+the token file each time it uses the token. Thus the API filter does not need a restart
+for a new token.
 
 ## Service users
 
-The chart adds two Rancher `User` objects: `u-drover` for the API filter, and
-`u-drover-project-sync` for project-sync. Each user gets a password Secret that Rancher
-reads, and a credentials Secret from the same external-secrets `Password` generator, so
-the chart needs the external-secrets CRDs. Each rotation run derives the
-PBKDF2-SHA3-512 hash from its own credentials Secret, and it writes the hash into its
-own password Secret before the login. The generator makes a new password every
-`serviceUser.password.refreshInterval`. The token in use stays valid, so the rotation
-costs no outage.
+Helm creates two Rancher `User` objects: `u-drover` for the API filter, and
+`u-drover-project-sync` for project-sync. For each user, Helm creates a password Secret
+that Rancher reads. For each user, external-secrets also creates a credentials Secret.
+external-secrets uses the same `Password` generator for both credentials Secrets, so the
+external-secrets CRDs must be in the cluster.
 
-The `post-install` Job applies a `RoleTemplate` and a `GlobalRole` per user, and three
-bindings per user: the `GlobalRoleBinding`, the `user-base` `GlobalRoleBinding`, and a
-`ClusterRoleTemplateBinding` in the `local` cluster, because an inherited cluster role
-never applies to the local cluster. The `pre-delete` Job deletes them in the reverse
-order.
+Each rotation run computes the PBKDF2-SHA3-512 hash from its own credentials Secret.
+Before the login, the run writes the hash into its own password Secret. external-secrets
+creates a new password every `serviceUser.password.refreshInterval`. The token in use
+stays valid, so there is no outage when the password changes.
+
+For each user, the `post-install` Job applies a `RoleTemplate`, a `GlobalRole`, and three
+bindings. The bindings are the `GlobalRoleBinding`, the `user-base` `GlobalRoleBinding`,
+and a `ClusterRoleTemplateBinding` in the `local` cluster. The Job applies the
+`ClusterRoleTemplateBinding`, because Rancher never applies an inherited cluster role to
+the local cluster. The `pre-delete` Job deletes these objects in the reverse order.
 
 ## Rancher URL
 
-Rancher answers `400 Use HTTPS` to a login over plain HTTP, so `rancher.url` is an
-`https` URL. In the Rancher cluster, the name `rancher.<namespace>` is in the
-certificate, and the name `rancher.<namespace>.svc` is not.
-`rancher.insecureSkipVerify` skips the certificate verification.
+Rancher answers `400 Use HTTPS` to a login over plain HTTP, so `rancher.url` must be an
+`https` URL. In the Rancher cluster, the name `rancher.<namespace>` is in the certificate
+of Rancher, and the name `rancher.<namespace>.svc` is not. When
+`rancher.insecureSkipVerify` is true, the components skip the certificate verification.
 
 ## Route
 
-The chart ships a Kyverno `GeneratingPolicy` that writes one `HTTPRoute` per
-`clusters.management.cattle.io` object, so install the chart after Kyverno. Each route
-sends two paths to the filter, and every other path goes to Rancher:
+Helm installs a Kyverno `GeneratingPolicy` from the chart. With this policy, Kyverno
+writes one `HTTPRoute` for each `clusters.management.cattle.io` object. Thus, install the
+chart after Kyverno. For each route, the gateway sends every request to Rancher, except
+the requests of two matches. The gateway sends the requests of these two matches to the
+API filter:
 
 - `GET /k8s/clusters/<id>/api/v1/namespaces`
 - `POST /k8s/clusters/<id>/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`
 
-With `apiFilter.fanout.enabled`, the route also sends every `GET` under `/api/v1` and
-`/apis` of the cluster to the filter, and a second rule sends
-`GET /k8s/clusters/<id>/api/v1/namespaces/...` to `httpRoute.rancherBackendRef`. A
-gateway picks the rule by the specificity of the match, not by the order: an `Exact`
-match wins over a `PathPrefix` match, and a longer prefix wins over a shorter one. The
-second rule therefore keeps `exec`, `attach`, `portforward`, and a log stream on
-Rancher. Every match except the review is a `GET`, so a write never reaches the filter.
-The filter is then the data path of most tenant reads, and its availability is the
-availability of the tenant.
+When `apiFilter.fanout.enabled` is true, the gateway also sends every `GET` under
+`/api/v1` and `/apis` of the cluster to the API filter. Through a second rule of the
+route, the gateway sends `GET /k8s/clusters/<id>/api/v1/namespaces/...` to the backend in
+`httpRoute.rancherBackendRef`.
+
+A gateway selects the rule with the most specific match. It does not use the order of
+the rules. An `Exact` match has priority over a `PathPrefix` match, and a longer prefix
+has priority over a shorter prefix. Thus the gateway sends `exec`, `attach`,
+`portforward`, and a log stream to Rancher through the second rule. Every match except
+the `selfsubjectaccessreviews` match is a `GET`, so the gateway never sends a write to
+the API filter. The API filter is then the data path of most tenant reads. When the API
+filter is not available, most tenant reads fail.
 
 A `rancherBackendRef` in another namespace needs a `ReferenceGrant` in that namespace.
-The chart does not create it, because it owns its own namespace only. Without the
-grant, the gateway answers `500`.
+Helm does not create this `ReferenceGrant`, because Helm creates the namespaced objects
+of the chart in the release namespace only. Without the grant, the gateway answers
+`500`.
 
 ## ServiceAccount tokens
 
-The Rancher proxy passes a ServiceAccount token to a downstream cluster only when the
-namespace of that cluster in the Rancher cluster has an enabled `ClusterProxyConfig`.
-The Rancher UI calls this setting JWT Authentication. With `clusterProxyConfig.enabled`,
-a second `GeneratingPolicy` writes the `ClusterProxyConfig` `clusterproxyconfig` into
-the namespace of every `clusters.management.cattle.io` object except `local`. The local
-cluster accepts a ServiceAccount token without the object. Kyverno deletes the objects of
-the policy when the policy is removed, so `clusterProxyConfig.enabled: false` and an
-uninstall stop the ServiceAccount tokens of every downstream cluster at the proxy.
+The Rancher proxy passes a ServiceAccount token to a downstream cluster only when its
+namespace in the Rancher cluster has an enabled `ClusterProxyConfig`. In the Rancher UI,
+the name of this setting is JWT Authentication. When `clusterProxyConfig.enabled` is
+true, Kyverno uses a second `GeneratingPolicy` to write the `ClusterProxyConfig`
+`clusterproxyconfig` into the namespace of every `clusters.management.cattle.io` object
+except `local`. The local cluster accepts a ServiceAccount token without the object.
+When the policy is removed, Kyverno deletes the objects that it generated from the
+policy. Thus, after a change to `clusterProxyConfig.enabled: false` or after an
+uninstall, the Rancher proxy passes no ServiceAccount token to a downstream cluster.
 
 ## Project policy
 
-A Kyverno `ValidatingPolicy` denies a new project without a key of
-`projectPolicy.requiredLabels` or `projectPolicy.requiredAnnotations`, and it skips the
-writes of the ServiceAccounts in `rancher.namespace`. It denies an update only when the
-update removes or empties a key, so the System and the Default project stay editable.
-`projectPolicy.failurePolicy` is `Fail`, so a project write is denied when Kyverno does not
-answer; `Ignore` lets it through.
+Through a `ValidatingPolicy`, Kyverno denies a new project without a key of
+`projectPolicy.requiredLabels` or `projectPolicy.requiredAnnotations`. A write of a
+ServiceAccount in `rancher.namespace` is not checked. Kyverno denies an update only when
+a key is removed or set to an empty value in the update. Thus the System project and the
+Default project stay editable. `projectPolicy.failurePolicy` is `Fail` by default, so a
+project write is denied when Kyverno does not answer. With `Ignore`, the write is
+allowed.
 
 ## Project ServiceAccounts
 
-With `projectSync.serviceAccounts.enabled`, project-sync also keeps three ServiceAccounts
-per Rancher project: `project-owner`, `project-member`, and `read-only`. It keeps them in
-a hidden project per cluster, labeled `drover-service-accounts: "true"`, and in a
-namespace `drover-<project id>` per tenant project. A `RoleBinding` in every namespace of
-the project binds each ServiceAccount to the matching `admin`, `edit`, or `view`
-`ClusterRole`. A `ClusterRoleBinding` also binds each ServiceAccount to the matching
-Rancher `ClusterRole` of the project: `<project>-namespaces-edit` or
+When `projectSync.serviceAccounts.enabled` is true, project-sync also keeps three
+ServiceAccounts for each Rancher project: `project-owner`, `project-member`, and
+`read-only`. project-sync keeps them in a hidden project for each cluster, with the label
+`drover-service-accounts: "true"`, and in a namespace `drover-<project id>` for each
+tenant project. In every namespace of the project, project-sync binds each ServiceAccount
+to the related `admin`, `edit`, or `view` `ClusterRole` with a `RoleBinding`. With a
+`ClusterRoleBinding`, project-sync also binds each ServiceAccount to the related Rancher
+`ClusterRole` of the project: `<project>-namespaces-edit` or
 `<project>-namespaces-readonly`, and `create-ns`. A token of the ServiceAccount then has
 the Kubernetes rights of that project role in the project. It does not have the extra
 rules of the Rancher role templates, for example the monitoring resources or the read of
 nodes.
 
-The flag also widens `u-drover-project-sync`:
+When `projectSync.serviceAccounts.enabled` is true, `u-drover-project-sync` also gets
+these rights:
 
 - Every verb on `namespaces`.
 - `create` and `manage-namespaces` on `projects`.
@@ -121,61 +139,78 @@ The flag also widens `u-drover-project-sync`:
 
 ## OpenBao
 
-With `projectSync.serviceAccounts.enabled`, [OpenBao](https://openbao.org) runs in the
-release namespace from the [openbao chart](https://github.com/openbao/openbao-helm) under
-the `openbao` key, with three Raft replicas on PersistentVolumes and a static seal. A
-pre-install hook Job creates the seal key Secret, the first entry of
-`openbao.server.extraVolumes`, when the Secret does not exist. An uninstall keeps that
-Secret and the data volumes, so a reinstall unseals the old data. Without the key the
-data cannot be read, so delete the `data-*` PersistentVolumeClaims of OpenBao after a loss
-of the Secret. On the first start, pod 0 initializes the cluster, configures Kubernetes
-auth for the local cluster, and adds the `admin` policy with an `admin` role for the
-ServiceAccount `<openbao fullname>-admin` in the release namespace. OpenBao then revokes
-the root token, and it makes no recovery key. An admin logs in with
+When `projectSync.serviceAccounts.enabled` is true, [OpenBao](https://openbao.org) runs
+in the release namespace. Helm installs OpenBao from the
+[openbao chart](https://github.com/openbao/openbao-helm) with the values under the
+`openbao` key. OpenBao runs three Raft replicas on PersistentVolumes with a static seal.
+With a static seal, OpenBao unseals its data with a fixed key. A pre-install hook Job
+creates the seal key Secret when the Secret does not exist. The name of this Secret is in
+the first entry of `openbao.server.extraVolumes`.
+
+After an uninstall, the seal key Secret and the data volumes stay in the cluster. Thus
+OpenBao unseals the old data after a reinstall. Without the key, the data cannot be read.
+Thus, when the Secret is lost, delete the `data-*` PersistentVolumeClaims of OpenBao.
+
+On the first start, pod 0 does these steps:
+
+1. It initializes the cluster.
+2. It configures the Kubernetes auth method for the local cluster.
+3. It adds the `admin` policy with an `admin` role for the ServiceAccount
+   `<openbao fullname>-admin` in the release namespace.
+
+OpenBao then revokes the root token. It does not make a recovery key. An admin logs in
+with
 `bao write auth/kubernetes/login role=admin jwt="$(kubectl -n <namespace> create token <openbao fullname>-admin)"`.
-The `PodMonitor` scrapes `/v1/sys/metrics` on a second listener at port 8210, and
-`openbao.server.gateway.httpRoute` sends traffic to port 8200 only.
+With the `PodMonitor`, `/v1/sys/metrics` is scraped on a second listener at port 8210.
+The gateway sends the traffic of the route in `openbao.server.gateway.httpRoute` to port
+8200 only.
 
 ## Credential broker
 
-With `projectSync.serviceAccounts.enabled`, OpenBao issues short-lived tokens of the
-project ServiceAccounts.
+When `projectSync.serviceAccounts.enabled` is true, OpenBao issues short-lived tokens of
+the project ServiceAccounts.
 
-- A post-install and post-upgrade hook Job logs in with the `admin` role. It writes the
-  role `project-sync` of the Kubernetes auth method and its policy. It enables a JWT auth
-  mount at `auth/jwt/<name>` for every entry of `broker.jwtIssuers`, by default for GitHub
-  Actions and GitLab.com, and writes its discovery URL. It disables every other `jwt/`
-  mount. The chart has no login roles for these mounts yet.
-- project-sync keeps the ServiceAccount `openbao` in the namespace `drover-openbao` of every
-  cluster, and a Role in every `drover-<project id>` namespace that lets it request tokens
-  of the three project ServiceAccounts.
+- The hook Job of the broker roles runs after each install and after each upgrade, and
+  it logs in with the `admin` role. It writes the role `project-sync` of the Kubernetes
+  auth method, and the policy of that role. For every entry of `broker.jwtIssuers`, it
+  enables a JWT auth mount at `auth/jwt/<name>` and writes the discovery URL of the
+  issuer. The default entries of `broker.jwtIssuers` are for GitHub Actions and
+  GitLab.com. The Job disables every other `jwt/` mount. Login roles for these mounts
+  are not in the chart yet.
+- project-sync keeps the ServiceAccount `openbao` in the namespace `drover-openbao` of
+  every cluster. project-sync also keeps a Role in every `drover-<project id>` namespace.
+  With this Role, the `openbao` ServiceAccount can request tokens of the three project
+  ServiceAccounts.
 - For every cluster, project-sync enables a Kubernetes secrets engine at
   `kubernetes/<cluster id>`. It writes the mount config with a token of the `openbao`
   ServiceAccount, the Rancher proxy URL `<broker.rancherUrl>/k8s/clusters/<cluster id>`,
-  and the Rancher setting `cacerts` as the CA. It writes a new token at half of
-  `broker.clusterTokenTTL`. OpenBao cannot skip the TLS verification, so a Rancher with a
-  private CA needs that setting.
+  and the Rancher setting `cacerts` as the CA. It writes a new token after half of
+  `broker.clusterTokenTTL`. OpenBao cannot skip the TLS verification, so a Rancher with
+  a private CA needs the `cacerts` setting.
 - For every project role of every tenant project, project-sync writes the role
   `kubernetes/<cluster id>/roles/<project id>-<role>` for the ServiceAccount of that role,
-  and the policy `kubernetes-<cluster id>-<project id>-<role>`. The policy allows only the
-  credential request `kubernetes/<cluster id>/creds/<project id>-<role>`. A new project gets
-  them from the project watch, in the same pass as its ServiceAccounts. A credential is
-  valid for `broker.credentials.ttl`, and a request can ask for at most
-  `broker.credentials.maxTTL`. The periodic run corrects a changed role or policy and
-  deletes those of a deleted project.
+  and the policy `kubernetes-<cluster id>-<project id>-<role>`. With this policy, OpenBao
+  allows only the credential request `kubernetes/<cluster id>/creds/<project id>-<role>`.
+  For a new project, project-sync writes the role and the policy through its project
+  watch, in the same pass as the ServiceAccounts of the project. A credential is valid
+  for `broker.credentials.ttl`, and at most `broker.credentials.maxTTL` can be
+  requested. The periodic run of project-sync corrects a changed role or policy, and it
+  deletes the role and the policy of a deleted project.
 
 ## Network policies
 
-With `ciliumNetworkPolicy.enabled`, each component has a `CiliumNetworkPolicy`. Every
-component can reach the API server. The API filter, project-sync, and the token rotation
-can also reach `rancher.namespace`. The API filter on port 8080 and OpenBao on port 8200
-accept traffic from `ciliumNetworkPolicy.gatewayNamespaces`, and the OpenBao pods reach
-each other on 8200 and 8201. OpenBao also accepts traffic on 8200 from project-sync and from
-the hook Job of the broker roles. It reaches the
-Rancher host and the hosts of `broker.jwtIssuers` on 443 by name, so the cluster needs the
-Cilium DNS proxy. DNS and the metric scrapes need a separate policy.
+When `ciliumNetworkPolicy.enabled` is true, Helm creates a `CiliumNetworkPolicy` for each
+component. Every component can reach the API server. The API filter, project-sync, and
+the token rotation can also reach `rancher.namespace`.
+
+The API filter on port 8080 and OpenBao on port 8200 accept traffic from the namespaces
+in `ciliumNetworkPolicy.gatewayNamespaces`. The OpenBao pods reach each other on the
+ports 8200 and 8201. OpenBao also accepts traffic on port 8200 from project-sync and from
+the hook Job of the broker roles. OpenBao reaches the Rancher host and the hosts of
+`broker.jwtIssuers` on port 443 by name, so the cluster needs the Cilium DNS proxy. DNS
+traffic and the metric scrapes need a separate policy.
 
 ## Values
 
-See [values.yaml](values.yaml). A comment describes each key whose name does not explain
-it. A template fails the render on a dependent value that is missing.
+See [values.yaml](values.yaml). There is a comment on each key whose name is not clear by
+itself. Helm stops the render with an error when a dependent value is not set.
