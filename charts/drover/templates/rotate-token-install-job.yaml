@@ -1,0 +1,13 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "drover.rotateToken.fullname" . }}-install
+  labels:
+    {{- include "drover.componentLabels" (dict "root" . "component" "rotate-token") | nindent 4 }}
+  annotations:
+    {{- include "drover.serviceUser.hookAnnotations" (dict "hook" "post-install,post-upgrade" "weight" 2) | nindent 4 }}
+spec:
+  activeDeadlineSeconds: 240
+  backoffLimit: 6
+  template:
+    {{- include "drover.rotateToken.podTemplate" . | nindent 4 }}

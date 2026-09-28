@@ -13,11 +13,14 @@ metadata:
     {{- include "drover.serviceUser.hookAnnotations" $annotations | nindent 4 }}
 data:
   policy-project-sync.hcl: |
+    path "sys/mounts" {
+      capabilities = ["read"]
+    }
     path "sys/mounts/kubernetes/+" {
-      capabilities = ["read", "update"]
+      capabilities = ["read", "update", "delete"]
     }
     path "kubernetes/+/config" {
-      capabilities = ["update"]
+      capabilities = ["read", "update"]
     }
     path "kubernetes/+/roles/*" {
       capabilities = ["create", "read", "update", "delete", "list"]
@@ -103,6 +106,12 @@ spec:
                   curl -sS --fail-with-body --data @- "$addr/v1/auth/kubernetes/login" |
                   jq -er .auth.client_token
               }
+              token=
+              revoke() {
+                [ -n "$token" ] || return 0
+                curl -sS -o /dev/null -X POST -H "X-Vault-Token: $token" "$addr/v1/auth/token/revoke-self" || true
+              }
+              trap revoke EXIT
               deadline=$(($(date +%s) + 300))
               until token=$(login); do
                 if [ "$(date +%s)" -ge "$deadline" ]; then
@@ -112,7 +121,7 @@ spec:
                 sleep 5
               done
               request() {
-                curl -sS --fail-with-body -o /tmp/answer.json -X "$1" -H "X-Vault-Token: $token" --data "@$3" "$addr/v1/$2"
+                curl -sS --fail-with-body -o /tmp/answer.json -X "$1" -H "X-Vault-Token: $token" --data "@$3" "$addr/v1/$2" || return
                 echo "$1 $2"
               }
               cd /config
@@ -134,7 +143,10 @@ spec:
                 mount=jwt/${file#jwt-}
                 mount=${mount%.json}
                 grep -qx "$mount/" /tmp/mounts || request POST "sys/auth/$mount" /tmp/jwt.json
-                request POST "auth/$mount/config" "$file"
+                rm -f /tmp/answer.json
+                if ! request POST "auth/$mount/config" "$file"; then
+                  echo "skipped the config of auth/$mount: $(cat /tmp/answer.json 2>/dev/null)" >&2
+                fi
               done
               while read -r mount; do
                 file=jwt-${mount#jwt/}

@@ -109,14 +109,15 @@ spec:
     - name: choices
       expression: |-
         variables.verified.map(p,
+        {{- if $nameAnnotation }}
           [variables.nsAll.filter(ns,
-            has(ns.metadata.labels) &&
-            "field.cattle.io/projectId" in ns.metadata.labels &&
-            ns.metadata.labels["field.cattle.io/projectId"] == p &&
-            has(ns.metadata.annotations) &&
-            "{{ $nameAnnotation }}" in ns.metadata.annotations
-          ).map(ns, ns.metadata.annotations["{{ $nameAnnotation }}"])]
+            {{ include "drover-policies.projectAnnotation" "ns" }} == variables.clusterId + ":" + p &&
+            {{ toJson $nameAnnotation }} in ns.metadata.annotations
+          ).map(ns, ns.metadata.annotations[{{ toJson $nameAnnotation }}])]
           .map(names, variables.clusterId + ":" + p + (names.size() > 0 ? " (" + names[0] + ")" : ""))[0]
+        {{- else }}
+          variables.clusterId + ":" + p
+        {{- end }}
         )
   validations:
     - expression: variables.verified.size() == 0

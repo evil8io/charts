@@ -13,8 +13,9 @@ metadata:
     policies.kyverno.io/subject: PodMonitor, ServiceMonitor
     policies.kyverno.io/description: >-
       Sets namespaceSelector.matchNames to the own namespace on a PodMonitor or a
-      ServiceMonitor, on CREATE and UPDATE, when the namespace is in a Rancher
-      project other than System and Default.
+      ServiceMonitor, on CREATE and UPDATE, when the annotation
+      field.cattle.io/projectId of the namespace names a Rancher project other
+      than System and Default, or does not name a project of this cluster.
 spec:
   evaluation:
     background:
@@ -34,41 +35,17 @@ spec:
   variables:
     - name: nsAll
       expression: 'globalContext.Get("drover-namespaces", "") == null ? [] : globalContext.Get("drover-namespaces", "")'
-    - name: systemNsMatches
-      expression: 'variables.nsAll.filter(n, n.metadata.name == "kube-system")'
-    - name: systemNs
-      expression: 'variables.systemNsMatches.size() > 0 ? variables.systemNsMatches[0] : null'
-    - name: defaultNsMatches
-      expression: 'variables.nsAll.filter(n, n.metadata.name == "default")'
-    - name: defaultNs
-      expression: 'variables.defaultNsMatches.size() > 0 ? variables.defaultNsMatches[0] : null'
-    - name: projectId
+    {{- include "drover-policies.projectVariables" (dict "ns" "namespaceObject") | nindent 4 }}
+    {{- include "drover-policies.excludedProjectVariables" . | nindent 4 }}
+    - name: restricted
       expression: >-
-        (has(namespaceObject.metadata.labels) &&
-        "field.cattle.io/projectId" in namespaceObject.metadata.labels) ?
-        namespaceObject.metadata.labels["field.cattle.io/projectId"] : ""
-    - name: systemProjectId
-      expression: >-
-        (variables.systemNs != null && has(variables.systemNs.metadata.labels) && variables.systemNs.metadata.labels != null
-          && "field.cattle.io/projectId" in variables.systemNs.metadata.labels)
-        ? string(variables.systemNs.metadata.labels["field.cattle.io/projectId"]) : ""
-    - name: defaultProjectId
-      expression: >-
-        (variables.defaultNs != null && has(variables.defaultNs.metadata.labels) && variables.defaultNs.metadata.labels != null
-          && "field.cattle.io/projectId" in variables.defaultNs.metadata.labels)
-        ? string(variables.defaultNs.metadata.labels["field.cattle.io/projectId"]) : ""
-    - name: isUserProject
-      expression: >-
-        variables.projectId != "" &&
-        variables.systemProjectId != "" &&
-        variables.defaultProjectId != "" &&
-        variables.projectId != variables.systemProjectId &&
-        variables.projectId != variables.defaultProjectId
+        variables.excludedProjectsKnown && variables.hasProject &&
+        !(variables.projectId in variables.excludedProjectIds)
   mutations:
     - patchType: JSONPatch
       jsonPatch:
         expression: |-
-          variables.isUserProject ? [
+          variables.restricted ? [
             JSONPatch{
               op: "add",
               path: "/spec/namespaceSelector",

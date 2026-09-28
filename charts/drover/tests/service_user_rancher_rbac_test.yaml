@@ -115,6 +115,21 @@ tests:
               verbs:
                 - bind
                 - escalate
+  - it: lets project-sync get the Rancher clusters through its role template when it keeps ServiceAccounts
+    template: templates/serviceuser-rancher-rbac-job.yaml
+    set:
+      projectSync.serviceAccounts.enabled: true
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)kind: RoleTemplate\nmetadata:\n  name: drover-project-sync\n[^\n]*\n[^\n]*\ncontext: cluster\nrules:\n.*  - apiGroups:\n      - management\.cattle\.io\n    resources:\n      - clusters\n    verbs:\n      -
+            get\n.*EOF\nkubectl apply -f - <<EOF\napiVersion: management\.cattle\.io/v3\nkind: GlobalRole'
+  - it: keeps the Rancher clusters out of the project-sync role template by default
+    template: templates/serviceuser-rancher-rbac-job.yaml
+    asserts:
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '      - clusters\n'
   - it: keeps the hook rules narrow by default
     template: templates/serviceuser-rancher-rbac.yaml
     documentIndex: 1
@@ -147,6 +162,15 @@ tests:
               - namespaces
             verbs:
               - "*"
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - management.cattle.io
+            resources:
+              - clusters
+            verbs:
+              - get
       - contains:
           path: rules
           content:

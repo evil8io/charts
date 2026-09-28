@@ -1,0 +1,79 @@
+---
+suite: rotate token install job
+
+templates:
+  - templates/rotate-token-install-job.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: runs one rotation after the install and after an upgrade, after the Rancher RBAC hook
+    template: templates/rotate-token-install-job.yaml
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: drover-rotate-token-install
+      - equal:
+          path: metadata.annotations
+          value:
+            helm.sh/hook: post-install,post-upgrade
+            helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+            helm.sh/hook-weight: "2"
+      - equal:
+          path: spec.backoffLimit
+          value: 6
+      - equal:
+          path: spec.activeDeadlineSeconds
+          value: 240
+  - it: runs the pod of the CronJob with its ServiceAccount and component labels
+    template: templates/rotate-token-install-job.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: drover-rotate-token
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: rotate-token
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: rotate-api-filter
+      - equal:
+          path: spec.template.spec.containers[1].name
+          value: rotate-project-sync
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - rotate-token
+            - --rancher-url=https://rancher.cattle-system.svc
+            - --credentials-dir=/var/run/secrets/drover/credentials
+            - --token-secret=cattle-system/drover-token
+            - --token-key=token
+            - --password-secret=cattle-local-user-passwords/u-drover
+            - --ttl=48h
+            - --renew-before=24h
+            - --keep=2
+            - --log-level=info
+      - equal:
+          path: spec.template.spec.volumes
+          value:
+            - name: credentials
+              secret:
+                secretName: drover-credentials
+            - name: project-sync-credentials
+              secret:
+                secretName: drover-project-sync-credentials
+  - it: fails the render when renewBefore is not shorter than ttl
+    template: templates/rotate-token-install-job.yaml
+    set:
+      tokenRotation.ttl: 24h
+      tokenRotation.renewBefore: 24h
+    asserts:
+      - failedTemplate:
+          errorMessage: tokenRotation.renewBefore must be shorter than tokenRotation.ttl, because a longer window renews the token at every run

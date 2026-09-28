@@ -61,6 +61,8 @@ apiFilter:
     concurrency: 0
     # Namespaced requests of all fan-outs that run at a time. Zero selects the default of the service.
     maxInflight: 0
+    # Part of maxInflight that the requests of one caller hold at a time. Zero selects the default of the service.
+    maxInflightPerCaller: 0
   annotations: {}
   resources:
     requests:
@@ -76,8 +78,9 @@ tokenRotation:
   # A CronJob that misses 100 start times stops for good. The deadline bounds the count.
   startingDeadlineSeconds: 300
   ttl: 48h
-  # A run renews the token when it expires inside this window.
+  # A run renews the token when it expires inside this window. It must be shorter than ttl.
   renewBefore: 24h
+  # The tokens to keep, the new token included. At least 2, so that the token in use stays valid after a renewal.
   keep: 2
   resources:
     requests:
@@ -88,6 +91,8 @@ tokenRotation:
 
 projectSync:
   interval: 60s
+  # Requests per second to Rancher that the watches of one cluster send, together. A project event costs up to 9 requests.
+  patchRate: 50
   # Label keys that the sync copies from a project to the namespaces of the project.
   labelKeys: []
   # Annotation keys that the sync copies.
@@ -181,8 +186,9 @@ openbao:
     extraVolumes:
       - type: secret
         name: openbao-seal
-    # Only pod 0 initializes the cluster, and only while no other pod is initialized. A follower
-    # that initializes itself forms a separate cluster: https://github.com/openbao/openbao/issues/2274.
+    # Only pod 0 initializes the cluster, and only while no other pod is initialized and no other
+    # pod has a data volume. A follower that initializes itself forms a separate cluster:
+    # https://github.com/openbao/openbao/issues/2274.
     extraInitContainers:
       - name: self-init
         image: '{{ .Values.server.image.registry }}/{{ .Values.server.image.repository }}:{{ .Values.server.image.tag | default (trimPrefix "v" .Chart.AppVersion) }}'
@@ -192,11 +198,19 @@ openbao:
           - |
             : > /openbao/self-init/self-init.hcl
             [ "${POD_NAME##*-}" = 0 ] || exit 0
+            sa=/var/run/secrets/kubernetes.io/serviceaccount
             i=1
             while [ "$i" -lt {{ .Values.server.ha.replicas }} ]; do
               if bao operator init -status -address="http://{{ template "openbao.fullname" . }}-$i.{{ template "openbao.fullname" . }}-internal:8200" >/dev/null 2>&1; then
                 exit 0
               fi
+              if answer=$(SSL_CERT_FILE="$sa/ca.crt" wget -q -O /dev/null --header "Authorization: Bearer $(cat "$sa/token")" "https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT/api/v1/namespaces/{{ .Release.Namespace }}/persistentvolumeclaims/data-{{ template "openbao.fullname" . }}-$i" 2>&1); then
+                exit 0
+              fi
+              case "$answer" in
+                *" 404 "*) ;;
+                *) echo "$answer" >&2; exit 1 ;;
+              esac
               i=$((i + 1))
             done
             cat > /openbao/self-init/self-init.hcl <<'HCL'
@@ -236,6 +250,7 @@ openbao:
                   bound_service_account_namespaces = ["{{ .Release.Namespace }}"]
                   token_policies                   = ["admin"]
                   token_ttl                        = "1h"
+                  token_max_ttl                    = "1h"
                 }
               }
             }

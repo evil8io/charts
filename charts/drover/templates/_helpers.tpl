@@ -128,6 +128,12 @@ u-drover-project-sync
     - create
     - manage-namespaces
 - apiGroups:
+    - management.cattle.io
+  resources:
+    - clusters
+  verbs:
+    - get
+- apiGroups:
     - ""
   resources:
     - serviceaccounts
@@ -272,4 +278,173 @@ http://{{ include "drover.openbao.fullname" . }}-active.{{ .Release.Namespace }}
       fieldPath: metadata.uid
 - name: OTEL_RESOURCE_ATTRIBUTES
   value: k8s.pod.uid=$(POD_UID)
+{{- end }}
+
+{{- define "drover.durationSeconds" -}}
+{{- $units := dict "h" 3600 "m" 60 "s" 1 }}
+{{- $seconds := 0 }}
+{{- range $part := regexFindAll "[0-9]+[hms]" . -1 }}
+{{- $unit := regexFind "[hms]$" $part }}
+{{- $seconds = add $seconds (mul (trimSuffix $unit $part | int) (get $units $unit)) }}
+{{- end }}
+{{- $seconds }}
+{{- end }}
+
+{{- define "drover.rotateToken.podTemplate" -}}
+{{- if ge (include "drover.durationSeconds" .Values.tokenRotation.renewBefore | int) (include "drover.durationSeconds" .Values.tokenRotation.ttl | int) }}
+{{- fail "tokenRotation.renewBefore must be shorter than tokenRotation.ttl, because a longer window renews the token at every run" }}
+{{- end }}
+{{- $component := dict "root" . "component" "rotate-token" }}
+{{- $containers := list
+  (dict
+    "name" "rotate-api-filter"
+    "volume" "credentials"
+    "credentialsSecret" (include "drover.credentialsName" .)
+    "tokenSecret" (printf "%s/%s" .Release.Namespace (include "drover.tokenSecretName" .))
+    "passwordSecret" "cattle-local-user-passwords/u-drover")
+  (dict
+    "name" "rotate-project-sync"
+    "volume" "project-sync-credentials"
+    "credentialsSecret" (include "drover.projectSync.credentialsName" .)
+    "tokenSecret" (printf "%s/%s" .Release.Namespace (include "drover.projectSync.tokenSecretName" .))
+    "passwordSecret" (printf "cattle-local-user-passwords/%s" (include "drover.projectSync.user" .)))
+-}}
+metadata:
+  labels:
+    {{- include "drover.componentLabels" $component | nindent 4 }}
+spec:
+  restartPolicy: OnFailure
+  serviceAccountName: {{ include "drover.rotateToken.fullname" . }}
+  automountServiceAccountToken: true
+  securityContext:
+    {{- include "drover.podSecurityContext" . | nindent 4 }}
+  containers:
+    {{- range $c := $containers }}
+    - name: {{ $c.name }}
+      image: {{ include "drover.image" $ | quote }}
+      imagePullPolicy: IfNotPresent
+      args:
+        - rotate-token
+        - "--rancher-url={{ $.Values.rancher.url }}"
+        - "--credentials-dir=/var/run/secrets/drover/credentials"
+        - "--token-secret={{ $c.tokenSecret }}"
+        - "--token-key=token"
+        - "--password-secret={{ $c.passwordSecret }}"
+        - "--ttl={{ $.Values.tokenRotation.ttl }}"
+        - "--renew-before={{ $.Values.tokenRotation.renewBefore }}"
+        - "--keep={{ $.Values.tokenRotation.keep }}"
+        - "--log-level={{ $.Values.logLevel }}"
+        {{- if $.Values.rancher.insecureSkipVerify }}
+        - "--rancher-insecure-skip-verify"
+        {{- end }}
+        {{- if $.Values.otlp.endpoint }}
+        - "--otlp-endpoint={{ $.Values.otlp.endpoint }}"
+        - "--otlp-traces=true"
+        - "--otlp-metrics=true"
+        - "--service-name={{ $.Values.otlp.serviceName }}"
+        {{- end }}
+      {{- if $.Values.otlp.endpoint }}
+      env:
+        {{- include "drover.telemetryEnv" $ | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "drover.securityContext" $ | nindent 8 }}
+      resources:
+        {{- toYaml $.Values.tokenRotation.resources | nindent 8 }}
+      volumeMounts:
+        - name: {{ $c.volume }}
+          mountPath: /var/run/secrets/drover/credentials
+          readOnly: true
+    {{- end }}
+  volumes:
+    {{- range $c := $containers }}
+    - name: {{ $c.volume }}
+      secret:
+        secretName: {{ $c.credentialsSecret }}
+    {{- end }}
+{{- end }}
+
+{{- define "drover.routes" -}}
+{{- $fanout := .Values.apiFilter.fanout.enabled }}
+{{- $rancherBackend := dict "name" .Values.httpRoute.rancherBackendRef.name "port" (.Values.httpRoute.rancherBackendRef.port | int) }}
+{{- with .Values.httpRoute.rancherBackendRef.namespace }}
+{{- $_ := set $rancherBackend "namespace" . }}
+{{- end -}}
+[
+  {
+    "apiVersion": dyn("gateway.networking.k8s.io/v1"),
+    "kind": dyn("HTTPRoute"),
+    "metadata": dyn({
+      "name": dyn({{ printf "%s-" (include "drover.fullname" .) | quote }} + object.metadata.name + "-" + variables.revision),
+      "namespace": dyn({{ .Release.Namespace | quote }}),
+      "labels": dyn({
+        {{- range $key, $value := include "drover.selectorLabels" . | fromYaml }}
+        {{ $key | quote }}: dyn({{ $value | quote }}),
+        {{- end }}
+        "drover-route-revision": dyn(variables.revision)
+      })
+    }),
+    "spec": dyn({
+      {{- with .Values.httpRoute.parentRefs }}
+      "parentRefs": dyn({{ include "drover.celLiteral" . }}),
+      {{- end }}
+      {{- with .Values.httpRoute.hostnames }}
+      "hostnames": dyn({{ include "drover.celLiteral" . }}),
+      {{- end }}
+      "rules": dyn([
+        dyn({
+          "matches": dyn([
+            dyn({
+              "path": dyn({"type": dyn("Exact"), "value": dyn(variables.prefix + "/api/v1/namespaces")}),
+              "method": dyn("GET")
+            }),
+            dyn({
+              "path": dyn({"type": dyn("Exact"), "value": dyn(variables.prefix + "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews")}),
+              "method": dyn("POST")
+            })
+            {{- if $fanout }},
+            dyn({
+              "path": dyn({"type": dyn("PathPrefix"), "value": dyn(variables.prefix + "/api/v1")}),
+              "method": dyn("GET")
+            }),
+            dyn({
+              "path": dyn({"type": dyn("PathPrefix"), "value": dyn(variables.prefix + "/apis")}),
+              "method": dyn("GET")
+            })
+            {{- end }}
+          ]),
+          {{- with .Values.httpRoute.timeouts }}
+          "timeouts": dyn({{ include "drover.celLiteral" . }}),
+          {{- end }}
+          "backendRefs": dyn([
+            dyn({
+              "name": dyn({{ include "drover.apiFilter.fullname" . | quote }}),
+              "port": dyn(8080)
+            })
+          ])
+        })
+        {{- if $fanout }},
+        dyn({
+          "matches": dyn([
+            dyn({
+              "path": dyn({"type": dyn("PathPrefix"), "value": dyn(variables.prefix + "/api/v1/namespaces")}),
+              "method": dyn("GET")
+            })
+          ]),
+          {{- with .Values.httpRoute.timeouts }}
+          "timeouts": dyn({{ include "drover.celLiteral" . }}),
+          {{- end }}
+          "backendRefs": dyn([
+            dyn({{ include "drover.celLiteral" $rancherBackend }})
+          ])
+        })
+        {{- end }}
+      ])
+    })
+  }
+]
+{{- end }}
+
+{{- define "drover.routes.revision" -}}
+{{- include "drover.routes" . | sha256sum | trunc 8 }}
 {{- end }}

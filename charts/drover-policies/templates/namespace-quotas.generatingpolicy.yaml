@@ -13,8 +13,9 @@ metadata:
     policies.kyverno.io/severity: medium
     policies.kyverno.io/subject: ResourceQuota,LimitRange
     policies.kyverno.io/description: >-
-      Generates a ResourceQuota and a LimitRange in every namespace with a Rancher
-      project ID, except a namespace in the System or the Default project.
+      Generates a ResourceQuota and a LimitRange in every namespace with the
+      annotation field.cattle.io/projectId, except a namespace in the System or
+      the Default project.
 spec:
   evaluation:
     synchronize:
@@ -33,30 +34,25 @@ spec:
         resources:
           - namespaces
   matchConditions:
-    - name: has-project-id
-      expression: |-
-        has(object.metadata.labels) &&
-        "field.cattle.io/projectId" in object.metadata.labels &&
-        object.metadata.labels["field.cattle.io/projectId"] != ""
+    - name: has-project-annotation
+      expression: >-
+        {{ include "drover-policies.projectAnnotation" "object" }} != ""
   variables:
     - name: nsAll
       expression: 'globalContext.Get("drover-namespaces", "") == null ? [] : globalContext.Get("drover-namespaces", "")'
-    - name: projectId
-      expression: 'object.metadata.labels["field.cattle.io/projectId"]'
-    - name: excludedProjectIds
-      expression: |-
-        variables.nsAll.filter(ns, ns.metadata.name in ["kube-system", "default"])
-          .map(ns,
-            has(ns.metadata.labels) && "field.cattle.io/projectId" in ns.metadata.labels
-            ? ns.metadata.labels["field.cattle.io/projectId"] : "")
+    {{- include "drover-policies.projectVariables" (dict "ns" "object") | nindent 4 }}
+    {{- include "drover-policies.excludedProjectVariables" . | nindent 4 }}
     - name: governed
-      expression: |-
-        variables.excludedProjectIds.size() == 2 &&
-        !("" in variables.excludedProjectIds) &&
+      expression: >-
+        variables.excludedProjectsKnown && variables.hasProject &&
         !(variables.projectId in variables.excludedProjectIds)
+    - name: terminating
+      expression: >-
+        variables.nsAll.exists(ns,
+          ns.metadata.name == object.metadata.name && has(ns.metadata.deletionTimestamp))
     - name: resources
       expression: |-
-        !variables.governed ? [] : [
+        (!variables.governed || variables.terminating) ? [] : [
           {
             "apiVersion": dyn("v1"),
             "kind": dyn("ResourceQuota"),

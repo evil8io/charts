@@ -38,6 +38,7 @@ tests:
             - --rancher-url=https://rancher.cattle-system.svc
             - --token-file=/var/run/secrets/drover/token/token
             - --interval=60s
+            - --patch-rate=50
             - --log-level=info
   - it: builds the args in a fixed order with both lists
     set:
@@ -56,6 +57,7 @@ tests:
             - --labels=evil8.io/cost-center,evil8.io/team
             - --annotations=evil8.io/owner
             - --interval=60s
+            - --patch-rate=50
             - --log-level=info
   - it: omits the name-label and the name-annotation args by default
     asserts:
@@ -66,6 +68,7 @@ tests:
             - --rancher-url=https://rancher.cattle-system.svc
             - --token-file=/var/run/secrets/drover/token/token
             - --interval=60s
+            - --patch-rate=50
             - --log-level=info
   - it: omits the service-accounts arg by default
     asserts:
@@ -92,6 +95,7 @@ tests:
             - --openbao-credential-ttl=15m
             - --openbao-credential-max-ttl=2h
             - --interval=60s
+            - --patch-rate=50
             - --log-level=info
   - it: takes the openbao rancher URL from broker.rancherUrl over the hostname
     set:
@@ -183,6 +187,7 @@ tests:
             - --name-label=project.name
             - --name-annotation=project.display_name
             - --interval=60s
+            - --patch-rate=50
             - --log-level=info
   - it: adds the otlp args and the service name when the endpoint is set
     set:
@@ -196,6 +201,7 @@ tests:
             - --rancher-url=https://rancher.cattle-system.svc
             - --token-file=/var/run/secrets/drover/token/token
             - --interval=60s
+            - --patch-rate=50
             - --log-level=info
             - --otlp-endpoint=otel-collector:4317
             - --otlp-traces=true
@@ -244,16 +250,19 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: --rancher-insecure-skip-verify
-  - it: sets GOMEMLIMIT from the container memory limit
+  - it: sets no env when the endpoint is empty
     asserts:
-      - equal:
+      - notExists:
           path: spec.template.spec.containers[0].env
-          value:
-            - name: GOMEMLIMIT
-              valueFrom:
-                resourceFieldRef:
-                  resource: limits.memory
-                  divisor: "1"
+  - it: sets no GOMEMLIMIT env
+    set:
+      otlp.endpoint: otel-collector:4317
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GOMEMLIMIT
+          any: true
   - it: sets the deployment annotations without touching the pod template
     set:
       projectSync.annotations:

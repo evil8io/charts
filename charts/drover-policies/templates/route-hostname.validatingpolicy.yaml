@@ -18,7 +18,10 @@ metadata:
       whose hostname equals the external-dns hostname annotation of a Service
       outside the project, routes without hostnames (they match every hostname
       of their listener) and wildcard hostnames (they capture all unclaimed
-      names). Service-parented (GAMMA) routes are exempt.
+      names). It reads the project from the annotation field.cattle.io/projectId
+      of the namespace, and it blocks every Gateway-parented route when the
+      annotation does not name a project of this cluster. Service-parented
+      (GAMMA) routes are exempt.
 spec:
   evaluation:
     background:
@@ -49,14 +52,7 @@ spec:
       expression: 'globalContext.Get("drover-tlsroutes", "") == null ? [] : globalContext.Get("drover-tlsroutes", "")'
     - name: servicesAll
       expression: 'globalContext.Get("drover-services", "") == null ? [] : globalContext.Get("drover-services", "")'
-    - name: projectId
-      expression: >-
-        (has(namespaceObject.metadata.labels) &&
-        "field.cattle.io/projectId" in namespaceObject.metadata.labels) ?
-        namespaceObject.metadata.labels["field.cattle.io/projectId"] : ""
-    - name: hasProjectId
-      expression: >-
-        variables.projectId != ""
+    {{- include "drover-policies.projectVariables" (dict "ns" "namespaceObject") | nindent 4 }}
     - name: isNorthSouth
       expression: >-
         object.spec.?parentRefs.orValue([]).exists(pr,
@@ -65,16 +61,14 @@ spec:
         )
     - name: governed
       expression: >-
-        variables.hasProjectId && variables.isNorthSouth
+        variables.hasProject && variables.isNorthSouth
     - name: hostnames
       expression: "object.spec.?hostnames.orValue([])"
     - name: projectNamespaces
       expression: >-
-        variables.hasProjectId ?
+        variables.projectId != "" ?
         variables.nsAll.filter(ns,
-          has(ns.metadata.labels) &&
-          "field.cattle.io/projectId" in ns.metadata.labels &&
-          ns.metadata.labels["field.cattle.io/projectId"] == variables.projectId
+          {{ include "drover-policies.projectAnnotation" "ns" }} == variables.clusterId + ":" + variables.projectId
         ).map(ns, ns.metadata.name) : []
     - name: conflictingRoutes
       expression: >-
@@ -96,6 +90,10 @@ spec:
           s.metadata.annotations['{{ .Values.externalDns.annotationPrefix }}hostname'].split(',').exists(h, h.trim() in variables.hostnames)
         ).map(s, s.metadata.namespace + '/' + s.metadata.name)
   validations:
+    - expression: >-
+        !variables.governed || variables.projectId != ""
+      message: >-
+        The annotation field.cattle.io/projectId of the namespace does not name a project of this cluster.
     - expression: >-
         !variables.governed || variables.hostnames.size() > 0
       message: >-

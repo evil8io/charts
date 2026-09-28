@@ -161,6 +161,45 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: 'request DELETE "sys/auth/'
+  - it: logs a failed issuer config and goes on, and stops on every other failed request
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 2
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'if ! request POST "auth/\$mount/config" "\$file"; then\n\s+echo "skipped the config of auth/\$mount: .*" >&2\n\s+fi'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'request\(\) \{\n\s+curl .* "\$addr/v1/\$2" \|\| return\n'
+      - notMatchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '\n\s+request POST "auth/\$mount/config" "\$file"\n'
+  - it: revokes its own OpenBao token on every exit
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 2
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'curl .* -X POST -H "X-Vault-Token: \$token" "\$addr/v1/auth/token/revoke-self" \|\| true'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'trap revoke EXIT\n(.*\n)*until token=\$\(login\); do'
+  - it: lets project-sync list the mounts, read the mount config, and delete the secrets engine mount of a cluster
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: data["policy-project-sync.hcl"]
+          pattern: 'path "sys/mounts" \{\n\s+capabilities = \["read"\]\n\}'
+      - matchRegex:
+          path: data["policy-project-sync.hcl"]
+          pattern: 'path "sys/mounts/kubernetes/\+" \{\n\s+capabilities = \["read", "update", "delete"\]\n\}'
+      - matchRegex:
+          path: data["policy-project-sync.hcl"]
+          pattern: 'path "kubernetes/\+/config" \{\n\s+capabilities = \["read", "update"\]\n\}'
   - it: drops the CiliumNetworkPolicy when it is turned off
     set:
       projectSync.serviceAccounts.enabled: true

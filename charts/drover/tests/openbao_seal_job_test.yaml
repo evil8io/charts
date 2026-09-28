@@ -51,7 +51,7 @@ tests:
       - documentIndex: 4
         isKind:
           of: Job
-  - it: grants get on the seal secret by name and create on secrets
+  - it: grants get on the seal secret and the data claims by name and create on secrets
     set:
       projectSync.serviceAccounts.enabled: true
     documentIndex: 1
@@ -75,6 +75,25 @@ tests:
                 - secrets
               verbs:
                 - create
+            - apiGroups:
+                - ""
+              resources:
+                - persistentvolumeclaims
+              resourceNames:
+                - data-drover-openbao-0
+                - data-drover-openbao-1
+                - data-drover-openbao-2
+              verbs:
+                - get
+  - it: fails before it creates a key when a data claim exists without the seal secret
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 4
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'for claim in data-drover-openbao-0 data-drover-openbao-1 data-drover-openbao-2; do\n\s+found=\$\(kubectl get persistentvolumeclaim "\$claim" --ignore-not-found -o name\)\n\s+if \[ -n
+            "\$found" \]; then\n(.*\n){2}\s+exit 1\n\s+fi\ndone\nkey='
   - it: follows the seal secret name from the first extraVolumes entry
     set:
       projectSync.serviceAccounts.enabled: true

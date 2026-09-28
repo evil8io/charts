@@ -10,13 +10,32 @@ cluster and in each downstream cluster. The chart needs Kyverno 1.19+ and Kubern
 | Policy | Kind | Rule |
 |---|---|---|
 | `drover.namespace-project` | MutatingPolicy, ValidatingPolicy | When a tenant creates a namespace without the `field.cattle.io/projectId` annotation, Kyverno assigns the namespace to the Rancher project of the tenant. When the requester has more than one project, Kyverno denies the request. The deny message contains the values to choose from. For each project that has a namespace, the message also contains the display name of the project. |
-| `drover.namespace-quotas.<revision>` | GeneratingPolicy | Kyverno generates a ResourceQuota `counts.<revision>` and a LimitRange `default.<revision>` in every namespace of a Rancher project, except the System and the Default project. |
+| `drover.namespace-quotas.<revision>` | GeneratingPolicy | Kyverno generates a ResourceQuota `counts.<revision>` and a LimitRange `default.<revision>` in every namespace with a project annotation, except the namespaces of the System and the Default project, and except a namespace that is terminating. |
 | `drover.namespace-metadata` | ValidatingPolicy | Kyverno denies an update of a namespace that sets, changes, or removes a key that the drover project sync recorded on that namespace. Kyverno also denies an update that sets, changes, or removes one of the two records of the sync, the annotations `drover-managed-labels` and `drover-managed-annotations`. A requester with permission to patch every namespace is exempt, for example the Rancher user of the sync, a cluster owner, or an admin. |
 | `drover.namespace-orphan` | ValidatingPolicy | Kyverno denies an update of a namespace that removes or empties the annotation `field.cattle.io/projectId`. A requester with permission to manage the namespaces of every Rancher project is exempt. Every ServiceAccount of the Rancher namespace is exempt too. |
-| `drover.route-hostname` | ValidatingPolicy | In a project namespace, an HTTPRoute, a GRPCRoute, or a TLSRoute with a Gateway parent must have at least one hostname. Kyverno denies a wildcard hostname. Kyverno also denies a hostname that a route or an external-dns Service outside the project already uses. |
-| `drover.listenerset-hostname` | ValidatingPolicy | In a project namespace, every listener of a ListenerSet must have a hostname. A ListenerSet in a project namespace must not use a hostname of a ListenerSet outside the project. |
-| `drover.prometheus-monitors`, `drover.prometheus-monitors-existing` | MutatingPolicy | Kyverno restricts a PodMonitor or a ServiceMonitor in a namespace of a user project to its own namespace. A user project is a Rancher project other than the System and the Default project. Through the second policy, Kyverno applies the restriction again when the project of a namespace changes. |
+| `drover.route-hostname` | ValidatingPolicy | In a namespace with a project annotation, an HTTPRoute, a GRPCRoute, or a TLSRoute with a Gateway parent must have at least one hostname. Kyverno denies a wildcard hostname. Kyverno also denies a hostname that a route or an external-dns Service outside the project already uses. |
+| `drover.listenerset-hostname` | ValidatingPolicy | In a namespace with a project annotation, every listener of a ListenerSet must have a hostname. A ListenerSet in such a namespace must not use a hostname of a ListenerSet outside the project. |
+| `drover.prometheus-monitors`, `drover.prometheus-monitors-existing` | MutatingPolicy | Kyverno restricts a PodMonitor or a ServiceMonitor in a namespace of a user project to its own namespace. A user project is a Rancher project other than the System and the Default project. Through the second policy, Kyverno applies the restriction again when the project annotation of a namespace changes. |
 | `drover.generated-integrity` | ValidatingAdmissionPolicy | The API server denies a create, an update, or a delete of an object that Kyverno generated for a GeneratingPolicy. The ServiceAccounts of the Kyverno and the kube-system namespace are exempt. A principal with permission to delete GeneratingPolicies is exempt too. A finalizer-only update is also exempt. |
+
+## Project of a namespace
+
+Kyverno reads the project of a namespace from the annotation `field.cattle.io/projectId`,
+with the form `<cluster>:<project>`. Kyverno never reads the label
+`field.cattle.io/projectId`, because a project member can remove the label from its
+namespace. The cluster id is the prefix of the annotation on `kube-system`. The System
+project and the Default project are the projects of `kube-system` and `default`.
+
+| Annotation | Outcome |
+|---|---|
+| Absent or empty | The namespace is in no project. Kyverno skips the namespace. |
+| The prefix is the cluster id | The namespace is in the project after the prefix. |
+| Another prefix, or no colon | The namespace has no trusted project. Kyverno denies every route with a Gateway parent and every ListenerSet, restricts every monitor to its own namespace, and generates the quota objects. |
+
+When the cluster id is unknown, Kyverno skips every namespace. For example, the cluster id
+is unknown when `kube-system` has no annotation, or when the namespaces context entry is
+off. For the monitors and the quota objects, Kyverno also skips every namespace when the
+project of `default` is unknown.
 
 ## Tenant roles
 

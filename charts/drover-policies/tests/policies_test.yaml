@@ -83,10 +83,10 @@ tests:
           path: metadata.name
           value: drover.namespace-quotas.7
       - matchRegex:
-          path: spec.variables[4].expression
+          path: spec.variables[?(@.name == "resources")].expression
           pattern: dyn\("counts\.7"\)
       - matchRegex:
-          path: spec.variables[4].expression
+          path: spec.variables[?(@.name == "resources")].expression
           pattern: dyn\("default\.7"\)
   - it: renders the quota map into the generated ResourceQuota
     set:
@@ -95,7 +95,7 @@ tests:
     template: templates/namespace-quotas.generatingpolicy.yaml
     asserts:
       - matchRegex:
-          path: spec.variables[4].expression
+          path: spec.variables[?(@.name == "resources")].expression
           pattern: '"hard": \{.*"count/pods":"10".*\}'
   - it: exempts the ServiceAccounts of the Kyverno namespace
     set:
@@ -111,7 +111,7 @@ tests:
     template: templates/route-hostname.validatingpolicy.yaml
     asserts:
       - matchRegex:
-          path: spec.variables[12].expression
+          path: spec.variables[?(@.name == "conflictingServices")].expression
           pattern: "'dns.example.com/hostname' in s.metadata.annotations"
   - it: reads the display name from the configured name annotation
     set:
@@ -119,8 +119,194 @@ tests:
     template: templates/namespace-project.validatingpolicy.yaml
     asserts:
       - matchRegex:
-          path: spec.variables[7].expression
+          path: spec.variables[?(@.name == "choices")].expression
           pattern: '"example.com/name" in ns.metadata.annotations'
+  - it: renders a name annotation with a quote as a valid CEL string
+    set:
+      policies.namespace-project.nameAnnotation: example.com/na"me
+    template: templates/namespace-project.validatingpolicy.yaml
+    asserts:
+      - matchRegex:
+          path: spec.variables[?(@.name == "choices")].expression
+          pattern: '"example\.com/na\\"me" in ns\.metadata\.annotations'
+      - matchRegex:
+          path: spec.variables[?(@.name == "choices")].expression
+          pattern: 'ns\.metadata\.annotations\["example\.com/na\\"me"\]'
+  - it: shows no display name when the name annotation is empty
+    set:
+      policies.namespace-project.nameAnnotation: ""
+    template: templates/namespace-project.validatingpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.variables[?(@.name == "choices")].expression
+          value: |-
+            variables.verified.map(p,
+              variables.clusterId + ":" + p
+            )
+  - it: finds the display name of a project through the project annotation
+    template: templates/namespace-project.validatingpolicy.yaml
+    asserts:
+      - matchRegex:
+          path: spec.variables[?(@.name == "choices")].expression
+          pattern: 'ns\.metadata\.annotations\["field\.cattle\.io/projectId"\] : ""\) == variables\.clusterId \+ ":" \+ p'
+      - notMatchRegex:
+          path: spec.variables[?(@.name == "choices")].expression
+          pattern: labels
+  - it: reads the project of a namespace from the annotation and checks the cluster prefix
+    asserts:
+      - template: templates/route-hostname.validatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "projectAnnotation")].expression
+          pattern: '^\(has\(namespaceObject\.metadata\.annotations\) && "field\.cattle\.io/projectId" in namespaceObject\.metadata\.annotations \? namespaceObject\.metadata\.annotations\["field\.cattle\.io/projectId"\] : ""\)$'
+      - template: templates/listenerset-hostname.validatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "projectAnnotation")].expression
+          pattern: '^\(has\(namespaceObject\.metadata\.annotations\) && "field\.cattle\.io/projectId" in namespaceObject\.metadata\.annotations \? namespaceObject\.metadata\.annotations\["field\.cattle\.io/projectId"\] : ""\)$'
+      - template: templates/prometheus-monitors.mutatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "projectAnnotation")].expression
+          pattern: '^\(has\(namespaceObject\.metadata\.annotations\) && "field\.cattle\.io/projectId" in namespaceObject\.metadata\.annotations \? namespaceObject\.metadata\.annotations\["field\.cattle\.io/projectId"\] : ""\)$'
+      - template: templates/prometheus-monitors-existing.mutatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "projectAnnotation")].expression
+          pattern: '^\(has\(request\.object\.metadata\.annotations\) && "field\.cattle\.io/projectId" in request\.object\.metadata\.annotations \? request\.object\.metadata\.annotations\["field\.cattle\.io/projectId"\] : ""\)$'
+      - template: templates/namespace-quotas.generatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "projectAnnotation")].expression
+          pattern: '^\(has\(object\.metadata\.annotations\) && "field\.cattle\.io/projectId" in object\.metadata\.annotations \? object\.metadata\.annotations\["field\.cattle\.io/projectId"\] : ""\)$'
+      - template: templates/route-hostname.validatingpolicy.yaml
+        equal:
+          path: spec.variables[?(@.name == "projectId")].expression
+          value: '(variables.clusterId != "" && variables.projectAnnotation.startsWith(variables.clusterId + ":") ? variables.projectAnnotation.substring(variables.clusterId.size() + 1) : "")'
+      - template: templates/listenerset-hostname.validatingpolicy.yaml
+        equal:
+          path: spec.variables[?(@.name == "projectId")].expression
+          value: '(variables.clusterId != "" && variables.projectAnnotation.startsWith(variables.clusterId + ":") ? variables.projectAnnotation.substring(variables.clusterId.size() + 1) : "")'
+      - template: templates/prometheus-monitors.mutatingpolicy.yaml
+        equal:
+          path: spec.variables[?(@.name == "projectId")].expression
+          value: '(variables.clusterId != "" && variables.projectAnnotation.startsWith(variables.clusterId + ":") ? variables.projectAnnotation.substring(variables.clusterId.size() + 1) : "")'
+      - template: templates/prometheus-monitors-existing.mutatingpolicy.yaml
+        equal:
+          path: spec.variables[?(@.name == "projectId")].expression
+          value: '(variables.clusterId != "" && variables.projectAnnotation.startsWith(variables.clusterId + ":") ? variables.projectAnnotation.substring(variables.clusterId.size() + 1) : "")'
+      - template: templates/namespace-quotas.generatingpolicy.yaml
+        equal:
+          path: spec.variables[?(@.name == "projectId")].expression
+          value: '(variables.clusterId != "" && variables.projectAnnotation.startsWith(variables.clusterId + ":") ? variables.projectAnnotation.substring(variables.clusterId.size() + 1) : "")'
+      - template: templates/route-hostname.validatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "clusterIds")].expression
+          pattern: 'ns\.metadata\.name == "kube-system"\)\s+\.map\(ns, \(has\(ns\.metadata\.annotations\) && "field\.cattle\.io/projectId" in ns\.metadata\.annotations'
+      - template: templates/listenerset-hostname.validatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "clusterIds")].expression
+          pattern: 'ns\.metadata\.name == "kube-system"\)\s+\.map\(ns, \(has\(ns\.metadata\.annotations\) && "field\.cattle\.io/projectId" in ns\.metadata\.annotations'
+      - template: templates/prometheus-monitors.mutatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "clusterIds")].expression
+          pattern: 'ns\.metadata\.name == "kube-system"\)\s+\.map\(ns, \(has\(ns\.metadata\.annotations\) && "field\.cattle\.io/projectId" in ns\.metadata\.annotations'
+      - template: templates/prometheus-monitors-existing.mutatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "clusterIds")].expression
+          pattern: 'ns\.metadata\.name == "kube-system"\)\s+\.map\(ns, \(has\(ns\.metadata\.annotations\) && "field\.cattle\.io/projectId" in ns\.metadata\.annotations'
+      - template: templates/namespace-quotas.generatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "clusterIds")].expression
+          pattern: 'ns\.metadata\.name == "kube-system"\)\s+\.map\(ns, \(has\(ns\.metadata\.annotations\) && "field\.cattle\.io/projectId" in ns\.metadata\.annotations'
+      - template: templates/route-hostname.validatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "projectNamespaces")].expression
+          pattern: 'ns\.metadata\.annotations\["field\.cattle\.io/projectId"\] : ""\) == variables\.clusterId \+ ":" \+ variables\.projectId'
+      - template: templates/route-hostname.validatingpolicy.yaml
+        notMatchRegex:
+          path: spec.variables[?(@.name == "projectNamespaces")].expression
+          pattern: labels
+      - template: templates/listenerset-hostname.validatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "projectNamespaces")].expression
+          pattern: 'ns\.metadata\.annotations\["field\.cattle\.io/projectId"\] : ""\) == variables\.clusterId \+ ":" \+ variables\.projectId'
+      - template: templates/listenerset-hostname.validatingpolicy.yaml
+        notMatchRegex:
+          path: spec.variables[?(@.name == "projectNamespaces")].expression
+          pattern: labels
+  - it: reads the System and the Default project from the annotations of kube-system and default
+    asserts:
+      - template: templates/prometheus-monitors.mutatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "excludedProjectIds")].expression
+          pattern: 'ns\.metadata\.name in \["kube-system", "default"\]\)\s+\.map\(ns, \(has\(ns\.metadata\.annotations\).*\)\s+\.map\(a, \(variables\.clusterId != "" && a\.startsWith\(variables\.clusterId \+ ":"\)'
+      - template: templates/prometheus-monitors-existing.mutatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "excludedProjectIds")].expression
+          pattern: 'ns\.metadata\.name in \["kube-system", "default"\]\)\s+\.map\(ns, \(has\(ns\.metadata\.annotations\).*\)\s+\.map\(a, \(variables\.clusterId != "" && a\.startsWith\(variables\.clusterId \+ ":"\)'
+      - template: templates/namespace-quotas.generatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "excludedProjectIds")].expression
+          pattern: 'ns\.metadata\.name in \["kube-system", "default"\]\)\s+\.map\(ns, \(has\(ns\.metadata\.annotations\).*\)\s+\.map\(a, \(variables\.clusterId != "" && a\.startsWith\(variables\.clusterId \+ ":"\)'
+  - it: denies a route or a listener set in a namespace without a trusted project
+    asserts:
+      - template: templates/route-hostname.validatingpolicy.yaml
+        equal:
+          path: spec.validations[0].expression
+          value: '!variables.governed || variables.projectId != ""'
+      - template: templates/route-hostname.validatingpolicy.yaml
+        equal:
+          path: spec.variables[?(@.name == "governed")].expression
+          value: variables.hasProject && variables.isNorthSouth
+      - template: templates/listenerset-hostname.validatingpolicy.yaml
+        equal:
+          path: spec.validations[0].expression
+          value: '!variables.hasProject || variables.projectId != ""'
+      - template: templates/route-hostname.validatingpolicy.yaml
+        equal:
+          path: spec.variables[?(@.name == "hasProject")].expression
+          value: variables.clusterId != "" && variables.projectAnnotation != ""
+  - it: generates nothing for a namespace that is terminating
+    template: templates/namespace-quotas.generatingpolicy.yaml
+    asserts:
+      - contains:
+          path: spec.variables
+          content:
+            name: terminating
+            expression: |-
+              variables.nsAll.exists(ns,
+                ns.metadata.name == object.metadata.name && has(ns.metadata.deletionTimestamp))
+      - matchRegex:
+          path: spec.variables[?(@.name=="resources")].expression
+          pattern: '^\(!variables\.governed \|\| variables\.terminating\) \? \[\] : \['
+  - it: skips a terminating monitor in the existing-monitors policy
+    template: templates/prometheus-monitors-existing.mutatingpolicy.yaml
+    asserts:
+      - contains:
+          path: spec.targetMatchConditions
+          content:
+            name: not-terminating
+            expression: '!has(object.metadata.deletionTimestamp)'
+  - it: restricts the monitors and generates the quota in a namespace without a trusted project
+    asserts:
+      - template: templates/prometheus-monitors.mutatingpolicy.yaml
+        equal:
+          path: spec.variables[?(@.name == "restricted")].expression
+          value: variables.excludedProjectsKnown && variables.hasProject && !(variables.projectId in variables.excludedProjectIds)
+      - template: templates/prometheus-monitors-existing.mutatingpolicy.yaml
+        equal:
+          path: spec.variables[?(@.name == "restricted")].expression
+          value: variables.excludedProjectsKnown && variables.hasProject && !(variables.projectId in variables.excludedProjectIds)
+      - template: templates/namespace-quotas.generatingpolicy.yaml
+        equal:
+          path: spec.variables[?(@.name == "governed")].expression
+          value: variables.excludedProjectsKnown && variables.hasProject && !(variables.projectId in variables.excludedProjectIds)
+  - it: matches a namespace by its project annotation, not by its label
+    asserts:
+      - template: templates/namespace-quotas.generatingpolicy.yaml
+        equal:
+          path: spec.matchConditions[0].expression
+          value: '(has(object.metadata.annotations) && "field.cattle.io/projectId" in object.metadata.annotations ? object.metadata.annotations["field.cattle.io/projectId"] : "") != ""'
+      - template: templates/prometheus-monitors-existing.mutatingpolicy.yaml
+        equal:
+          path: spec.matchConditions[0].expression
+          value: '(has(object.metadata.annotations) && "field.cattle.io/projectId" in object.metadata.annotations ? object.metadata.annotations["field.cattle.io/projectId"] : "") != (has(oldObject.metadata.annotations) && "field.cattle.io/projectId" in oldObject.metadata.annotations ? oldObject.metadata.annotations["field.cattle.io/projectId"] : "")'
   - it: protects the keys that the two ownership records list, on update only
     template: templates/namespace-metadata.validatingpolicy.yaml
     asserts:
@@ -155,10 +341,16 @@ tests:
   - it: renders nothing for a disabled policy
     set:
       policies.route-hostname.enabled: false
+      policies.listenerset-hostname.enabled: false
       policies.prometheus-monitors.enabled: false
+      policies.namespace-quotas.enabled: false
       policies.namespace-metadata.enabled: false
       policies.namespace-orphan.enabled: false
+      policies.generated-integrity.enabled: false
     asserts:
+      - template: templates/namespace-quotas.generatingpolicy.yaml
+        hasDocuments:
+          count: 0
       - template: templates/namespace-metadata.validatingpolicy.yaml
         hasDocuments:
           count: 0
@@ -166,6 +358,15 @@ tests:
         hasDocuments:
           count: 0
       - template: templates/route-hostname.validatingpolicy.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/listenerset-hostname.validatingpolicy.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/generated-integrity.validatingadmissionpolicy.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/generated-integrity.validatingadmissionpolicybinding.yaml
         hasDocuments:
           count: 0
       - template: templates/prometheus-monitors.mutatingpolicy.yaml

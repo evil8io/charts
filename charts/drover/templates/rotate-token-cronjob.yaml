@@ -1,18 +1,4 @@
 {{- $component := dict "root" . "component" "rotate-token" }}
-{{- $containers := list
-  (dict
-    "name" "rotate-api-filter"
-    "volume" "credentials"
-    "credentialsSecret" (include "drover.credentialsName" .)
-    "tokenSecret" (printf "%s/%s" .Release.Namespace (include "drover.tokenSecretName" .))
-    "passwordSecret" "cattle-local-user-passwords/u-drover")
-  (dict
-    "name" "rotate-project-sync"
-    "volume" "project-sync-credentials"
-    "credentialsSecret" (include "drover.projectSync.credentialsName" .)
-    "tokenSecret" (printf "%s/%s" .Release.Namespace (include "drover.projectSync.tokenSecretName" .))
-    "passwordSecret" (printf "cattle-local-user-passwords/%s" (include "drover.projectSync.user" .)))
-}}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -32,61 +18,4 @@ spec:
     spec:
       backoffLimit: 6
       template:
-        metadata:
-          labels:
-            {{- include "drover.componentLabels" $component | nindent 12 }}
-        spec:
-          restartPolicy: OnFailure
-          serviceAccountName: {{ include "drover.rotateToken.fullname" . }}
-          automountServiceAccountToken: true
-          securityContext:
-            {{- include "drover.podSecurityContext" . | nindent 12 }}
-          containers:
-            {{- range $c := $containers }}
-            - name: {{ $c.name }}
-              image: {{ include "drover.image" $ | quote }}
-              imagePullPolicy: IfNotPresent
-              args:
-                - rotate-token
-                - "--rancher-url={{ $.Values.rancher.url }}"
-                - "--credentials-dir=/var/run/secrets/drover/credentials"
-                - "--token-secret={{ $c.tokenSecret }}"
-                - "--token-key=token"
-                - "--password-secret={{ $c.passwordSecret }}"
-                - "--ttl={{ $.Values.tokenRotation.ttl }}"
-                - "--renew-before={{ $.Values.tokenRotation.renewBefore }}"
-                - "--keep={{ $.Values.tokenRotation.keep }}"
-                - "--log-level={{ $.Values.logLevel }}"
-                {{- if $.Values.rancher.insecureSkipVerify }}
-                - "--rancher-insecure-skip-verify"
-                {{- end }}
-                {{- if $.Values.otlp.endpoint }}
-                - "--otlp-endpoint={{ $.Values.otlp.endpoint }}"
-                - "--otlp-traces=true"
-                - "--otlp-metrics=true"
-                - "--service-name={{ $.Values.otlp.serviceName }}"
-                {{- end }}
-              env:
-                {{- if $.Values.otlp.endpoint }}
-                {{- include "drover.telemetryEnv" . | nindent 16 }}
-                {{- end }}
-                - name: GOMEMLIMIT
-                  valueFrom:
-                    resourceFieldRef:
-                      resource: limits.memory
-                      divisor: "1"
-              securityContext:
-                {{- include "drover.securityContext" $ | nindent 16 }}
-              resources:
-                {{- toYaml $.Values.tokenRotation.resources | nindent 16 }}
-              volumeMounts:
-                - name: {{ $c.volume }}
-                  mountPath: /var/run/secrets/drover/credentials
-                  readOnly: true
-            {{- end }}
-          volumes:
-            {{- range $c := $containers }}
-            - name: {{ $c.volume }}
-              secret:
-                secretName: {{ $c.credentialsSecret }}
-            {{- end }}
+        {{- include "drover.rotateToken.podTemplate" . | nindent 8 }}

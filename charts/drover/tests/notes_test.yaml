@@ -1,0 +1,20 @@
+---
+suite: notes
+
+templates:
+  - templates/NOTES.txt
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: prints the configured project-sync interval
+    set:
+      projectSync.interval: 5m
+    asserts:
+      - matchRegexRaw:
+          pattern: 'project-sync: interval 5m'

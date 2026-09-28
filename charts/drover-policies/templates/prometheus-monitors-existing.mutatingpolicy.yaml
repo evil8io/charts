@@ -13,9 +13,10 @@ metadata:
     policies.kyverno.io/subject: PodMonitor, ServiceMonitor
     policies.kyverno.io/description: >-
       Sets namespaceSelector.matchNames to the own namespace on every existing
-      PodMonitor and ServiceMonitor in a namespace whose Rancher project ID changes
-      to a project other than System and Default. A change to the System or the
-      Default project changes nothing.
+      PodMonitor and ServiceMonitor in a namespace whose annotation
+      field.cattle.io/projectId changes to a project other than System and
+      Default, or to a value that does not name a project of this cluster. A
+      change to the System or the Default project changes nothing.
 spec:
   evaluation:
     background:
@@ -33,46 +34,22 @@ spec:
         resources:
           - namespaces
   matchConditions:
-    - name: project-id-changed
-      expression: |-
-        (has(object.metadata.labels) && "field.cattle.io/projectId" in object.metadata.labels ? object.metadata.labels["field.cattle.io/projectId"] : "")
+    - name: project-annotation-changed
+      expression: >-
+        {{ include "drover-policies.projectAnnotation" "object" }}
         !=
-        (has(oldObject.metadata.labels) && "field.cattle.io/projectId" in oldObject.metadata.labels ? oldObject.metadata.labels["field.cattle.io/projectId"] : "")
+        {{ include "drover-policies.projectAnnotation" "oldObject" }}
   variables:
     - name: nsName
       expression: request.object.metadata.name
-    - name: projectId
-      expression: >-
-        (has(request.object.metadata.labels) &&
-        "field.cattle.io/projectId" in request.object.metadata.labels) ?
-        request.object.metadata.labels["field.cattle.io/projectId"] : ""
     - name: nsAll
       expression: 'globalContext.Get("drover-namespaces", "") == null ? [] : globalContext.Get("drover-namespaces", "")'
-    - name: systemNsMatches
-      expression: 'variables.nsAll.filter(n, n.metadata.name == "kube-system")'
-    - name: systemNs
-      expression: 'variables.systemNsMatches.size() > 0 ? variables.systemNsMatches[0] : null'
-    - name: defaultNsMatches
-      expression: 'variables.nsAll.filter(n, n.metadata.name == "default")'
-    - name: defaultNs
-      expression: 'variables.defaultNsMatches.size() > 0 ? variables.defaultNsMatches[0] : null'
-    - name: systemProjectId
+    {{- include "drover-policies.projectVariables" (dict "ns" "request.object") | nindent 4 }}
+    {{- include "drover-policies.excludedProjectVariables" . | nindent 4 }}
+    - name: restricted
       expression: >-
-        (variables.systemNs != null && has(variables.systemNs.metadata.labels) && variables.systemNs.metadata.labels != null
-          && "field.cattle.io/projectId" in variables.systemNs.metadata.labels)
-        ? string(variables.systemNs.metadata.labels["field.cattle.io/projectId"]) : ""
-    - name: defaultProjectId
-      expression: >-
-        (variables.defaultNs != null && has(variables.defaultNs.metadata.labels) && variables.defaultNs.metadata.labels != null
-          && "field.cattle.io/projectId" in variables.defaultNs.metadata.labels)
-        ? string(variables.defaultNs.metadata.labels["field.cattle.io/projectId"]) : ""
-    - name: isUserProject
-      expression: >-
-        variables.projectId != "" &&
-        variables.systemProjectId != "" &&
-        variables.defaultProjectId != "" &&
-        variables.projectId != variables.systemProjectId &&
-        variables.projectId != variables.defaultProjectId
+        variables.excludedProjectsKnown && variables.hasProject &&
+        !(variables.projectId in variables.excludedProjectIds)
   targetMatchConstraints:
     resourceRules:
       - apiGroups:
@@ -88,11 +65,13 @@ spec:
   targetMatchConditions:
     - name: same-namespace
       expression: object.metadata.namespace == variables.nsName
+    - name: not-terminating
+      expression: '!has(object.metadata.deletionTimestamp)'
   mutations:
     - patchType: JSONPatch
       jsonPatch:
         expression: |-
-          !variables.isUserProject ? [] :
+          !variables.restricted ? [] :
           (has(object.spec.namespaceSelector) && object.spec.namespaceSelector == {"matchNames": [object.metadata.namespace]}) ? [] :
           [
             JSONPatch{

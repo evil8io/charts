@@ -13,7 +13,9 @@ the Rancher service user `u-drover`. project-sync authenticates as its own servi
 2. The token rotation (`tokenRotation`) is a CronJob with one container for each service
    user. Each container logs in as its own user and writes the API token into its own
    token Secret. A run renews a token only when the token expires within
-   `tokenRotation.renewBefore`. Only the CronJob writes to a token Secret.
+   `tokenRotation.renewBefore`. After an install and after an upgrade, a hook Job does
+   one run with the same containers, so both token Secrets have a token when the
+   install is complete. Only these runs write to a token Secret.
 3. project-sync (`projectSync`) copies the labels in `projectSync.labelKeys` and the
    annotations in `projectSync.annotationKeys` from a Rancher project to the namespaces
    of the project. project-sync writes the display name of the project into the
@@ -31,7 +33,7 @@ the Rancher service user `u-drover`. project-sync authenticates as its own servi
 
 The values `rancher.url` and `httpRoute.parentRefs` are required. The API filter reads
 the token file each time it uses the token. Thus the API filter does not need a restart
-for a new token.
+for a new token. The chart needs Kubernetes 1.30 or later.
 
 ## Service users
 
@@ -88,6 +90,17 @@ Helm does not create this `ReferenceGrant`, because Helm creates the namespaced 
 of the chart in the release namespace only. Without the grant, the gateway answers
 `500`.
 
+The name of each route is `<fullname>-<cluster id>-<revision>`, and the route has the
+label `drover-route-revision: <revision>`. The revision is the first 8 hex characters of
+the SHA-256 of the route definition in the policy. Thus a change of `httpRoute`, of
+`apiFilter.fanout.enabled`, or of the release namespace gives a new revision. Kyverno
+then creates the routes of the new revision. Every minute, a Kyverno `NamespacedDeletingPolicy`
+deletes the routes of the other revisions in the release namespace, so the Kyverno
+cleanup controller must run in the cluster. Until the cleanup, both routes of a cluster
+exist, and for a match in both routes, the gateway uses the older route. When the
+cleanup runs before Kyverno creates the new route, the gateway sends the paths of the
+route to the other routes of the hostname until Kyverno creates it.
+
 ## ServiceAccount tokens
 
 The Rancher proxy passes a ServiceAccount token to a downstream cluster only when its
@@ -130,6 +143,7 @@ these rights:
 
 - Every verb on `namespaces`.
 - `create` and `manage-namespaces` on `projects`.
+- `get` on `clusters` of `management.cattle.io`.
 - `get`, `list`, `watch`, `create`, and `delete` on `serviceaccounts`.
 - `create` on `serviceaccounts/token` for the names `openbao`, `project-owner`,
   `project-member`, and `read-only`.
@@ -149,7 +163,15 @@ the first entry of `openbao.server.extraVolumes`.
 
 After an uninstall, the seal key Secret and the data volumes stay in the cluster. Thus
 OpenBao unseals the old data after a reinstall. Without the key, the data cannot be read.
-Thus, when the Secret is lost, delete the `data-*` PersistentVolumeClaims of OpenBao.
+When the Secret does not exist but a `data-*` PersistentVolumeClaim of OpenBao exists,
+the hook Job fails, and the install or the upgrade stops. Thus, when the Secret is lost,
+delete the `data-*` PersistentVolumeClaims of OpenBao.
+
+Pod 0 initializes the cluster only when no other OpenBao pod is initialized and no
+`data-*` PersistentVolumeClaim of another pod exists. For this check, a Role gives the
+OpenBao ServiceAccount `get` on these PersistentVolumeClaims. When pod 0 lost its volume
+but another claim exists, pod 0 stays not ready, and OpenBao does not start until the
+volume is restored or all `data-*` PersistentVolumeClaims are deleted.
 
 On the first start, pod 0 does these steps:
 
@@ -174,9 +196,11 @@ the project ServiceAccounts.
   it logs in with the `admin` role. It writes the role `project-sync` of the Kubernetes
   auth method, and the policy of that role. For every entry of `broker.jwtIssuers`, it
   enables a JWT auth mount at `auth/jwt/<name>` and writes the discovery URL of the
-  issuer. The default entries of `broker.jwtIssuers` are for GitHub Actions and
-  GitLab.com. The Job disables every other `jwt/` mount. Login roles for these mounts
-  are not in the chart yet.
+  issuer. OpenBao reads the discovery document of the issuer at this write. When the
+  read fails, the Job logs the error and continues, and the mount keeps its previous
+  config. A new mount then has no config. The default entries of `broker.jwtIssuers`
+  are for GitHub Actions and GitLab.com. The Job disables every other `jwt/` mount.
+  Login roles for these mounts are not in the chart yet.
 - project-sync keeps the ServiceAccount `openbao` in the namespace `drover-openbao` of
   every cluster. project-sync also keeps a Role in every `drover-<project id>` namespace.
   With this Role, the `openbao` ServiceAccount can request tokens of the three project
@@ -213,4 +237,5 @@ traffic and the metric scrapes need a separate policy.
 ## Values
 
 See [values.yaml](values.yaml). There is a comment on each key whose name is not clear by
-itself. Helm stops the render with an error when a dependent value is not set.
+itself. Helm stops the render with an error when a dependent value is not set, or when
+`tokenRotation.renewBefore` is not shorter than `tokenRotation.ttl`.

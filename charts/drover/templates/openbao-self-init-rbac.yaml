@@ -1,0 +1,39 @@
+{{- if and .Values.projectSync.serviceAccounts.enabled (gt (int .Values.openbao.server.ha.replicas) 1) }}
+{{- $component := dict "root" . "component" "openbao" }}
+{{- $fullname := include "drover.openbao.fullname" . }}
+{{- $name := printf "%s-self-init" $fullname }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "drover.componentLabels" $component | nindent 4 }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - persistentvolumeclaims
+    resourceNames:
+      {{- range $i := untilStep 1 (int .Values.openbao.server.ha.replicas) 1 }}
+      - data-{{ $fullname }}-{{ $i }}
+      {{- end }}
+    verbs:
+      - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "drover.componentLabels" $component | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $fullname }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

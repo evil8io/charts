@@ -86,3 +86,46 @@ services:
 {{- end -}}
 {{- end -}}
 {{- end }}
+
+{{- /* CEL: the project annotation of the namespace object that the CEL expression in . names, or "". */ -}}
+{{- define "drover-policies.projectAnnotation" -}}
+(has({{ . }}.metadata.annotations) && "field.cattle.io/projectId" in {{ . }}.metadata.annotations ? {{ . }}.metadata.annotations["field.cattle.io/projectId"] : "")
+{{- end }}
+
+{{- /* CEL: the project in the annotation value in ., when its prefix is variables.clusterId, else "". */ -}}
+{{- define "drover-policies.projectOf" -}}
+(variables.clusterId != "" && {{ . }}.startsWith(variables.clusterId + ":") ? {{ . }}.substring(variables.clusterId.size() + 1) : "")
+{{- end }}
+
+{{- /* CEL variables for the namespace object in .ns. Put them after variables.nsAll. A namespace with hasProject and an empty projectId has no trusted project. */ -}}
+{{- define "drover-policies.projectVariables" -}}
+- name: clusterIds
+  expression: >-
+    variables.nsAll.filter(ns, ns.metadata.name == "kube-system")
+      .map(ns, {{ include "drover-policies.projectAnnotation" "ns" }})
+      .filter(a, a.contains(":"))
+      .map(a, a.split(":")[0])
+- name: clusterId
+  expression: 'variables.clusterIds.size() > 0 ? variables.clusterIds[0] : ""'
+- name: projectAnnotation
+  expression: >-
+    {{ include "drover-policies.projectAnnotation" .ns }}
+- name: hasProject
+  expression: >-
+    variables.clusterId != "" && variables.projectAnnotation != ""
+- name: projectId
+  expression: >-
+    {{ include "drover-policies.projectOf" "variables.projectAnnotation" }}
+{{- end }}
+
+{{- /* CEL variables for the System and the Default project, the projects of kube-system and default. Put them after the project variables. */ -}}
+{{- define "drover-policies.excludedProjectVariables" -}}
+- name: excludedProjectIds
+  expression: >-
+    variables.nsAll.filter(ns, ns.metadata.name in ["kube-system", "default"])
+      .map(ns, {{ include "drover-policies.projectAnnotation" "ns" }})
+      .map(a, {{ include "drover-policies.projectOf" "a" }})
+- name: excludedProjectsKnown
+  expression: >-
+    variables.excludedProjectIds.size() == 2 && !("" in variables.excludedProjectIds)
+{{- end }}

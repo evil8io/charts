@@ -194,16 +194,48 @@ tests:
             - name: project-sync-credentials
               mountPath: /var/run/secrets/drover/credentials
               readOnly: true
-  - it: sets GOMEMLIMIT from the container memory limit on both containers
+  - it: sets no env on either container when the endpoint is empty
     asserts:
-      - equal:
+      - notExists:
           path: spec.jobTemplate.spec.template.spec.containers[0].env
-          value: &gomemlimit
-            - name: GOMEMLIMIT
-              valueFrom:
-                resourceFieldRef:
-                  resource: limits.memory
-                  divisor: "1"
-      - equal:
+      - notExists:
           path: spec.jobTemplate.spec.template.spec.containers[1].env
-          value: *gomemlimit
+  - it: sets no GOMEMLIMIT env on either container
+    set:
+      otlp.endpoint: otel-collector:4317
+    asserts:
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: GOMEMLIMIT
+          any: true
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[1].env
+          content:
+            name: GOMEMLIMIT
+          any: true
+  - it: fails the render when renewBefore is not shorter than ttl
+    set:
+      tokenRotation.ttl: 24h
+      tokenRotation.renewBefore: 1440m
+    asserts:
+      - failedTemplate:
+          errorMessage: tokenRotation.renewBefore must be shorter than tokenRotation.ttl, because a longer window renews the token at every run
+  - it: accepts a renewBefore one second shorter than ttl
+    set:
+      tokenRotation.ttl: 1h30m
+      tokenRotation.renewBefore: 1h29m59s
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].args
+          content: --renew-before=1h29m59s
+  - it: rejects a keep below 2
+    set:
+      tokenRotation.keep: 1
+    asserts:
+      - failedTemplate: {}
+  - it: rejects a ttl that is not a duration in hours, minutes, and seconds
+    set:
+      tokenRotation.ttl: 2d
+    asserts:
+      - failedTemplate: {}

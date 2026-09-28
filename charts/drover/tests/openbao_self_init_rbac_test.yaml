@@ -1,0 +1,61 @@
+---
+suite: openbao self-init rbac
+
+templates:
+  - templates/openbao-self-init-rbac.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: grants the openbao ServiceAccount get on the data claims of the other pods
+    set:
+      projectSync.serviceAccounts.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        isKind:
+          of: Role
+      - documentIndex: 0
+        equal:
+          path: rules
+          value:
+            - apiGroups:
+                - ""
+              resources:
+                - persistentvolumeclaims
+              resourceNames:
+                - data-drover-openbao-1
+                - data-drover-openbao-2
+              verbs:
+                - get
+      - documentIndex: 1
+        isKind:
+          of: RoleBinding
+      - documentIndex: 1
+        equal:
+          path: subjects
+          value:
+            - kind: ServiceAccount
+              name: drover-openbao
+              namespace: cattle-system
+      - documentIndex: 1
+        equal:
+          path: roleRef.name
+          value: drover-openbao-self-init
+  - it: renders nothing for a single replica, because an empty name list grants every claim
+    set:
+      projectSync.serviceAccounts.enabled: true
+      openbao.server.ha.replicas: 1
+    asserts:
+      - hasDocuments:
+          count: 0

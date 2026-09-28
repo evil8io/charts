@@ -254,6 +254,27 @@ tests:
                   apiVersion: generators.external-secrets.io/v1alpha1
                   kind: Password
                   name: drover-password
+  - it: gives both ExternalSecrets labels that stay the same across chart and image versions
+    set:
+      image.tag: 9.9.9
+    asserts:
+      - template: templates/credentials-externalsecret.yaml
+        documentIndex: 1
+        equal:
+          path: metadata.labels
+          value: &staticLabels
+            app.kubernetes.io/name: drover
+            app.kubernetes.io/instance: drover
+      - template: templates/credentials-externalsecret.yaml
+        documentIndex: 2
+        equal:
+          path: metadata.labels
+          value: *staticLabels
+  - it: rejects a password shorter than 12 characters
+    set:
+      serviceUser.password.length: 11
+    asserts:
+      - failedTemplate: {}
   - it: follows the generator values
     set:
       serviceUser.password.refreshInterval: 720h

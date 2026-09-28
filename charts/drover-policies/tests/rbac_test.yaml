@@ -9,7 +9,7 @@ release:
   namespace: kyverno
 
 tests:
-  - it: aggregates the reads to the three controllers and the monitor writes to the background controller
+  - it: aggregates the reads to the four controllers and the monitor writes to the background controller
     asserts:
       - hasDocuments:
           count: 2
@@ -24,6 +24,10 @@ tests:
       - documentIndex: 0
         equal:
           path: metadata.labels["rbac.kyverno.io/aggregate-to-background-controller"]
+          value: "true"
+      - documentIndex: 0
+        equal:
+          path: metadata.labels["rbac.kyverno.io/aggregate-to-cleanup-controller"]
           value: "true"
       - documentIndex: 0
         equal:

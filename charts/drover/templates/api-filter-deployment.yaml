@@ -84,6 +84,9 @@ spec:
             {{- if .Values.apiFilter.fanout.maxInflight }}
             - "--fanout-max-inflight={{ .Values.apiFilter.fanout.maxInflight }}"
             {{- end }}
+            {{- if .Values.apiFilter.fanout.maxInflightPerCaller }}
+            - "--fanout-max-inflight-per-caller={{ .Values.apiFilter.fanout.maxInflightPerCaller }}"
+            {{- end }}
             {{- end }}
             - "--log-level={{ .Values.logLevel }}"
             {{- if .Values.rancher.insecureSkipVerify }}
@@ -95,15 +98,10 @@ spec:
             - "--otlp-metrics=true"
             - "--service-name={{ .Values.otlp.serviceName }}"
             {{- end }}
+          {{- if .Values.otlp.endpoint }}
           env:
-            {{- if .Values.otlp.endpoint }}
             {{- include "drover.telemetryEnv" . | nindent 12 }}
-            {{- end }}
-            - name: GOMEMLIMIT
-              valueFrom:
-                resourceFieldRef:
-                  resource: limits.memory
-                  divisor: "1"
+          {{- end }}
           ports:
             - name: http
               containerPort: 8080

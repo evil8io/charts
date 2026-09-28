@@ -1,0 +1,36 @@
+apiVersion: policies.kyverno.io/v1
+kind: NamespacedDeletingPolicy
+metadata:
+  name: {{ include "drover.fullname" . }}-routes
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "drover.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Delete Stale Drover Routes
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: HTTPRoute
+    policies.kyverno.io/description: >-
+      Deletes every drover HTTPRoute in this namespace whose drover-route-revision
+      label is not the current route revision.
+spec:
+  schedule: "* * * * *"
+  matchConstraints:
+    objectSelector:
+      matchLabels:
+        {{- include "drover.selectorLabels" . | nindent 8 }}
+    resourceRules:
+      - apiGroups:
+          - gateway.networking.k8s.io
+        apiVersions:
+          - v1
+        operations:
+          - "*"
+        resources:
+          - httproutes
+  conditions:
+    - name: stale-revision
+      expression: >-
+        !has(object.metadata.labels) ||
+        !("drover-route-revision" in object.metadata.labels) ||
+        object.metadata.labels["drover-route-revision"] != {{ include "drover.routes.revision" . | quote }}

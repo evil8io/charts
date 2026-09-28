@@ -29,6 +29,10 @@
               "minimum": 0,
               "type": "integer"
             },
+            "maxInflightPerCaller": {
+              "minimum": 0,
+              "type": "integer"
+            },
             "maxNamespaces": {
               "minimum": 0,
               "type": "integer"
@@ -42,11 +46,11 @@
         },
         "fetchRate": {
           "minimum": 0,
-          "type": "integer"
+          "type": "number"
         },
         "fetchRatePerCaller": {
           "minimum": 0,
-          "type": "integer"
+          "type": "number"
         },
         "maxCacheEntries": {
           "minimum": 0,
@@ -85,46 +89,46 @@
     "broker": {
       "additionalProperties": false,
       "properties": {
-        "jwtIssuers": {
-          "type": "object",
-          "propertyNames": {
-            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        "clusterTokenTTL": {
+          "pattern": "^([0-9]+(h|m|s))+$",
+          "type": "string"
+        },
+        "credentials": {
+          "additionalProperties": false,
+          "properties": {
+            "maxTTL": {
+              "pattern": "^([0-9]+(h|m|s))+$",
+              "type": "string"
+            },
+            "ttl": {
+              "pattern": "^([0-9]+(h|m|s))+$",
+              "type": "string"
+            }
           },
+          "type": "object"
+        },
+        "jwtIssuers": {
           "additionalProperties": {
             "additionalProperties": false,
             "properties": {
               "discoveryUrl": {
-                "type": "string",
-                "pattern": "^https://[^/:]+(/.*)?$"
+                "pattern": "^https://[^/:]+(/.*)?$",
+                "type": "string"
               }
             },
             "required": [
               "discoveryUrl"
             ],
             "type": "object"
-          }
-        },
-        "credentials": {
-          "additionalProperties": false,
-          "properties": {
-            "ttl": {
-              "type": "string",
-              "pattern": "^([0-9]+(h|m|s))+$"
-            },
-            "maxTTL": {
-              "type": "string",
-              "pattern": "^([0-9]+(h|m|s))+$"
-            }
+          },
+          "propertyNames": {
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
           },
           "type": "object"
         },
         "rancherUrl": {
-          "type": "string",
-          "pattern": "^(https://[^/:]+)?$"
-        },
-        "clusterTokenTTL": {
-          "type": "string",
-          "pattern": "^([0-9]+(h|m|s))+$"
+          "pattern": "^(https://[^/:]+)?$",
+          "type": "string"
         }
       },
       "type": "object"
@@ -293,6 +297,10 @@
         "nameLabel": {
           "type": "string"
         },
+        "patchRate": {
+          "exclusiveMinimum": 0,
+          "type": "number"
+        },
         "resources": {
           "type": "object"
         },
@@ -349,7 +357,7 @@
           "additionalProperties": false,
           "properties": {
             "length": {
-              "minimum": 8,
+              "minimum": 12,
               "type": "integer"
             },
             "refreshInterval": {
@@ -366,11 +374,11 @@
       "additionalProperties": false,
       "properties": {
         "keep": {
-          "minimum": 1,
+          "minimum": 2,
           "type": "integer"
         },
         "renewBefore": {
-          "minLength": 1,
+          "pattern": "^([0-9]+(h|m|s))+$",
           "type": "string"
         },
         "resources": {
@@ -385,7 +393,7 @@
           "type": "integer"
         },
         "ttl": {
-          "minLength": 1,
+          "pattern": "^([0-9]+(h|m|s))+$",
           "type": "string"
         }
       },

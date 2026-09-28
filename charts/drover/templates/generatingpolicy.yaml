@@ -1,13 +1,8 @@
-{{- $fanout := .Values.apiFilter.fanout.enabled }}
 {{- if not .Values.httpRoute.parentRefs }}
 {{- fail "httpRoute.parentRefs is required" }}
 {{- end }}
-{{- if and $fanout (not .Values.httpRoute.rancherBackendRef.name) }}
+{{- if and .Values.apiFilter.fanout.enabled (not .Values.httpRoute.rancherBackendRef.name) }}
 {{- fail "apiFilter.fanout.enabled needs httpRoute.rancherBackendRef.name, because the wide route must send the namespaced reads to Rancher" }}
-{{- end }}
-{{- $rancherBackend := dict "name" .Values.httpRoute.rancherBackendRef.name "port" (.Values.httpRoute.rancherBackendRef.port | int) }}
-{{- with .Values.httpRoute.rancherBackendRef.namespace }}
-{{- $_ := set $rancherBackend "namespace" . }}
 {{- end }}
 apiVersion: policies.kyverno.io/v1
 kind: GeneratingPolicy
@@ -45,75 +40,10 @@ spec:
   variables:
     - name: prefix
       expression: '"/k8s/clusters/" + object.metadata.name'
+    - name: revision
+      expression: {{ include "drover.routes.revision" . | quote | squote }}
     - name: routes
       expression: |-
-        [
-          {
-            "apiVersion": dyn("gateway.networking.k8s.io/v1"),
-            "kind": dyn("HTTPRoute"),
-            "metadata": dyn({
-              "name": dyn({{ printf "%s-" (include "drover.fullname" .) | quote }} + object.metadata.name),
-              "namespace": dyn({{ .Release.Namespace | quote }}),
-              "labels": dyn({{ include "drover.celLiteral" (include "drover.selectorLabels" . | fromYaml) }})
-            }),
-            "spec": dyn({
-              {{- with .Values.httpRoute.parentRefs }}
-              "parentRefs": dyn({{ include "drover.celLiteral" . }}),
-              {{- end }}
-              {{- with .Values.httpRoute.hostnames }}
-              "hostnames": dyn({{ include "drover.celLiteral" . }}),
-              {{- end }}
-              "rules": dyn([
-                dyn({
-                  "matches": dyn([
-                    dyn({
-                      "path": dyn({"type": dyn("Exact"), "value": dyn(variables.prefix + "/api/v1/namespaces")}),
-                      "method": dyn("GET")
-                    }),
-                    dyn({
-                      "path": dyn({"type": dyn("Exact"), "value": dyn(variables.prefix + "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews")}),
-                      "method": dyn("POST")
-                    })
-                    {{- if $fanout }},
-                    dyn({
-                      "path": dyn({"type": dyn("PathPrefix"), "value": dyn(variables.prefix + "/api/v1")}),
-                      "method": dyn("GET")
-                    }),
-                    dyn({
-                      "path": dyn({"type": dyn("PathPrefix"), "value": dyn(variables.prefix + "/apis")}),
-                      "method": dyn("GET")
-                    })
-                    {{- end }}
-                  ]),
-                  {{- with .Values.httpRoute.timeouts }}
-                  "timeouts": dyn({{ include "drover.celLiteral" . }}),
-                  {{- end }}
-                  "backendRefs": dyn([
-                    dyn({
-                      "name": dyn({{ include "drover.apiFilter.fullname" . | quote }}),
-                      "port": dyn(8080)
-                    })
-                  ])
-                })
-                {{- if $fanout }},
-                dyn({
-                  "matches": dyn([
-                    dyn({
-                      "path": dyn({"type": dyn("PathPrefix"), "value": dyn(variables.prefix + "/api/v1/namespaces")}),
-                      "method": dyn("GET")
-                    })
-                  ]),
-                  {{- with .Values.httpRoute.timeouts }}
-                  "timeouts": dyn({{ include "drover.celLiteral" . }}),
-                  {{- end }}
-                  "backendRefs": dyn([
-                    dyn({{ include "drover.celLiteral" $rancherBackend }})
-                  ])
-                })
-                {{- end }}
-              ])
-            })
-          }
-        ]
+        {{- include "drover.routes" . | nindent 8 }}
   generate:
     - expression: generator.Apply({{ .Release.Namespace | quote }}, variables.routes)
