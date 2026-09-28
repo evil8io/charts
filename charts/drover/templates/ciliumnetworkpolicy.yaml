@@ -35,6 +35,15 @@ spec:
         - matchLabels:
             k8s:io.kubernetes.pod.namespace: {{ $.Values.rancher.namespace }}
     {{- end }}
+    {{- if and (eq $component "project-sync") $.Values.projectSync.serviceAccounts.enabled }}
+    - toEndpoints:
+        - matchLabels:
+            {{- include "drover.openbao.selectorLabels" $ | nindent 12 }}
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+    {{- end }}
 {{- end }}
 {{- if .Values.projectSync.serviceAccounts.enabled }}
 ---
@@ -71,6 +80,15 @@ spec:
             - port: "8200"
               protocol: TCP
     {{- end }}
+    - fromEndpoints:
+        - matchLabels:
+            {{- include "drover.componentSelectorLabels" (dict "root" . "component" "project-sync") | nindent 12 }}
+        - matchLabels:
+            {{- include "drover.componentSelectorLabels" (dict "root" . "component" "openbao-roles") | nindent 12 }}
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
   egress:
     - toEntities:
         - kube-apiserver
@@ -82,6 +100,18 @@ spec:
             - port: "8200"
               protocol: TCP
             - port: "8201"
+              protocol: TCP
+    - toFQDNs:
+        {{- $hosts := list (include "drover.broker.rancherUrl" . | urlParse).hostname }}
+        {{- range $issuer := .Values.broker.jwtIssuers }}
+        {{- $hosts = append $hosts ($issuer.discoveryUrl | urlParse).hostname }}
+        {{- end }}
+        {{- range $host := $hosts | uniq | sortAlpha }}
+        - matchName: {{ $host | quote }}
+        {{- end }}
+      toPorts:
+        - ports:
+            - port: "443"
               protocol: TCP
 {{- end }}
 {{- end }}

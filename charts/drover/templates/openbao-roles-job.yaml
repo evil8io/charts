@@ -1,0 +1,171 @@
+{{- if .Values.projectSync.serviceAccounts.enabled }}
+{{- $component := dict "root" . "component" "openbao-roles" }}
+{{- $name := include "drover.openbaoRoles.fullname" . }}
+{{- $annotations := dict "hook" "post-install,post-upgrade" "weight" 0 }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "drover.componentLabels" $component | nindent 4 }}
+  annotations:
+    {{- include "drover.serviceUser.hookAnnotations" $annotations | nindent 4 }}
+data:
+  policy-project-sync.hcl: |
+    path "sys/mounts/kubernetes/+" {
+      capabilities = ["read", "update"]
+    }
+    path "kubernetes/+/config" {
+      capabilities = ["update"]
+    }
+    path "kubernetes/+/roles/*" {
+      capabilities = ["create", "read", "update", "delete", "list"]
+    }
+    path "sys/policies/acl" {
+      capabilities = ["list"]
+    }
+    path "sys/policies/acl/kubernetes-*" {
+      capabilities = ["read", "update", "delete"]
+    }
+  role-project-sync.json: |
+    {{- dict
+      "bound_service_account_names" (list (include "drover.projectSync.fullname" .))
+      "bound_service_account_namespaces" (list .Release.Namespace)
+      "token_policies" (list "project-sync")
+      "token_type" "batch"
+      "token_ttl" "5m"
+      | toJson | nindent 4 }}
+  {{- range $name, $issuer := .Values.broker.jwtIssuers }}
+  jwt-{{ $name }}.json: |
+    {{- dict "oidc_discovery_url" $issuer.discoveryUrl | toJson | nindent 4 }}
+  {{- end }}
+{{- if .Values.ciliumNetworkPolicy.enabled }}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "drover.componentLabels" $component | nindent 4 }}
+  annotations:
+    {{- include "drover.serviceUser.hookAnnotations" $annotations | nindent 4 }}
+spec:
+  endpointSelector:
+    matchLabels:
+      {{- include "drover.componentSelectorLabels" $component | nindent 6 }}
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            {{- include "drover.openbao.selectorLabels" . | nindent 12 }}
+      toPorts:
+        - ports:
+            - port: "8200"
+              protocol: TCP
+{{- end }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "drover.componentLabels" $component | nindent 4 }}
+  annotations:
+    {{- include "drover.serviceUser.hookAnnotations" (dict "hook" "post-install,post-upgrade" "weight" 1) | nindent 4 }}
+spec:
+  backoffLimit: 6
+  template:
+    metadata:
+      labels:
+        {{- include "drover.componentLabels" $component | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "drover.openbao.fullname" . }}-admin
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "drover.podSecurityContext" . | nindent 8 }}
+        runAsUser: 1001
+        runAsGroup: 1001
+      containers:
+        - name: openbao-roles
+          image: {{ .Values.serviceUser.hook.image | quote }}
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              addr={{ include "drover.openbao.address" . }}
+              login() {
+                jq -n --rawfile jwt /var/run/secrets/openbao/token '{role: "admin", jwt: ($jwt | rtrimstr("\n"))}' |
+                  curl -sS --fail-with-body --data @- "$addr/v1/auth/kubernetes/login" |
+                  jq -er .auth.client_token
+              }
+              deadline=$(($(date +%s) + 300))
+              until token=$(login); do
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "no login to OpenBao before the deadline" >&2
+                  exit 1
+                fi
+                sleep 5
+              done
+              request() {
+                curl -sS --fail-with-body -o /tmp/answer.json -X "$1" -H "X-Vault-Token: $token" --data "@$3" "$addr/v1/$2"
+                echo "$1 $2"
+              }
+              cd /config
+              for file in policy-*.hcl; do
+                policy=${file#policy-}
+                jq -n --rawfile policy "$file" '{policy: $policy}' > /tmp/policy.json
+                request POST "sys/policies/acl/${policy%.hcl}" /tmp/policy.json
+              done
+              for file in role-*.json; do
+                role=${file#role-}
+                request POST "auth/kubernetes/role/${role%.json}" "$file"
+              done
+              echo '{"type": "jwt"}' > /tmp/jwt.json
+              echo '{}' > /tmp/empty.json
+              request GET sys/auth /tmp/empty.json
+              jq -r '.data | keys[] | select(test("^jwt/[^/]+/$"))' /tmp/answer.json > /tmp/mounts
+              for file in jwt-*.json; do
+                [ -e "$file" ] || continue
+                mount=jwt/${file#jwt-}
+                mount=${mount%.json}
+                grep -qx "$mount/" /tmp/mounts || request POST "sys/auth/$mount" /tmp/jwt.json
+                request POST "auth/$mount/config" "$file"
+              done
+              while read -r mount; do
+                file=jwt-${mount#jwt/}
+                [ -e "${file%/}.json" ] || request DELETE "sys/auth/${mount%/}" /tmp/empty.json
+              done < /tmp/mounts
+          env:
+            - name: HOME
+              value: /tmp
+          securityContext:
+            {{- include "drover.securityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.serviceUser.hook.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: token
+              mountPath: /var/run/secrets/openbao
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ $name }}
+        - name: token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 600
+        - name: tmp
+          emptyDir: {}
+{{- end }}

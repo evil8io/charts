@@ -164,8 +164,23 @@ tests:
           path: rules
           content:
             apiGroups:
+              - ""
+            resources:
+              - serviceaccounts/token
+            resourceNames:
+              - openbao
+              - project-owner
+              - project-member
+              - read-only
+            verbs:
+              - create
+      - contains:
+          path: rules
+          content:
+            apiGroups:
               - rbac.authorization.k8s.io
             resources:
+              - roles
               - rolebindings
               - clusterrolebindings
             verbs:

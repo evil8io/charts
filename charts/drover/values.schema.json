@@ -82,6 +82,53 @@
       },
       "type": "object"
     },
+    "broker": {
+      "additionalProperties": false,
+      "properties": {
+        "jwtIssuers": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          },
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "discoveryUrl": {
+                "type": "string",
+                "pattern": "^https://[^/:]+(/.*)?$"
+              }
+            },
+            "required": [
+              "discoveryUrl"
+            ],
+            "type": "object"
+          }
+        },
+        "credentials": {
+          "additionalProperties": false,
+          "properties": {
+            "ttl": {
+              "type": "string",
+              "pattern": "^([0-9]+(h|m|s))+$"
+            },
+            "maxTTL": {
+              "type": "string",
+              "pattern": "^([0-9]+(h|m|s))+$"
+            }
+          },
+          "type": "object"
+        },
+        "rancherUrl": {
+          "type": "string",
+          "pattern": "^(https://[^/:]+)?$"
+        },
+        "clusterTokenTTL": {
+          "type": "string",
+          "pattern": "^([0-9]+(h|m|s))+$"
+        }
+      },
+      "type": "object"
+    },
     "ciliumNetworkPolicy": {
       "additionalProperties": false,
       "properties": {
@@ -178,6 +225,9 @@
       "additionalProperties": false,
       "properties": {
         "endpoint": {
+          "type": "string"
+        },
+        "serviceName": {
           "type": "string"
         }
       },

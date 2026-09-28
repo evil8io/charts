@@ -47,6 +47,12 @@ spec:
             {{- end }}
             {{- if .Values.projectSync.serviceAccounts.enabled }}
             - "--service-accounts"
+            - "--openbao-address={{ include "drover.openbao.address" . }}"
+            - "--openbao-jwt-file=/var/run/secrets/openbao/token"
+            - "--openbao-rancher-url={{ include "drover.broker.rancherUrl" . }}"
+            - "--openbao-token-ttl={{ .Values.broker.clusterTokenTTL }}"
+            - "--openbao-credential-ttl={{ .Values.broker.credentials.ttl }}"
+            - "--openbao-credential-max-ttl={{ .Values.broker.credentials.maxTTL }}"
             {{- end }}
             - "--interval={{ .Values.projectSync.interval }}"
             - "--log-level={{ .Values.logLevel }}"
@@ -57,9 +63,12 @@ spec:
             - "--otlp-endpoint={{ .Values.otlp.endpoint }}"
             - "--otlp-traces=true"
             - "--otlp-metrics=true"
-            - "--service-name={{ .Release.Name }}"
+            - "--service-name={{ .Values.otlp.serviceName }}"
             {{- end }}
           env:
+            {{- if .Values.otlp.endpoint }}
+            {{- include "drover.telemetryEnv" . | nindent 12 }}
+            {{- end }}
             - name: GOMEMLIMIT
               valueFrom:
                 resourceFieldRef:
@@ -85,7 +94,20 @@ spec:
             - name: token
               mountPath: /var/run/secrets/drover/token
               readOnly: true
+            {{- if .Values.projectSync.serviceAccounts.enabled }}
+            - name: openbao-token
+              mountPath: /var/run/secrets/openbao
+              readOnly: true
+            {{- end }}
       volumes:
         - name: token
           secret:
             secretName: {{ include "drover.projectSync.tokenSecretName" . }}
+        {{- if .Values.projectSync.serviceAccounts.enabled }}
+        - name: openbao-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+        {{- end }}

@@ -93,9 +93,12 @@ spec:
             - "--otlp-endpoint={{ .Values.otlp.endpoint }}"
             - "--otlp-traces=true"
             - "--otlp-metrics=true"
-            - "--service-name={{ .Release.Name }}"
+            - "--service-name={{ .Values.otlp.serviceName }}"
             {{- end }}
           env:
+            {{- if .Values.otlp.endpoint }}
+            {{- include "drover.telemetryEnv" . | nindent 12 }}
+            {{- end }}
             - name: GOMEMLIMIT
               valueFrom:
                 resourceFieldRef:

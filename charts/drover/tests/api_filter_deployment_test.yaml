@@ -16,10 +16,10 @@ tests:
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: ghcr.io/evil8io/drover:0.19.1
+          value: ghcr.io/evil8io/drover:0.22.1
       - equal:
           path: metadata.labels["app.kubernetes.io/version"]
-          value: "0.19.1"
+          value: "0.22.1"
   - it: takes the image tag from the values
     set:
       image.tag: 1.2.3
@@ -142,9 +142,10 @@ tests:
             - --fanout
             - --fanout-max-inflight=32
             - --log-level=info
-  - it: adds the otlp args when the endpoint is set
+  - it: adds the otlp args and the service name when the endpoint is set
     set:
       otlp.endpoint: otel-collector:4317
+      otlp.serviceName: drover-api-filter
     asserts:
       - equal:
           path: spec.template.spec.containers[0].args
@@ -157,12 +158,38 @@ tests:
             - --otlp-endpoint=otel-collector:4317
             - --otlp-traces=true
             - --otlp-metrics=true
-            - --service-name=drover
+            - --service-name=drover-api-filter
   - it: omits the otlp args when the endpoint is empty
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
-          content: --service-name=drover
+          content: --otlp-endpoint=otel-collector:4317
+  - it: adds the pod UID env when the endpoint is set
+    set:
+      otlp.endpoint: otel-collector:4317
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POD_UID
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.uid
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OTEL_RESOURCE_ATTRIBUTES
+            value: k8s.pod.uid=$(POD_UID)
+  - it: omits the pod UID env when the endpoint is empty
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POD_UID
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OTEL_RESOURCE_ATTRIBUTES
   - it: omits the upstream-insecure-skip-verify arg by default
     asserts:
       - notContains:

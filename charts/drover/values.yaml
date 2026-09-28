@@ -9,6 +9,8 @@ logLevel: info
 # An empty endpoint turns telemetry off.
 otlp:
   endpoint: ""
+  # The service.name of the drover telemetry. Empty sends none, so the collector derives it from the pod.
+  serviceName: ""
 
 rancher:
   # The Rancher Service in the cluster, for example https://rancher.cattle-system.
@@ -140,6 +142,25 @@ ciliumNetworkPolicy:
   enabled: true
   # The namespaces of the Gateway data plane, which reach the API filter and OpenBao.
   gatewayNamespaces: []
+
+# The OpenBao configuration for the CI credentials. It installs with projectSync.serviceAccounts.enabled.
+broker:
+  # JWT issuers of CI jobs. Each issuer gets the auth mount auth/jwt/<name>.
+  jwtIssuers:
+    github:
+      discoveryUrl: https://token.actions.githubusercontent.com
+    gitlab:
+      discoveryUrl: https://gitlab.com
+  # The lifetime of a credential of a project ServiceAccount, and the longest lifetime that a request can ask for.
+  credentials:
+    ttl: 15m
+    maxTTL: 2h
+  # The Rancher URL through which OpenBao reaches the clusters. OpenBao verifies its certificate.
+  # Empty selects https://<first httpRoute hostname>.
+  rancherUrl: ""
+  # The lifetime that project-sync requests for the token of the OpenBao ServiceAccount of a
+  # cluster. The API server can shorten it, and project-sync writes a new token at half of it.
+  clusterTokenTTL: 24h
 
 # OpenBao for the CI credentials of the project ServiceAccounts. It installs with
 # projectSync.serviceAccounts.enabled. The keys are those of https://github.com/openbao/openbao-helm.

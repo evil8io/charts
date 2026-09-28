@@ -113,7 +113,9 @@ The flag also widens `u-drover-project-sync`:
 - Every verb on `namespaces`.
 - `create` and `manage-namespaces` on `projects`.
 - `get`, `list`, `watch`, `create`, and `delete` on `serviceaccounts`.
-- `get`, `list`, `watch`, `create`, `update`, and `delete` on `rolebindings` and
+- `create` on `serviceaccounts/token` for the names `openbao`, `project-owner`,
+  `project-member`, and `read-only`.
+- `get`, `list`, `watch`, `create`, `update`, and `delete` on `roles`, `rolebindings`, and
   `clusterrolebindings`.
 - `bind` on the `admin`, `edit`, `view`, and `create-ns` `ClusterRoles`.
 
@@ -134,13 +136,44 @@ the root token, and it makes no recovery key. An admin logs in with
 The `PodMonitor` scrapes `/v1/sys/metrics` on a second listener at port 8210, and
 `openbao.server.gateway.httpRoute` sends traffic to port 8200 only.
 
+## Credential broker
+
+With `projectSync.serviceAccounts.enabled`, OpenBao issues short-lived tokens of the
+project ServiceAccounts.
+
+- A post-install and post-upgrade hook Job logs in with the `admin` role. It writes the
+  role `project-sync` of the Kubernetes auth method and its policy. It enables a JWT auth
+  mount at `auth/jwt/<name>` for every entry of `broker.jwtIssuers`, by default for GitHub
+  Actions and GitLab.com, and writes its discovery URL. It disables every other `jwt/`
+  mount. The chart has no login roles for these mounts yet.
+- project-sync keeps the ServiceAccount `openbao` in the namespace `drover-openbao` of every
+  cluster, and a Role in every `drover-<project id>` namespace that lets it request tokens
+  of the three project ServiceAccounts.
+- For every cluster, project-sync enables a Kubernetes secrets engine at
+  `kubernetes/<cluster id>`. It writes the mount config with a token of the `openbao`
+  ServiceAccount, the Rancher proxy URL `<broker.rancherUrl>/k8s/clusters/<cluster id>`,
+  and the Rancher setting `cacerts` as the CA. It writes a new token at half of
+  `broker.clusterTokenTTL`. OpenBao cannot skip the TLS verification, so a Rancher with a
+  private CA needs that setting.
+- For every project role of every tenant project, project-sync writes the role
+  `kubernetes/<cluster id>/roles/<project id>-<role>` for the ServiceAccount of that role,
+  and the policy `kubernetes-<cluster id>-<project id>-<role>`. The policy allows only the
+  credential request `kubernetes/<cluster id>/creds/<project id>-<role>`. A new project gets
+  them from the project watch, in the same pass as its ServiceAccounts. A credential is
+  valid for `broker.credentials.ttl`, and a request can ask for at most
+  `broker.credentials.maxTTL`. The periodic run corrects a changed role or policy and
+  deletes those of a deleted project.
+
 ## Network policies
 
 With `ciliumNetworkPolicy.enabled`, each component has a `CiliumNetworkPolicy`. Every
 component can reach the API server. The API filter, project-sync, and the token rotation
 can also reach `rancher.namespace`. The API filter on port 8080 and OpenBao on port 8200
 accept traffic from `ciliumNetworkPolicy.gatewayNamespaces`, and the OpenBao pods reach
-each other on 8200 and 8201. DNS and the metric scrapes need a separate policy.
+each other on 8200 and 8201. OpenBao also accepts traffic on 8200 from project-sync and from
+the hook Job of the broker roles. It reaches the
+Rancher host and the hosts of `broker.jwtIssuers` on 443 by name, so the cluster needs the
+Cilium DNS proxy. DNS and the metric scrapes need a separate policy.
 
 ## Values
 

@@ -138,8 +138,20 @@ u-drover-project-sync
     - create
     - delete
 - apiGroups:
+    - ""
+  resources:
+    - serviceaccounts/token
+  resourceNames:
+    - openbao
+    - project-owner
+    - project-member
+    - read-only
+  verbs:
+    - create
+- apiGroups:
     - rbac.authorization.k8s.io
   resources:
+    - roles
     - rolebindings
     - clusterrolebindings
   verbs:
@@ -233,4 +245,31 @@ component: server
 
 {{- define "drover.openbaoSeal.fullname" -}}
 {{ include "drover.fullname" . }}-openbao-seal
+{{- end }}
+
+{{- define "drover.openbao.address" -}}
+http://{{ include "drover.openbao.fullname" . }}-active.{{ .Release.Namespace }}:8200
+{{- end }}
+
+{{- define "drover.openbaoRoles.fullname" -}}
+{{ include "drover.fullname" . }}-openbao-roles
+{{- end }}
+
+{{- define "drover.broker.rancherUrl" -}}
+{{- if .Values.broker.rancherUrl }}
+{{- .Values.broker.rancherUrl }}
+{{- else if .Values.httpRoute.hostnames }}
+{{- printf "https://%s" (first .Values.httpRoute.hostnames) }}
+{{- else }}
+{{- fail "projectSync.serviceAccounts.enabled needs broker.rancherUrl or httpRoute.hostnames, because OpenBao reaches the clusters through the Rancher proxy" }}
+{{- end }}
+{{- end }}
+
+{{- define "drover.telemetryEnv" -}}
+- name: POD_UID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.uid
+- name: OTEL_RESOURCE_ATTRIBUTES
+  value: k8s.pod.uid=$(POD_UID)
 {{- end }}

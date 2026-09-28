@@ -1,0 +1,173 @@
+---
+suite: openbao roles job
+
+templates:
+  - templates/openbao-roles-job.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders the ConfigMap, the CiliumNetworkPolicy and the Job when the gate is on
+    set:
+      projectSync.serviceAccounts.enabled: true
+    asserts:
+      - hasDocuments:
+          count: 3
+      - documentIndex: 0
+        isKind:
+          of: ConfigMap
+      - documentIndex: 0
+        equal:
+          path: metadata.annotations
+          value: &hookAnnotations
+            helm.sh/hook: post-install,post-upgrade
+            helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+            helm.sh/hook-weight: "0"
+      - documentIndex: 1
+        isKind:
+          of: CiliumNetworkPolicy
+      - documentIndex: 1
+        equal:
+          path: metadata.annotations
+          value: *hookAnnotations
+      - documentIndex: 2
+        isKind:
+          of: Job
+      - documentIndex: 2
+        equal:
+          path: metadata.annotations
+          value:
+            helm.sh/hook: post-install,post-upgrade
+            helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+            helm.sh/hook-weight: "1"
+  - it: writes the policy, the role and the default jwt issuers into the ConfigMap
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 0
+    asserts:
+      - exists:
+          path: data["policy-project-sync.hcl"]
+      - exists:
+          path: data["role-project-sync.json"]
+      - exists:
+          path: data["jwt-github.json"]
+      - exists:
+          path: data["jwt-gitlab.json"]
+      - matchRegex:
+          path: data["jwt-github.json"]
+          pattern: '"oidc_discovery_url":"https://token\.actions\.githubusercontent\.com"'
+      - matchRegex:
+          path: data["jwt-gitlab.json"]
+          pattern: '"oidc_discovery_url":"https://gitlab\.com"'
+  - it: adds an extra jwt issuer to the ConfigMap
+    set:
+      projectSync.serviceAccounts.enabled: true
+      broker.jwtIssuers.custom.discoveryUrl: https://issuer.example.com
+    documentIndex: 0
+    asserts:
+      - exists:
+          path: data["jwt-custom.json"]
+      - matchRegex:
+          path: data["jwt-custom.json"]
+          pattern: '"oidc_discovery_url":"https://issuer\.example\.com"'
+      - exists:
+          path: data["jwt-github.json"]
+  - it: binds the project-sync role to the project-sync ServiceAccount, batch tokens only
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: data["role-project-sync.json"]
+          pattern: '"bound_service_account_names":\["drover-project-sync"\]'
+      - matchRegex:
+          path: data["role-project-sync.json"]
+          pattern: '"bound_service_account_namespaces":\["cattle-system"\]'
+      - matchRegex:
+          path: data["role-project-sync.json"]
+          pattern: '"token_policies":\["project-sync"\]'
+      - matchRegex:
+          path: data["role-project-sync.json"]
+          pattern: '"token_type":"batch"'
+  - it: runs the Job with the openbao-admin ServiceAccount and a projected token
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 2
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: drover-openbao-admin
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    path: token
+                    expirationSeconds: 600
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: token
+            mountPath: /var/run/secrets/openbao
+            readOnly: true
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: config
+            mountPath: /config
+            readOnly: true
+  - it: reaches openbao on port 8200 from the CiliumNetworkPolicy
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 1
+    asserts:
+      - equal:
+          path: spec.egress
+          value:
+            - toEndpoints:
+                - matchLabels:
+                    app.kubernetes.io/name: openbao
+                    app.kubernetes.io/instance: drover
+                    component: server
+              toPorts:
+                - ports:
+                    - port: "8200"
+                      protocol: TCP
+  - it: names sys/auth and the jwt paths in the script
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 2
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'request GET sys/auth /tmp/empty\.json'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'request POST "sys/auth/\$mount" /tmp/jwt\.json'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'request POST "auth/\$mount/config" "\$file"'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'request DELETE "sys/auth/'
+  - it: drops the CiliumNetworkPolicy when it is turned off
+    set:
+      projectSync.serviceAccounts.enabled: true
+      ciliumNetworkPolicy.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 1
+        isKind:
+          of: Job

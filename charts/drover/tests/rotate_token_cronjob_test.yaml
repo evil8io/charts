@@ -40,10 +40,10 @@ tests:
     asserts:
       - equal:
           path: spec.jobTemplate.spec.template.spec.containers[0].name
-          value: api-filter
+          value: rotate-api-filter
       - equal:
           path: spec.jobTemplate.spec.template.spec.containers[1].name
-          value: project-sync
+          value: rotate-project-sync
   - it: builds the api-filter args in a fixed order
     asserts:
       - equal:
@@ -94,9 +94,10 @@ tests:
             - --renew-before=48h
             - --keep=3
             - --log-level=debug
-  - it: adds the otlp args when the endpoint is set
+  - it: adds the otlp args and the service name when the endpoint is set
     set:
       otlp.endpoint: otel-collector:4317
+      otlp.serviceName: drover-rotate-token
     asserts:
       - equal:
           path: spec.jobTemplate.spec.template.spec.containers[0].args
@@ -114,12 +115,50 @@ tests:
             - --otlp-endpoint=otel-collector:4317
             - --otlp-traces=true
             - --otlp-metrics=true
-            - --service-name=drover
+            - --service-name=drover-rotate-token
   - it: omits the otlp args when the endpoint is empty
     asserts:
       - notContains:
           path: spec.jobTemplate.spec.template.spec.containers[0].args
-          content: --service-name=drover
+          content: --otlp-endpoint=otel-collector:4317
+  - it: adds the pod UID env on both containers when the endpoint is set
+    set:
+      otlp.endpoint: otel-collector:4317
+    asserts:
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: POD_UID
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.uid
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: OTEL_RESOURCE_ATTRIBUTES
+            value: k8s.pod.uid=$(POD_UID)
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[1].env
+          content:
+            name: POD_UID
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.uid
+      - contains:
+          path: spec.jobTemplate.spec.template.spec.containers[1].env
+          content:
+            name: OTEL_RESOURCE_ATTRIBUTES
+            value: k8s.pod.uid=$(POD_UID)
+  - it: omits the pod UID env when the endpoint is empty
+    asserts:
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[0].env
+          content:
+            name: POD_UID
+      - notContains:
+          path: spec.jobTemplate.spec.template.spec.containers[1].env
+          content:
+            name: POD_UID
   - it: omits the rancher-insecure-skip-verify arg by default
     asserts:
       - notContains:

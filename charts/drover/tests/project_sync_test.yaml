@@ -72,9 +72,11 @@ tests:
       - notContains:
           path: spec.template.spec.containers[0].args
           content: --service-accounts
-  - it: renders the service-accounts arg when project-sync keeps ServiceAccounts
+  - it: renders the service-accounts arg and the openbao args when project-sync keeps ServiceAccounts
     set:
       projectSync.serviceAccounts.enabled: true
+      httpRoute.hostnames:
+        - rancher.example.com
     asserts:
       - equal:
           path: spec.template.spec.containers[0].args
@@ -83,8 +85,85 @@ tests:
             - --rancher-url=https://rancher.cattle-system.svc
             - --token-file=/var/run/secrets/drover/token/token
             - --service-accounts
+            - --openbao-address=http://drover-openbao-active.cattle-system:8200
+            - --openbao-jwt-file=/var/run/secrets/openbao/token
+            - --openbao-rancher-url=https://rancher.example.com
+            - --openbao-token-ttl=24h
+            - --openbao-credential-ttl=15m
+            - --openbao-credential-max-ttl=2h
             - --interval=60s
             - --log-level=info
+  - it: takes the openbao rancher URL from broker.rancherUrl over the hostname
+    set:
+      projectSync.serviceAccounts.enabled: true
+      broker.rancherUrl: https://rancher.internal.example.com
+      httpRoute.hostnames:
+        - rancher.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --openbao-rancher-url=https://rancher.internal.example.com
+  - it: follows the clusterTokenTTL value
+    set:
+      projectSync.serviceAccounts.enabled: true
+      httpRoute.hostnames:
+        - rancher.example.com
+      broker.clusterTokenTTL: 12h
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --openbao-token-ttl=12h
+  - it: follows the broker.credentials TTL and max TTL values
+    set:
+      projectSync.serviceAccounts.enabled: true
+      httpRoute.hostnames:
+        - rancher.example.com
+      broker.credentials.ttl: 20m
+      broker.credentials.maxTTL: 3h
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --openbao-credential-ttl=20m
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --openbao-credential-max-ttl=3h
+  - it: fails the render without a rancher URL for OpenBao
+    set:
+      projectSync.serviceAccounts.enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: projectSync.serviceAccounts.enabled needs broker.rancherUrl or httpRoute.hostnames, because OpenBao reaches the clusters through the Rancher proxy
+  - it: adds the openbao-token projected volume and its mount when project-sync keeps ServiceAccounts
+    set:
+      projectSync.serviceAccounts.enabled: true
+      httpRoute.hostnames:
+        - rancher.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: openbao-token
+            projected:
+              sources:
+                - serviceAccountToken:
+                    path: token
+                    expirationSeconds: 3600
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: openbao-token
+            mountPath: /var/run/secrets/openbao
+            readOnly: true
+  - it: omits the openbao-token volume and mount by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: openbao-token
+      - notContains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: openbao-token
   - it: mounts the project-sync token Secret, not the api-filter one
     asserts:
       - equal:
@@ -105,9 +184,10 @@ tests:
             - --name-annotation=project.display_name
             - --interval=60s
             - --log-level=info
-  - it: adds the otlp args when the endpoint is set
+  - it: adds the otlp args and the service name when the endpoint is set
     set:
       otlp.endpoint: otel-collector:4317
+      otlp.serviceName: drover-project-sync
     asserts:
       - equal:
           path: spec.template.spec.containers[0].args
@@ -120,12 +200,38 @@ tests:
             - --otlp-endpoint=otel-collector:4317
             - --otlp-traces=true
             - --otlp-metrics=true
-            - --service-name=drover
+            - --service-name=drover-project-sync
   - it: omits the otlp args when the endpoint is empty
     asserts:
       - notContains:
           path: spec.template.spec.containers[0].args
-          content: --service-name=drover
+          content: --otlp-endpoint=otel-collector:4317
+  - it: adds the pod UID env when the endpoint is set
+    set:
+      otlp.endpoint: otel-collector:4317
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POD_UID
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.uid
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OTEL_RESOURCE_ATTRIBUTES
+            value: k8s.pod.uid=$(POD_UID)
+  - it: omits the pod UID env when the endpoint is empty
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POD_UID
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OTEL_RESOURCE_ATTRIBUTES
   - it: omits the rancher-insecure-skip-verify arg by default
     asserts:
       - notContains:

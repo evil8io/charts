@@ -1,13 +1,13 @@
 {{- $component := dict "root" . "component" "rotate-token" }}
 {{- $containers := list
   (dict
-    "name" "api-filter"
+    "name" "rotate-api-filter"
     "volume" "credentials"
     "credentialsSecret" (include "drover.credentialsName" .)
     "tokenSecret" (printf "%s/%s" .Release.Namespace (include "drover.tokenSecretName" .))
     "passwordSecret" "cattle-local-user-passwords/u-drover")
   (dict
-    "name" "project-sync"
+    "name" "rotate-project-sync"
     "volume" "project-sync-credentials"
     "credentialsSecret" (include "drover.projectSync.credentialsName" .)
     "tokenSecret" (printf "%s/%s" .Release.Namespace (include "drover.projectSync.tokenSecretName" .))
@@ -64,9 +64,12 @@ spec:
                 - "--otlp-endpoint={{ $.Values.otlp.endpoint }}"
                 - "--otlp-traces=true"
                 - "--otlp-metrics=true"
-                - "--service-name={{ $.Release.Name }}"
+                - "--service-name={{ $.Values.otlp.serviceName }}"
                 {{- end }}
               env:
+                {{- if $.Values.otlp.endpoint }}
+                {{- include "drover.telemetryEnv" . | nindent 16 }}
+                {{- end }}
                 - name: GOMEMLIMIT
                   valueFrom:
                     resourceFieldRef:
