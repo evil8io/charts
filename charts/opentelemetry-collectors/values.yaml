@@ -41,7 +41,7 @@ resourceAttributes: {}
 targetAllocator:
   image:
     repository: ghcr.io/open-telemetry/opentelemetry-operator/target-allocator
-    tag: "v0.159.0"
+    tag: "v0.160.0"
   scrapeInterval: 30s
 
 # -- Platform settings for AWS.
