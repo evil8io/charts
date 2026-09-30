@@ -1,0 +1,7 @@
+{{- range $dependency := .Chart.Dependencies }}
+{{- with index $.Subcharts (default $dependency.Name $dependency.Alias) }}
+{{- if ne .Chart.Version $dependency.Version }}
+{{- fail (printf "The %s chart in the directory charts/ is version %s, but the version in Chart.yaml is %s. Run `helm dependency build` for this chart." $dependency.Name .Chart.Version $dependency.Version) }}
+{{- end }}
+{{- end }}
+{{- end }}
