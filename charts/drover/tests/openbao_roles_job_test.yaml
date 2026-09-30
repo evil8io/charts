@@ -71,7 +71,7 @@ tests:
   - it: adds an extra jwt issuer to the ConfigMap
     set:
       projectSync.serviceAccounts.enabled: true
-      broker.jwtIssuers.custom.discoveryUrl: https://issuer.example.com
+      global.broker.jwtIssuers.custom.discoveryUrl: https://issuer.example.com
     documentIndex: 0
     asserts:
       - exists:
@@ -200,6 +200,49 @@ tests:
       - matchRegex:
           path: data["policy-project-sync.hcl"]
           pattern: 'path "kubernetes/\+/config" \{\n\s+capabilities = \["read", "update"\]\n\}'
+  - it: writes no AWS client config into the ConfigMap by default
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 0
+    asserts:
+      - notExists:
+          path: data["aws-client.json"]
+  - it: writes the AWS client config with the first host of the OpenBao route as the server ID
+    set:
+      projectSync.serviceAccounts.enabled: true
+      global.broker.aws.enabled: true
+      openbao.server.gateway.httpRoute.hosts:
+        - rancher-tokens.example.com
+        - other.example.com
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: data["aws-client.json"]
+          pattern: '"iam_server_id_header_value":"rancher-tokens\.example\.com"'
+      - matchRegex:
+          path: data["aws-client.json"]
+          pattern: '"use_sts_region_from_client":true'
+  - it: fails when the AWS auth method is on and the OpenBao route has no host
+    set:
+      projectSync.serviceAccounts.enabled: true
+      global.broker.aws.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: global\.broker\.aws\.enabled needs a host in openbao\.server\.gateway\.httpRoute\.hosts
+  - it: enables and configures the aws mount from the client config, and disables the mount without it
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 2
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'if \[ -e aws-client\.json \]; then\n(.*\n)*\s+\[ -s /tmp/aws \] \|\| request POST sys/auth/aws /tmp/aws\.json\n\s+request POST auth/aws/config/client aws-client\.json\n'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'elif \[ -s /tmp/aws \]; then\n\s+request DELETE sys/auth/aws /tmp/empty\.json\n'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '\{"type": "aws", "config": \{"plugin_version": "latest"\}\}'
   - it: drops the CiliumNetworkPolicy when it is turned off
     set:
       projectSync.serviceAccounts.enabled: true

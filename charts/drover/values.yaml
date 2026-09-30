@@ -148,24 +148,30 @@ ciliumNetworkPolicy:
   # The namespaces of the Gateway data plane, which reach the API filter and OpenBao.
   gatewayNamespaces: []
 
-# The OpenBao configuration for the CI credentials. It installs with projectSync.serviceAccounts.enabled.
-broker:
-  # JWT issuers of CI jobs. Each issuer gets the auth mount auth/jwt/<name>.
-  jwtIssuers:
-    github:
-      discoveryUrl: https://token.actions.githubusercontent.com
-    gitlab:
-      discoveryUrl: https://gitlab.com
-  # The lifetime of a credential of a project ServiceAccount, and the longest lifetime that a request can ask for.
-  credentials:
-    ttl: 15m
-    maxTTL: 2h
-  # The Rancher URL through which OpenBao reaches the clusters. OpenBao verifies its certificate.
-  # Empty selects https://<first httpRoute hostname>.
-  rancherUrl: ""
-  # The lifetime that project-sync requests for the token of the OpenBao ServiceAccount of a
-  # cluster. The API server can shorten it, and project-sync writes a new token at half of it.
-  clusterTokenTTL: 24h
+global:
+  # The OpenBao configuration for the CI credentials. It installs with
+  # projectSync.serviceAccounts.enabled. The keys are under global, because Helm also uses
+  # aws.enabled in the templates of the openbao subchart.
+  broker:
+    # JWT issuers of CI jobs. Each issuer gets the auth mount auth/jwt/<name>.
+    jwtIssuers:
+      github:
+        discoveryUrl: https://token.actions.githubusercontent.com
+      gitlab:
+        discoveryUrl: https://gitlab.com
+    aws:
+      # When this key is true, OpenBao has the AWS auth method at auth/aws.
+      enabled: false
+    # The lifetime of a credential of a project ServiceAccount, and the longest lifetime that a request can ask for.
+    credentials:
+      ttl: 15m
+      maxTTL: 2h
+    # The Rancher URL through which OpenBao reaches the clusters. OpenBao verifies its certificate.
+    # Empty selects https://<first httpRoute hostname>.
+    rancherUrl: ""
+    # The lifetime that project-sync requests for the token of the OpenBao ServiceAccount of a
+    # cluster. The API server can shorten it, and project-sync writes a new token at half of it.
+    clusterTokenTTL: 24h
 
 # OpenBao for the CI credentials of the project ServiceAccounts. It installs with
 # projectSync.serviceAccounts.enabled. The keys are those of https://github.com/openbao/openbao-helm.
@@ -174,12 +180,13 @@ openbao:
     enabled: false
   server:
     updateStrategyType: RollingUpdate
+    configAnnotation: true
     resources:
       requests:
         cpu: 50m
-        memory: 128Mi
+        memory: 256Mi
       limits:
-        memory: 128Mi
+        memory: 256Mi
     dataStorage:
       size: 1Gi
     # The first entry is the Secret with the static seal key. A pre-install hook creates it once.
@@ -197,6 +204,7 @@ openbao:
           - -ec
           - |
             : > /openbao/self-init/self-init.hcl
+            mkdir -p /openbao/data/plugins
             [ "${POD_NAME##*-}" = 0 ] || exit 0
             sa=/var/run/secrets/kubernetes.io/serviceaccount
             i=1
@@ -274,6 +282,8 @@ openbao:
         volumeMounts:
           - name: self-init
             mountPath: /openbao/self-init
+          - name: data
+            mountPath: /openbao/data
     extraArgs: -config=/openbao/self-init/self-init.hcl
     volumes:
       - name: self-init
@@ -296,6 +306,16 @@ openbao:
         # The API refuses an audit device, so the audit stanza declares it.
         config: |
           ui = true
+          plugin_directory = "/openbao/data/plugins"
+          {{- if .Values.global.broker.aws.enabled }}
+          plugin_auto_download = true
+          plugin_auto_register = true
+          plugin "auth" "aws" {
+            image = "ghcr.io/openbao/openbao-plugin-auth-aws:v0.1.1@sha256:d6c92d1bbfa986ac2ebd510f36eb4e6fc21bbe99622d97e1a0a3645e6029de03"
+          }
+          {{- else }}
+          plugin_auto_register = false
+          {{- end }}
           listener "tcp" {
             address         = "[::]:8200"
             cluster_address = "[::]:8201"

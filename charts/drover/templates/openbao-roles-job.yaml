@@ -39,9 +39,16 @@ data:
       "token_type" "batch"
       "token_ttl" "5m"
       | toJson | nindent 4 }}
-  {{- range $name, $issuer := .Values.broker.jwtIssuers }}
+  {{- range $name, $issuer := .Values.global.broker.jwtIssuers }}
   jwt-{{ $name }}.json: |
     {{- dict "oidc_discovery_url" $issuer.discoveryUrl | toJson | nindent 4 }}
+  {{- end }}
+  {{- if .Values.global.broker.aws.enabled }}
+  aws-client.json: |
+    {{- dict
+      "use_sts_region_from_client" true
+      "iam_server_id_header_value" (include "drover.broker.awsServerId" .)
+      | toJson | nindent 4 }}
   {{- end }}
 {{- if .Values.ciliumNetworkPolicy.enabled }}
 ---
@@ -138,6 +145,7 @@ spec:
               echo '{}' > /tmp/empty.json
               request GET sys/auth /tmp/empty.json
               jq -r '.data | keys[] | select(test("^jwt/[^/]+/$"))' /tmp/answer.json > /tmp/mounts
+              jq -r '.data | keys[] | select(. == "aws/")' /tmp/answer.json > /tmp/aws
               for file in jwt-*.json; do
                 [ -e "$file" ] || continue
                 mount=jwt/${file#jwt-}
@@ -152,6 +160,13 @@ spec:
                 file=jwt-${mount#jwt/}
                 [ -e "${file%/}.json" ] || request DELETE "sys/auth/${mount%/}" /tmp/empty.json
               done < /tmp/mounts
+              if [ -e aws-client.json ]; then
+                echo '{"type": "aws", "config": {"plugin_version": "latest"}}' > /tmp/aws.json
+                [ -s /tmp/aws ] || request POST sys/auth/aws /tmp/aws.json
+                request POST auth/aws/config/client aws-client.json
+              elif [ -s /tmp/aws ]; then
+                request DELETE sys/auth/aws /tmp/empty.json
+              fi
           env:
             - name: HOME
               value: /tmp

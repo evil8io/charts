@@ -97,10 +97,10 @@ tests:
             - --interval=60s
             - --patch-rate=50
             - --log-level=info
-  - it: takes the openbao rancher URL from broker.rancherUrl over the hostname
+  - it: takes the openbao rancher URL from global.broker.rancherUrl over the hostname
     set:
       projectSync.serviceAccounts.enabled: true
-      broker.rancherUrl: https://rancher.internal.example.com
+      global.broker.rancherUrl: https://rancher.internal.example.com
       httpRoute.hostnames:
         - rancher.example.com
     asserts:
@@ -112,18 +112,18 @@ tests:
       projectSync.serviceAccounts.enabled: true
       httpRoute.hostnames:
         - rancher.example.com
-      broker.clusterTokenTTL: 12h
+      global.broker.clusterTokenTTL: 12h
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
           content: --openbao-token-ttl=12h
-  - it: follows the broker.credentials TTL and max TTL values
+  - it: follows the global.broker.credentials TTL and max TTL values
     set:
       projectSync.serviceAccounts.enabled: true
       httpRoute.hostnames:
         - rancher.example.com
-      broker.credentials.ttl: 20m
-      broker.credentials.maxTTL: 3h
+      global.broker.credentials.ttl: 20m
+      global.broker.credentials.maxTTL: 3h
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
@@ -136,7 +136,7 @@ tests:
       projectSync.serviceAccounts.enabled: true
     asserts:
       - failedTemplate:
-          errorMessage: projectSync.serviceAccounts.enabled needs broker.rancherUrl or httpRoute.hostnames, because OpenBao reaches the clusters through the Rancher proxy
+          errorMessage: projectSync.serviceAccounts.enabled needs global.broker.rancherUrl or httpRoute.hostnames, because OpenBao reaches the clusters through the Rancher proxy
   - it: adds the openbao-token projected volume and its mount when project-sync keeps ServiceAccounts
     set:
       projectSync.serviceAccounts.enabled: true

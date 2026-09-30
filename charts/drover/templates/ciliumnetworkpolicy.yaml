@@ -103,11 +103,17 @@ spec:
               protocol: TCP
     - toFQDNs:
         {{- $hosts := list (include "drover.broker.rancherUrl" . | urlParse).hostname }}
-        {{- range $issuer := .Values.broker.jwtIssuers }}
+        {{- range $issuer := .Values.global.broker.jwtIssuers }}
         {{- $hosts = append $hosts ($issuer.discoveryUrl | urlParse).hostname }}
+        {{- end }}
+        {{- if .Values.global.broker.aws.enabled }}
+        {{- $hosts = concat $hosts (list "ghcr.io" "pkg-containers.githubusercontent.com") }}
         {{- end }}
         {{- range $host := $hosts | uniq | sortAlpha }}
         - matchName: {{ $host | quote }}
+        {{- end }}
+        {{- if .Values.global.broker.aws.enabled }}
+        - matchPattern: "sts.*.amazonaws.com"
         {{- end }}
       toPorts:
         - ports:

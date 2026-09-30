@@ -244,7 +244,7 @@ tests:
   - it: drops a duplicate host shared by the rancher URL and an issuer
     set:
       projectSync.serviceAccounts.enabled: true
-      broker.rancherUrl: https://gitlab.com
+      global.broker.rancherUrl: https://gitlab.com
     documentIndex: 4
     asserts:
       - equal:
@@ -252,6 +252,23 @@ tests:
           value:
             - matchName: gitlab.com
             - matchName: token.actions.githubusercontent.com
+  - it: adds the plugin registry hosts and the STS hosts to the openbao egress when the AWS auth method is on
+    set:
+      projectSync.serviceAccounts.enabled: true
+      httpRoute.hostnames:
+        - rancher.example.com
+      global.broker.aws.enabled: true
+    documentIndex: 4
+    asserts:
+      - equal:
+          path: spec.egress[2].toFQDNs
+          value:
+            - matchName: ghcr.io
+            - matchName: gitlab.com
+            - matchName: pkg-containers.githubusercontent.com
+            - matchName: rancher.example.com
+            - matchName: token.actions.githubusercontent.com
+            - matchPattern: sts.*.amazonaws.com
   - it: renders nothing when turned off, even with the gate on
     set:
       ciliumNetworkPolicy.enabled: false

@@ -262,13 +262,21 @@ http://{{ include "drover.openbao.fullname" . }}-active.{{ .Release.Namespace }}
 {{- end }}
 
 {{- define "drover.broker.rancherUrl" -}}
-{{- if .Values.broker.rancherUrl }}
-{{- .Values.broker.rancherUrl }}
+{{- if .Values.global.broker.rancherUrl }}
+{{- .Values.global.broker.rancherUrl }}
 {{- else if .Values.httpRoute.hostnames }}
 {{- printf "https://%s" (first .Values.httpRoute.hostnames) }}
 {{- else }}
-{{- fail "projectSync.serviceAccounts.enabled needs broker.rancherUrl or httpRoute.hostnames, because OpenBao reaches the clusters through the Rancher proxy" }}
+{{- fail "projectSync.serviceAccounts.enabled needs global.broker.rancherUrl or httpRoute.hostnames, because OpenBao reaches the clusters through the Rancher proxy" }}
 {{- end }}
+{{- end }}
+
+{{- define "drover.broker.awsServerId" -}}
+{{- $hosts := .Values.openbao.server.gateway.httpRoute.hosts }}
+{{- if not $hosts }}
+{{- fail "global.broker.aws.enabled needs a host in openbao.server.gateway.httpRoute.hosts, because OpenBao requires the first host as the value of the X-Vault-AWS-IAM-Server-ID header" }}
+{{- end }}
+{{- first $hosts }}
 {{- end }}
 
 {{- define "drover.telemetryEnv" -}}

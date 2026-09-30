@@ -50,9 +50,9 @@ spec:
             - "--openbao-address={{ include "drover.openbao.address" . }}"
             - "--openbao-jwt-file=/var/run/secrets/openbao/token"
             - "--openbao-rancher-url={{ include "drover.broker.rancherUrl" . }}"
-            - "--openbao-token-ttl={{ .Values.broker.clusterTokenTTL }}"
-            - "--openbao-credential-ttl={{ .Values.broker.credentials.ttl }}"
-            - "--openbao-credential-max-ttl={{ .Values.broker.credentials.maxTTL }}"
+            - "--openbao-token-ttl={{ .Values.global.broker.clusterTokenTTL }}"
+            - "--openbao-credential-ttl={{ .Values.global.broker.credentials.ttl }}"
+            - "--openbao-credential-max-ttl={{ .Values.global.broker.credentials.maxTTL }}"
             {{- end }}
             - "--interval={{ .Values.projectSync.interval }}"
             - "--patch-rate={{ .Values.projectSync.patchRate }}"

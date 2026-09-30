@@ -86,53 +86,6 @@
       },
       "type": "object"
     },
-    "broker": {
-      "additionalProperties": false,
-      "properties": {
-        "clusterTokenTTL": {
-          "pattern": "^([0-9]+(h|m|s))+$",
-          "type": "string"
-        },
-        "credentials": {
-          "additionalProperties": false,
-          "properties": {
-            "maxTTL": {
-              "pattern": "^([0-9]+(h|m|s))+$",
-              "type": "string"
-            },
-            "ttl": {
-              "pattern": "^([0-9]+(h|m|s))+$",
-              "type": "string"
-            }
-          },
-          "type": "object"
-        },
-        "jwtIssuers": {
-          "additionalProperties": {
-            "additionalProperties": false,
-            "properties": {
-              "discoveryUrl": {
-                "pattern": "^https://[^/:]+(/.*)?$",
-                "type": "string"
-              }
-            },
-            "required": [
-              "discoveryUrl"
-            ],
-            "type": "object"
-          },
-          "propertyNames": {
-            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
-          },
-          "type": "object"
-        },
-        "rancherUrl": {
-          "pattern": "^(https://[^/:]+)?$",
-          "type": "string"
-        }
-      },
-      "type": "object"
-    },
     "ciliumNetworkPolicy": {
       "additionalProperties": false,
       "properties": {
@@ -154,6 +107,67 @@
       "properties": {
         "enabled": {
           "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "global": {
+      "properties": {
+        "broker": {
+          "additionalProperties": false,
+          "properties": {
+            "aws": {
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "type": "object"
+            },
+            "clusterTokenTTL": {
+              "pattern": "^([0-9]+(h|m|s))+$",
+              "type": "string"
+            },
+            "credentials": {
+              "additionalProperties": false,
+              "properties": {
+                "maxTTL": {
+                  "pattern": "^([0-9]+(h|m|s))+$",
+                  "type": "string"
+                },
+                "ttl": {
+                  "pattern": "^([0-9]+(h|m|s))+$",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "jwtIssuers": {
+              "additionalProperties": {
+                "additionalProperties": false,
+                "properties": {
+                  "discoveryUrl": {
+                    "pattern": "^https://[^/:]+(/.*)?$",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "discoveryUrl"
+                ],
+                "type": "object"
+              },
+              "propertyNames": {
+                "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+              },
+              "type": "object"
+            },
+            "rancherUrl": {
+              "pattern": "^(https://[^/:]+)?$",
+              "type": "string"
+            }
+          },
+          "type": "object"
         }
       },
       "type": "object"
