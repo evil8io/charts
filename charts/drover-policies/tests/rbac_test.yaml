@@ -43,6 +43,32 @@ tests:
           value:
             - update
             - patch
+  - it: adds the namespace writes for the background controller with the platform metadata policy
+    set:
+      policies.namespace-platform-metadata.annotations:
+        alert.team: platform
+    asserts:
+      - hasDocuments:
+          count: 3
+      - documentIndex: 1
+        equal:
+          path: metadata.name
+          value: drover-policies-kyverno-namespace-metadata
+      - documentIndex: 1
+        equal:
+          path: metadata.labels["rbac.kyverno.io/aggregate-to-background-controller"]
+          value: "true"
+      - documentIndex: 1
+        equal:
+          path: rules[0].resources
+          value:
+            - namespaces
+      - documentIndex: 1
+        equal:
+          path: rules[0].verbs
+          value:
+            - update
+            - patch
   - it: drops the monitor writes with the monitor policies
     set:
       policies.prometheus-monitors.enabled: false

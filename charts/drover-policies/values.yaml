@@ -45,6 +45,17 @@ policies:
       count/services.loadbalancers: "0"
   namespace-metadata:
     enabled: true
+  namespace-platform-metadata:
+    enabled: true
+    # The names of the platform namespaces that have a project. A namespace without the project annotation is a platform namespace too. Put the names that Rancher puts in its System project here.
+    namespaces: []
+    # The labels and the annotations that Kyverno sets on every platform namespace. With both empty, Helm renders no policy.
+    labels: {}
+    annotations: {}
+  namespace-platform-name:
+    enabled: true
+    # Name prefixes that a Rancher user cannot use for a namespace, for example kube- and cattle-. The exact names come from policies.namespace-platform-metadata.namespaces.
+    deniedPrefixes: []
   namespace-orphan:
     enabled: true
   route-hostname:

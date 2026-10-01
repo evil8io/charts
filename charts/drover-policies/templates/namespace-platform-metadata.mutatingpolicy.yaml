@@ -1,0 +1,68 @@
+{{- $policy := index .Values.policies "namespace-platform-metadata" }}
+{{- if and $policy.enabled (or $policy.labels $policy.annotations) }}
+{{- $checks := list }}
+{{- if $policy.labels }}
+{{- $checks = append $checks (printf "%s.exists(k, !(has(object.metadata.labels) && k in object.metadata.labels && object.metadata.labels[k] == %s[k]))" (toJson $policy.labels) (toJson $policy.labels)) }}
+{{- end }}
+{{- if $policy.annotations }}
+{{- $checks = append $checks (printf "%s.exists(k, !(has(object.metadata.annotations) && k in object.metadata.annotations && object.metadata.annotations[k] == %s[k]))" (toJson $policy.annotations) (toJson $policy.annotations)) }}
+{{- end }}
+{{- $predicate := printf "!has(object.metadata.annotations) || !(\"field.cattle.io/projectId\" in object.metadata.annotations) || object.metadata.name in %s" (toJson $policy.namespaces) }}
+{{- $fields := list }}
+{{- if $policy.labels }}
+{{- $fields = append $fields (printf "labels: %s" (toJson $policy.labels)) }}
+{{- end }}
+{{- if $policy.annotations }}
+{{- $fields = append $fields (printf "annotations: %s" (toJson $policy.annotations)) }}
+{{- end }}
+---
+apiVersion: policies.kyverno.io/v1
+kind: MutatingPolicy
+metadata:
+  name: drover.namespace-platform-metadata
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Platform Namespace Metadata
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: low
+    policies.kyverno.io/subject: Namespace
+    policies.kyverno.io/description: >-
+      Sets the platform labels and annotations on a Namespace that has no
+      field.cattle.io/projectId annotation or whose name is in the list of
+      the platform namespaces, on CREATE and UPDATE, and on the existing
+      Namespaces, when a value is missing or differs. The predicate is in the
+      mutation too, because the pass over the existing Namespaces does not
+      apply the match conditions.
+spec:
+  evaluation:
+    background:
+      enabled: false
+    mutateExisting:
+      enabled: true
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - namespaces
+  matchConditions:
+    - name: platform-namespace
+      expression: {{ $predicate | quote }}
+    - name: value-missing
+      expression: {{ join " || " $checks | quote }}
+  mutations:
+    - patchType: ApplyConfiguration
+      applyConfiguration:
+        expression: |-
+          ({{ $predicate }}) ? Object{
+            metadata: Object.metadata{
+              {{ join ", " $fields }}
+            }
+          } : Object{}
+{{- end }}

@@ -7,6 +7,8 @@ templates:
   - templates/namespace-quotas.generatingpolicy.yaml
   - templates/namespace-metadata.validatingpolicy.yaml
   - templates/namespace-orphan.validatingpolicy.yaml
+  - templates/namespace-platform-metadata.mutatingpolicy.yaml
+  - templates/namespace-platform-name.validatingpolicy.yaml
   - templates/route-hostname.validatingpolicy.yaml
   - templates/listenerset-hostname.validatingpolicy.yaml
   - templates/prometheus-monitors.mutatingpolicy.yaml
@@ -41,6 +43,10 @@ tests:
         equal:
           path: metadata.name
           value: drover.namespace-orphan
+      - template: templates/namespace-platform-name.validatingpolicy.yaml
+        equal:
+          path: metadata.name
+          value: drover.namespace-platform-name
       - template: templates/route-hostname.validatingpolicy.yaml
         equal:
           path: metadata.name
@@ -338,6 +344,74 @@ tests:
       - matchRegex:
           path: spec.matchConditions[0].expression
           pattern: 'system:serviceaccount:cattle-test:'
+  - it: sets the platform metadata on a namespace without a project or in the list, when a value is missing
+    set:
+      policies.namespace-platform-metadata.namespaces:
+        - kube-system
+        - kyverno
+      policies.namespace-platform-metadata.labels:
+        platform.tier: system
+      policies.namespace-platform-metadata.annotations:
+        alert.team: platform
+    asserts:
+      - template: templates/namespace-platform-metadata.mutatingpolicy.yaml
+        equal:
+          path: metadata.name
+          value: drover.namespace-platform-metadata
+      - template: templates/namespace-platform-metadata.mutatingpolicy.yaml
+        equal:
+          path: spec.evaluation.mutateExisting.enabled
+          value: true
+      - template: templates/namespace-platform-metadata.mutatingpolicy.yaml
+        matchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: 'object.metadata.name in \["kube-system","kyverno"\]'
+      - template: templates/namespace-platform-metadata.mutatingpolicy.yaml
+        matchRegex:
+          path: spec.matchConditions[1].expression
+          pattern: '\{"alert.team":"platform"\}.exists\(k,'
+      - template: templates/namespace-platform-metadata.mutatingpolicy.yaml
+        matchRegex:
+          path: spec.mutations[0].applyConfiguration.expression
+          pattern: 'labels: \{"platform.tier":"system"\}'
+  - it: denies a platform namespace name and prefix to a Rancher user who may not patch every namespace
+    set:
+      policies.namespace-platform-metadata.namespaces:
+        - kube-system
+      policies.namespace-platform-name.deniedPrefixes:
+        - kube-
+        - cattle-
+    asserts:
+      - template: templates/namespace-platform-name.validatingpolicy.yaml
+        matchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: '"system:cattle:authenticated" in request.userInfo.groups'
+      - template: templates/namespace-platform-name.validatingpolicy.yaml
+        equal:
+          path: spec.validations[0].expression
+          value: '!(object.metadata.name in ["kube-system"]) || variables.allowed'
+      - template: templates/namespace-platform-name.validatingpolicy.yaml
+        equal:
+          path: spec.validations[1].expression
+          value: '!["kube-","cattle-"].exists(p, object.metadata.name.startsWith(p)) || variables.allowed'
+      - template: templates/namespace-platform-name.validatingpolicy.yaml
+        matchRegex:
+          path: spec.variables[0].expression
+          pattern: '"resource": "namespaces",\s+"verb": "patch"'
+      - template: templates/namespace-platform-name.validatingpolicy.yaml
+        lengthEqual:
+          path: spec.validations
+          count: 2
+      - template: templates/namespace-platform-name.validatingpolicy.yaml
+        equal:
+          path: spec.matchConstraints.resourceRules[0].operations
+          value:
+            - CREATE
+  - it: renders no platform metadata policy with empty labels and annotations
+    asserts:
+      - template: templates/namespace-platform-metadata.mutatingpolicy.yaml
+        hasDocuments:
+          count: 0
   - it: renders nothing for a disabled policy
     set:
       policies.route-hostname.enabled: false
@@ -347,7 +421,11 @@ tests:
       policies.namespace-metadata.enabled: false
       policies.namespace-orphan.enabled: false
       policies.generated-integrity.enabled: false
+      policies.namespace-platform-name.enabled: false
     asserts:
+      - template: templates/namespace-platform-name.validatingpolicy.yaml
+        hasDocuments:
+          count: 0
       - template: templates/namespace-quotas.generatingpolicy.yaml
         hasDocuments:
           count: 0
