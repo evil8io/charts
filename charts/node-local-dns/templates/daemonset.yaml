@@ -21,6 +21,10 @@ kind: DaemonSet
 metadata:
   name: {{ include "node-local-dns.fullname" . }}
   namespace: {{ .Release.Namespace }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "node-local-dns.labels" . | nindent 4 }}
     kubernetes.io/cluster-service: "true"

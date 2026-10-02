@@ -69,8 +69,6 @@ aws:
     roleArn: ""
     region: ""
     pollInterval: 10s
-    annotations:
-      vpa.autopilot.kubernetes.io/min-memory: otc-container=250Mi
     resources:
       limits:
         memory: 250Mi
@@ -144,8 +142,6 @@ collectors:
   # container logs, and scrapes the kubelet and the pods of its node.
   node:
     enabled: true
-    annotations:
-      vpa.autopilot.kubernetes.io/min-memory: otc-container=100Mi
     resources:
       requests:
         cpu: 50m
@@ -183,8 +179,6 @@ collectors:
   cluster:
     enabled: true
     replicas: 3
-    annotations:
-      vpa.autopilot.kubernetes.io/min-memory: otc-container=100Mi
     resources:
       limits:
         memory: 500Mi
@@ -220,8 +214,6 @@ collectors:
   # and sends them as logs with the service name kubernetes-events.
   events:
     enabled: true
-    annotations:
-      vpa.autopilot.kubernetes.io/min-memory: otc-container=100Mi
     resources:
       limits:
         memory: 500Mi
@@ -310,8 +302,6 @@ kube-state-metrics:
   fullnameOverride: kube-state-metrics
   releaseLabel: true
   prometheusScrape: false
-  annotations:
-    vpa.autopilot.kubernetes.io/min-memory: 100Mi
   metricLabelsAllowlist:
     - nodes=[node.evil8.io/role,node.kubernetes.io/instance-type,topology.kubernetes.io/zone,topology.kubernetes.io/region,kubernetes.io/arch,kubernetes.io/os]
     - namespaces=[*]

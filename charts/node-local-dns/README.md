@@ -143,6 +143,7 @@ Helm 3 treats a DaemonSet with the `OnDelete` strategy as ready at once.
 | `upstreamService.selector` | `app.kubernetes.io/name: coredns` | The pod labels of the upstream DNS server. The Service also gets these labels. |
 | `corefile` | cache for `cluster.local`, `in-addr.arpa`, `ip6.arpa`, and `.`, forward to the upstream Service | The Corefile. node-cache replaces `__PILLAR__CLUSTER__DNS__` with the address of the upstream Service. |
 | `resources` | 25m CPU and 50Mi memory requests | The resources of the node-cache container. |
+| `annotations` | `{}` | Annotations on the DaemonSet. |
 | `podAnnotations` | `io.cilium.no-track-port: "53"` | Annotations on the pod template. |
 | `dnsConfig` | name server 127.0.0.1, `timeout` 2, `attempts` 5 | The DNS configuration of the pod. A non-empty value sets `dnsPolicy: None`. |
 | `tolerations` | `- operator: Exists` | The tolerations of the pod. The default tolerates every taint. |
