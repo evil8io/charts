@@ -74,6 +74,14 @@ processors:
       - action: insert
         key: k8s.cluster.name
         value: {{ .Values.clusterName | quote }}
+  transform/kube_state_metrics:
+    error_mode: ignore
+    metric_statements:
+      - context: resource
+        conditions:
+          - attributes["service.name"] == "kube-state-metrics"
+        statements:
+          - delete_matching_keys(attributes, "^k8s\\.(container|namespace|node|pod|replicaset)\\.name$")
   {{- with $detection }}
   resource_detection/env:
     {{- . | nindent 4 }}
@@ -96,6 +104,7 @@ service:
         - prometheus
       processors:
         - resource/k8s_cluster_name
+        - transform/kube_state_metrics
         {{- if $detection }}
         - resource_detection/env
         {{- end }}

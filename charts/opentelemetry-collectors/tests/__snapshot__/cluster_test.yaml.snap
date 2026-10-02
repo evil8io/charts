@@ -31,6 +31,14 @@ matches the snapshot with aws and fargate enabled:
         fail_on_missing_metadata: true
         override: false
         timeout: 15s
+      transform/kube_state_metrics:
+        error_mode: ignore
+        metric_statements:
+          - conditions:
+              - attributes["service.name"] == "kube-state-metrics"
+            context: resource
+            statements:
+              - delete_matching_keys(attributes, "^k8s\\.(container|namespace|node|pod|replicaset)\\.name$")
     receivers:
       prometheus:
         config:
@@ -168,6 +176,7 @@ matches the snapshot with aws and fargate enabled:
             - otlp_http
           processors:
             - resource/k8s_cluster_name
+            - transform/kube_state_metrics
             - resource_detection/env
             - batch
           receivers:

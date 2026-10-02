@@ -118,6 +118,15 @@ tests:
           path: spec.config.processors["resource_detection/env"].detectors
           value:
             - eks
+  - it: strips the target attributes of the kube-state-metrics series
+    asserts:
+      - equal:
+          path: spec.config.processors["transform/kube_state_metrics"].metric_statements[0].conditions
+          value:
+            - attributes["service.name"] == "kube-state-metrics"
+      - contains:
+          path: spec.config.service.pipelines.metrics.processors
+          content: transform/kube_state_metrics
   - it: omits resource/global without resourceAttributes
     asserts:
       - notExists:
