@@ -3,7 +3,7 @@ apiVersion: v2
 name: opentelemetry-collectors
 description: OpenTelemetry collectors for the logs, metrics, and events of a Kubernetes cluster, managed by the opentelemetry-operator
 type: application
-version: 0.1.2
+version: 0.1.3
 appVersion: "0.161.0"
 
 dependencies:

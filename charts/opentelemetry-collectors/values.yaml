@@ -315,6 +315,7 @@ kube-state-metrics:
   metricLabelsAllowlist:
     - nodes=[node.evil8.io/role,node.kubernetes.io/instance-type,topology.kubernetes.io/zone,topology.kubernetes.io/region,kubernetes.io/arch,kubernetes.io/os]
     - namespaces=[*]
+    - endpointslices=[kubernetes.io/service-name]
   prometheus:
     monitor:
       enabled: true
