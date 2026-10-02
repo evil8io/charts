@@ -5,7 +5,7 @@ platform: generic
 
 image:
   repository: registry.k8s.io/dns/k8s-dns-node-cache
-  tag: "1.26.8"
+  tag: "1.27.1"
 
 localIp: 172.20.0.1
 
