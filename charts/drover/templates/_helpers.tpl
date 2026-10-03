@@ -126,6 +126,7 @@ u-drover-project-sync
     - list
     - watch
     - create
+    - patch
     - manage-namespaces
 - apiGroups:
     - management.cattle.io
@@ -277,6 +278,50 @@ http://{{ include "drover.openbao.fullname" . }}-active.{{ .Release.Namespace }}
 {{- fail "global.broker.aws.enabled needs a host in openbao.server.gateway.httpRoute.hosts, because OpenBao requires the first host as the value of the X-Vault-AWS-IAM-Server-ID header" }}
 {{- end }}
 {{- first $hosts }}
+{{- end }}
+
+{{- define "drover.broker.audience" -}}
+{{- $hosts := .Values.openbao.server.gateway.httpRoute.hosts }}
+{{- if .Values.global.broker.audience }}
+{{- .Values.global.broker.audience }}
+{{- else if $hosts }}
+{{- printf "https://%s" (first $hosts) }}
+{{- else }}
+{{- fail "projectSync.serviceAccounts.enabled needs global.broker.audience or a host in openbao.server.gateway.httpRoute.hosts, because every JWT login role binds the audience" }}
+{{- end }}
+{{- end }}
+
+{{- define "drover.trust.issuers" -}}
+{{- $issuers := dict }}
+{{- range $name, $issuer := .Values.global.broker.jwtIssuers }}
+{{- $_ := set $issuers $name (dict "requiredClaims" $issuer.requiredClaims "allowedClaims" ($issuer.allowedClaims | default dict)) }}
+{{- end }}
+{{- toJson $issuers }}
+{{- end }}
+
+{{- define "drover.trust.rules" -}}
+{{- $broker := .Values.global.broker }}
+{{- if eq $broker.trust.annotation $broker.trust.statusAnnotation }}
+{{- fail "global.broker.trust.annotation and global.broker.trust.statusAnnotation must differ, because the status write of project-sync must not change the trust document" }}
+{{- end }}
+{{- range list $broker.trust.annotation $broker.trust.statusAnnotation }}
+{{- if or (has . $.Values.projectSync.annotationKeys) (eq . $.Values.projectSync.nameAnnotation) }}
+{{- fail "global.broker.trust.annotation and global.broker.trust.statusAnnotation must not be in projectSync.annotationKeys or equal projectSync.nameAnnotation, because project-sync does not start when it copies a trust key to the namespaces" }}
+{{- end }}
+{{- end }}
+{{- $ttl := include "drover.durationSeconds" $broker.loginTokenTTL | int }}
+{{- if or (lt $ttl 60) (gt $ttl 86400) }}
+{{- fail "global.broker.loginTokenTTL must be 1m to 24h, because project-sync does not start with another value" }}
+{{- end }}
+{{- dict
+  "annotation" $broker.trust.annotation
+  "statusAnnotation" $broker.trust.statusAnnotation
+  "maxStatements" ($broker.trust.maxStatements | int)
+  "audience" (include "drover.broker.audience" .)
+  "loginTokenTTL" $broker.loginTokenTTL
+  "jwtIssuers" (include "drover.trust.issuers" . | fromJson)
+  "aws" (dict "enabled" $broker.aws.enabled "allowedAccounts" ($broker.aws.allowedAccounts | default list))
+  | toJson }}
 {{- end }}
 
 {{- define "drover.telemetryEnv" -}}

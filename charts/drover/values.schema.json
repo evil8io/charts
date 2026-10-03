@@ -116,9 +116,19 @@
         "broker": {
           "additionalProperties": false,
           "properties": {
+            "audience": {
+              "type": "string"
+            },
             "aws": {
               "additionalProperties": false,
               "properties": {
+                "allowedAccounts": {
+                  "items": {
+                    "pattern": "^[0-9]{12}$",
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
                 "enabled": {
                   "type": "boolean"
                 }
@@ -147,24 +157,79 @@
               "additionalProperties": {
                 "additionalProperties": false,
                 "properties": {
+                  "allowedClaims": {
+                    "additionalProperties": {
+                      "items": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    },
+                    "propertyNames": {
+                      "minLength": 1,
+                      "not": {
+                        "const": "aud"
+                      }
+                    },
+                    "type": "object"
+                  },
                   "discoveryUrl": {
                     "pattern": "^https://[^/:]+(/.*)?$",
                     "type": "string"
+                  },
+                  "requiredClaims": {
+                    "items": {
+                      "minLength": 1,
+                      "not": {
+                        "const": "aud"
+                      },
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
                   }
                 },
                 "required": [
-                  "discoveryUrl"
+                  "discoveryUrl",
+                  "requiredClaims"
                 ],
                 "type": "object"
               },
               "propertyNames": {
+                "maxLength": 63,
                 "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
               },
               "type": "object"
             },
+            "loginTokenTTL": {
+              "pattern": "^([0-9]+(h|m|s))+$",
+              "type": "string"
+            },
             "rancherUrl": {
               "pattern": "^(https://[^/:]+)?$",
               "type": "string"
+            },
+            "trust": {
+              "additionalProperties": false,
+              "properties": {
+                "annotation": {
+                  "maxLength": 316,
+                  "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$",
+                  "type": "string"
+                },
+                "maxStatements": {
+                  "maximum": 100,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "statusAnnotation": {
+                  "maxLength": 316,
+                  "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$",
+                  "type": "string"
+                }
+              },
+              "type": "object"
             }
           },
           "type": "object"

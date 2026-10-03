@@ -1,0 +1,114 @@
+{{- if .Values.projectSync.serviceAccounts.enabled }}
+{{- $broker := .Values.global.broker }}
+{{- $key := toJson $broker.trust.annotation }}
+{{- $maxStatements := $broker.trust.maxStatements | int }}
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: {{ include "drover.fullname" . }}-trust-document
+  labels:
+    {{- include "drover.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Project Trust Document
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Project
+    policies.kyverno.io/description: >-
+      Denies a Rancher Project write that sets the annotation {{ $broker.trust.annotation }}
+      to a trust document that is not valid under a rule of the platform. Checks the
+      shape of the document, the number of statements, the JWT issuers and their claims,
+      the AWS accounts, and the project roles.
+spec:
+  failurePolicy: Fail
+  evaluation:
+    background:
+      enabled: false
+  validationActions:
+    - Deny
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - management.cattle.io
+        apiVersions:
+          - v3
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - projects
+  matchConditions:
+    - name: trust-annotation-changed
+      expression: >-
+        has(object.metadata.annotations) && {{ $key }} in object.metadata.annotations &&
+        object.metadata.annotations[{{ $key }}] != "" &&
+        (request.operation == "CREATE" ? true :
+        !has(oldObject.metadata.annotations) || !({{ $key }} in oldObject.metadata.annotations) ||
+        oldObject.metadata.annotations[{{ $key }}] != object.metadata.annotations[{{ $key }}])
+  variables:
+    - name: value
+      expression: 'has(object.metadata.annotations) && {{ $key }} in object.metadata.annotations ? object.metadata.annotations[{{ $key }}] : ""'
+    - name: doc
+      expression: json.unmarshal(variables.value)
+    - name: statements
+      expression: variables.doc.statements
+    - name: issuers
+      expression: >-
+        {{ include "drover.trust.issuers" . | fromJson | include "drover.celLiteral" }}
+    - name: reasons
+      expression: |-
+        variables.statements.transformList(i, s,
+          !("name" in s) || type(s.name) != string || !s.name.matches('^[a-z0-9]([-a-z0-9]{0,30}[a-z0-9])?$') ? "InvalidName" :
+          variables.statements.exists(j, t, j < i && "name" in t && t.name == s.name) ? "DuplicateName" :
+          s.exists(k, !(k in ["name", "jwt", "aws", "role"])) || ("jwt" in s) == ("aws" in s) ? "InvalidAuth" :
+          cel.bind(auth,
+            "jwt" in s ? (
+              type(s.jwt) != map || s.jwt.exists(k, !(k in ["issuer", "claims"])) ? "InvalidAuth" :
+              !("issuer" in s.jwt) || type(s.jwt.issuer) != string || !(s.jwt.issuer in variables.issuers) ? "UnknownIssuer" :
+              !("claims" in s.jwt) || type(s.jwt.claims) != map || s.jwt.claims.size() == 0 ||
+              s.jwt.claims.exists(k, k == "" || k == "aud" || !(
+                type(s.jwt.claims[k]) == string ? s.jwt.claims[k] != "" :
+                type(s.jwt.claims[k]) == list && s.jwt.claims[k].size() > 0 &&
+                s.jwt.claims[k].all(v, type(v) == string && v != ""))) ? "InvalidClaims" :
+              variables.issuers[s.jwt.issuer].requiredClaims.exists(c, !(c in s.jwt.claims)) ? "MissingRequiredClaim" :
+              variables.issuers[s.jwt.issuer].allowedClaims.exists(c, c in s.jwt.claims &&
+                (type(s.jwt.claims[c]) == string ? [s.jwt.claims[c]] : s.jwt.claims[c])
+                .exists(v, !(v in variables.issuers[s.jwt.issuer].allowedClaims[c]))) ? "ClaimNotAllowed" :
+              ""
+            ) : (
+              type(s.aws) != map || s.aws.exists(k, k != "arn") ? "InvalidAuth" :
+              !("arn" in s.aws) || type(s.aws.arn) != string ||
+              !s.aws.arn.matches('^arn:aws:iam::[0-9]{12}:role/([A-Za-z0-9+=,.@_-]+/)*[A-Za-z0-9+=,.@_-]+$') ? "InvalidARN" :
+              {{- with $broker.aws.allowedAccounts }}
+              !{{ include "drover.celLiteral" . }}.exists(a, s.aws.arn.startsWith("arn:aws:iam::" + a + ":")) ? "AccountNotAllowed" :
+              {{- end }}
+              {{- if $broker.aws.enabled }}
+              ""
+              {{- else }}
+              "MethodDisabled"
+              {{- end }}
+            ),
+            auth != "" ? auth :
+            !("role" in s) || type(s.role) != string || !(s.role in ["project-owner", "project-member", "read-only"]) ? "InvalidRole" :
+            ""
+          )
+        )
+    - name: problems
+      expression: >-
+        variables.reasons.transformList(i, r, r != "",
+        (r == "InvalidName" ? "the statement at index " + string(i) : "the statement " + string(variables.statements[i].name)) +
+        " has the reason " + string(r))
+  validations:
+    - expression: bytes(variables.value).size() <= 16384
+      message: The annotation {{ $broker.trust.annotation }} has more than 16384 bytes.
+    - expression: >-
+        type(variables.doc) == map && variables.doc.size() == 1 && "statements" in variables.doc &&
+        type(variables.doc.statements) == list && variables.doc.statements.all(s, type(s) == map)
+      message: >-
+        The annotation {{ $broker.trust.annotation }} must be a JSON object with the key
+        statements only, and statements must be a list of objects.
+    - expression: variables.statements.size() <= {{ $maxStatements }}
+      message: The annotation {{ $broker.trust.annotation }} has more than {{ $maxStatements }} statements.
+    - expression: variables.problems.size() == 0
+      messageExpression: >-
+        "The annotation {{ $broker.trust.annotation }} is not valid: " + variables.problems.join(", ") + "."
+{{- end }}

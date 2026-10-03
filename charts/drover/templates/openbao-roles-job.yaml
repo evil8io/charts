@@ -31,6 +31,18 @@ data:
     path "sys/policies/acl/kubernetes-*" {
       capabilities = ["read", "update", "delete"]
     }
+    path "auth/jwt/+/role/*" {
+      capabilities = ["create", "read", "update", "delete", "list"]
+    }
+    path "auth/jwt/+/role" {
+      capabilities = ["list"]
+    }
+    path "auth/aws/role/*" {
+      capabilities = ["create", "read", "update", "delete", "list"]
+    }
+    path "auth/aws/roles" {
+      capabilities = ["list"]
+    }
   role-project-sync.json: |
     {{- dict
       "bound_service_account_names" (list (include "drover.projectSync.fullname" .))

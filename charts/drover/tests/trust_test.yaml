@@ -1,0 +1,314 @@
+---
+suite: trust annotation
+
+templates:
+  - templates/project-sync-trust-configmap.yaml
+  - templates/project-annotations.validatingpolicy.yaml
+  - templates/trust-document.validatingpolicy.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+  openbao.server.gateway.httpRoute.hosts:
+    - rancher-tokens.example.com
+
+tests:
+  - it: renders only the writer policy without the project ServiceAccounts
+    asserts:
+      - template: templates/project-sync-trust-configmap.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/project-annotations.validatingpolicy.yaml
+        hasDocuments:
+          count: 1
+      - template: templates/trust-document.validatingpolicy.yaml
+        hasDocuments:
+          count: 0
+  - it: writes the default platform rules into the ConfigMap
+    set:
+      projectSync.serviceAccounts.enabled: true
+    template: templates/project-sync-trust-configmap.yaml
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: drover-project-sync-trust
+      - equal:
+          path: data["trust.json"]
+          value: |
+            {
+              "annotation": "drover-trust",
+              "audience": "https://rancher-tokens.example.com",
+              "aws": {
+                "allowedAccounts": [],
+                "enabled": false
+              },
+              "jwtIssuers": {
+                "github": {
+                  "allowedClaims": {},
+                  "requiredClaims": [
+                    "repository_id"
+                  ]
+                },
+                "gitlab": {
+                  "allowedClaims": {},
+                  "requiredClaims": [
+                    "project_id"
+                  ]
+                }
+              },
+              "loginTokenTTL": "5m",
+              "maxStatements": 20,
+              "statusAnnotation": "drover-trust-status"
+            }
+  - it: takes the audience from global.broker.audience over the OpenBao host
+    set:
+      projectSync.serviceAccounts.enabled: true
+      global.broker.audience: https://openbao.example.com
+    template: templates/project-sync-trust-configmap.yaml
+    asserts:
+      - matchRegex:
+          path: data["trust.json"]
+          pattern: '"audience": "https://openbao\.example\.com"'
+  - it: fails without an audience and without an OpenBao host
+    set:
+      projectSync.serviceAccounts.enabled: true
+      openbao.server.gateway.httpRoute.hosts: []
+    template: templates/project-sync-trust-configmap.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: projectSync.serviceAccounts.enabled needs global.broker.audience or a host in openbao.server.gateway.httpRoute.hosts, because every JWT login role binds the audience
+  - it: writes the allowed claims, the allowed accounts, and the trust keys into the ConfigMap
+    set:
+      projectSync.serviceAccounts.enabled: true
+      global.broker.jwtIssuers.github.allowedClaims.ref:
+        - refs/heads/main
+      global.broker.aws.enabled: true
+      global.broker.aws.allowedAccounts:
+        - "123456789012"
+      global.broker.loginTokenTTL: 10m
+      global.broker.trust.annotation: evil8.io/trust
+      global.broker.trust.statusAnnotation: evil8.io/trust-status
+      global.broker.trust.maxStatements: 3
+    template: templates/project-sync-trust-configmap.yaml
+    asserts:
+      - matchRegex:
+          path: data["trust.json"]
+          pattern: '"github": \{\n\s+"allowedClaims": \{\n\s+"ref": \[\n\s+"refs/heads/main"\n\s+\]'
+      - matchRegex:
+          path: data["trust.json"]
+          pattern: '"aws": \{\n\s+"allowedAccounts": \[\n\s+"123456789012"\n\s+\],\n\s+"enabled": true'
+      - matchRegex:
+          path: data["trust.json"]
+          pattern: '"annotation": "evil8\.io/trust"'
+      - matchRegex:
+          path: data["trust.json"]
+          pattern: '"statusAnnotation": "evil8\.io/trust-status"'
+      - matchRegex:
+          path: data["trust.json"]
+          pattern: '"maxStatements": 3,'
+      - matchRegex:
+          path: data["trust.json"]
+          pattern: '"loginTokenTTL": "10m"'
+  - it: fails when the trust annotation and the status annotation are the same key
+    set:
+      projectSync.serviceAccounts.enabled: true
+      global.broker.trust.statusAnnotation: drover-trust
+    template: templates/project-sync-trust-configmap.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: global.broker.trust.annotation and global.broker.trust.statusAnnotation must differ, because the status write of project-sync must not change the trust document
+  - it: fails when project-sync copies the trust annotation to the namespaces
+    set:
+      projectSync.serviceAccounts.enabled: true
+      projectSync.annotationKeys:
+        - drover-trust
+    template: templates/project-sync-trust-configmap.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: global.broker.trust.annotation and global.broker.trust.statusAnnotation must not be in projectSync.annotationKeys or equal projectSync.nameAnnotation, because project-sync does not
+            start when it copies a trust key to the namespaces
+  - it: fails when the status annotation is the display name annotation
+    set:
+      projectSync.serviceAccounts.enabled: true
+      projectSync.nameAnnotation: drover-trust-status
+    template: templates/project-sync-trust-configmap.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: global.broker.trust.annotation and global.broker.trust.statusAnnotation must not be in projectSync.annotationKeys or equal projectSync.nameAnnotation, because project-sync does not
+            start when it copies a trust key to the namespaces
+  - it: rejects the claim aud in allowedClaims
+    set:
+      global.broker.jwtIssuers.github.allowedClaims.aud:
+        - https://example.com
+    template: templates/project-annotations.validatingpolicy.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: invalid propertyName 'aud'
+  - it: rejects an empty claim in allowedClaims
+    set:
+      global.broker.jwtIssuers.github.allowedClaims:
+        "":
+          - refs/heads/main
+    template: templates/project-annotations.validatingpolicy.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "invalid propertyName ''"
+  - it: rejects an issuer name longer than 63 characters
+    set:
+      global.broker.jwtIssuers:
+        a123456789b123456789c123456789d123456789e123456789f123456789g123:
+          discoveryUrl: https://issuer.example.com
+          requiredClaims:
+            - sub
+    template: templates/project-annotations.validatingpolicy.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: 'maxLength: got 64, want 63'
+  - it: fails a login token TTL below 1m
+    set:
+      projectSync.serviceAccounts.enabled: true
+      global.broker.loginTokenTTL: 30s
+    template: templates/project-sync-trust-configmap.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: global.broker.loginTokenTTL must be 1m to 24h, because project-sync does not start with another value
+  - it: fails a login token TTL above 24h
+    set:
+      projectSync.serviceAccounts.enabled: true
+      global.broker.loginTokenTTL: 24h1s
+    template: templates/project-sync-trust-configmap.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: global.broker.loginTokenTTL must be 1m to 24h, because project-sync does not start with another value
+  - it: denies a change of a drover annotation unless the writer can update the cluster
+    set:
+      projectSync.serviceAccounts.enabled: true
+      projectPolicy.failurePolicy: Ignore
+    template: templates/project-annotations.validatingpolicy.yaml
+    asserts:
+      - isKind:
+          of: ValidatingPolicy
+      - equal:
+          path: metadata.name
+          value: drover-project-annotations
+      - equal:
+          path: spec.failurePolicy
+          value: Fail
+      - equal:
+          path: spec.evaluation.background.enabled
+          value: false
+      - equal:
+          path: spec.validationActions
+          value:
+            - Deny
+      - equal:
+          path: spec.matchConstraints.resourceRules[0].resources
+          value:
+            - projects
+      - equal:
+          path: spec.matchConditions[0].name
+          value: protected-annotation-changed
+      - matchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: '^request\.operation == "CREATE" \?'
+      - notMatchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: 'k in \[|drover-trust-status'
+      - equal:
+          path: spec.matchConditions[1].name
+          value: not-project-sync-status-write
+      - matchRegex:
+          path: spec.matchConditions[1].expression
+          pattern: '^request\.userInfo\.username != "u-drover-project-sync" \|\| \( request\.operation == "CREATE" \?'
+      - matchRegex:
+          path: spec.matchConditions[1].expression
+          pattern: '^(?:[^\n]*k\.startsWith\("drover-"\) && k != "drover-trust-status"){3}'
+      - matchRegex:
+          path: spec.variables[0].expression
+          pattern: '"resource": dyn\("clusters"\),\n\s+"name": dyn\(object\.metadata\.namespace\),\n\s+"verb": dyn\("update"\)'
+      - equal:
+          path: spec.validations[0].expression
+          value: variables.clusterUpdater
+  - it: protects a configured trust key without the drover prefix
+    set:
+      projectSync.serviceAccounts.enabled: true
+      global.broker.trust.annotation: evil8.io/trust
+    template: templates/project-annotations.validatingpolicy.yaml
+    asserts:
+      - matchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: '\(k\.startsWith\("drover-"\) \|\| k in \["evil8\.io/trust"\]\)'
+      - matchRegex:
+          path: spec.matchConditions[1].expression
+          pattern: '\(k\.startsWith\("drover-"\) \|\| k in \["evil8\.io/trust"\]\) && k != "drover-trust-status"'
+  - it: renders the default issuers, the statement cap, and MethodDisabled into the trust document policy
+    set:
+      projectSync.serviceAccounts.enabled: true
+      projectPolicy.failurePolicy: Ignore
+    template: templates/trust-document.validatingpolicy.yaml
+    asserts:
+      - isKind:
+          of: ValidatingPolicy
+      - equal:
+          path: metadata.name
+          value: drover-trust-document
+      - equal:
+          path: spec.failurePolicy
+          value: Fail
+      - equal:
+          path: spec.evaluation.background.enabled
+          value: false
+      - matchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: 'object\.metadata\.annotations\["drover-trust"\] != ""'
+      - equal:
+          path: spec.variables[3].name
+          value: issuers
+      - equal:
+          path: spec.variables[3].expression
+          value: '{"github": dyn({"allowedClaims": dyn({}), "requiredClaims": dyn(["repository_id"])}), "gitlab": dyn({"allowedClaims": dyn({}), "requiredClaims": dyn(["project_id"])})}'
+      - matchRegex:
+          path: spec.variables[4].expression
+          pattern: '"InvalidARN" :\n\s+"MethodDisabled"\n'
+      - notMatchRegex:
+          path: spec.variables[4].expression
+          pattern: AccountNotAllowed
+      - equal:
+          path: spec.validations[2].expression
+          value: variables.statements.size() <= 20
+  - it: renders an added issuer, the allowed claims, and the allowed accounts into the trust document policy
+    set:
+      projectSync.serviceAccounts.enabled: true
+      global.broker.jwtIssuers.cluster.discoveryUrl: https://oidc.eks.eu-west-1.amazonaws.com/id/ABC
+      global.broker.jwtIssuers.cluster.requiredClaims:
+        - sub
+      global.broker.jwtIssuers.github.allowedClaims.ref:
+        - refs/heads/main
+      global.broker.aws.enabled: true
+      global.broker.aws.allowedAccounts:
+        - "123456789012"
+      global.broker.trust.annotation: evil8.io/trust
+      global.broker.trust.maxStatements: 3
+    template: templates/trust-document.validatingpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.variables[3].expression
+          value: '{"cluster": dyn({"allowedClaims": dyn({}), "requiredClaims": dyn(["sub"])}), "github": dyn({"allowedClaims": dyn({"ref": dyn(["refs/heads/main"])}), "requiredClaims": dyn(["repository_id"])}),
+            "gitlab": dyn({"allowedClaims": dyn({}), "requiredClaims": dyn(["project_id"])})}'
+      - matchRegex:
+          path: spec.variables[4].expression
+          pattern: '!\["123456789012"\]\.exists\(a, s\.aws\.arn\.startsWith\("arn:aws:iam::" \+ a \+ ":"\)\) \? "AccountNotAllowed" :\n\s+""\n'
+      - notMatchRegex:
+          path: spec.variables[4].expression
+          pattern: MethodDisabled
+      - matchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: 'object\.metadata\.annotations\["evil8\.io/trust"\] != ""'
+      - equal:
+          path: spec.validations[2].expression
+          value: variables.statements.size() <= 3

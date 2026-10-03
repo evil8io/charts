@@ -1,0 +1,85 @@
+{{- $trust := .Values.global.broker.trust }}
+{{- $extraKeys := list }}
+{{- range list $trust.annotation $trust.statusAnnotation }}
+{{- if not (hasPrefix "drover-" .) }}
+{{- $extraKeys = append $extraKeys . }}
+{{- end }}
+{{- end }}
+{{- $protected := `k.startsWith("drover-")` }}
+{{- $names := "an annotation with the prefix drover-" }}
+{{- with $extraKeys }}
+{{- $protected = printf `(k.startsWith("drover-") || k in %s)` (include "drover.celLiteral" .) }}
+{{- $names = printf "%s, or the annotation %s" $names (join " or " .) }}
+{{- end }}
+{{- $changed := `request.operation == "CREATE" ?
+has(object.metadata.annotations) && object.metadata.annotations.exists(k, %[1]s) :
+(has(object.metadata.annotations) && object.metadata.annotations.exists(k, %[1]s &&
+(!has(oldObject.metadata.annotations) || !(k in oldObject.metadata.annotations) ||
+oldObject.metadata.annotations[k] != object.metadata.annotations[k]))) ||
+(has(oldObject.metadata.annotations) && oldObject.metadata.annotations.exists(k, %[1]s &&
+(!has(object.metadata.annotations) || !(k in object.metadata.annotations))))` }}
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: {{ include "drover.fullname" . }}-project-annotations
+  labels:
+    {{- include "drover.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Project Trust Annotations
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Project
+    policies.kyverno.io/description: >-
+      Denies a Rancher Project write that adds, changes, or removes {{ $names }},
+      unless the writer can update the Rancher cluster of the project. Skips a write
+      of the project-sync service user when the annotation {{ $trust.statusAnnotation }}
+      is the only one of these annotations that the write changes.
+spec:
+  failurePolicy: Fail
+  evaluation:
+    background:
+      enabled: false
+  validationActions:
+    - Deny
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - management.cattle.io
+        apiVersions:
+          - v3
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - projects
+  matchConditions:
+    - name: protected-annotation-changed
+      expression: >-
+        {{- printf $changed $protected | nindent 8 }}
+    - name: not-project-sync-status-write
+      expression: >-
+        request.userInfo.username != {{ include "drover.projectSync.user" . | quote }} || (
+        {{- printf $changed (printf "%s && k != %s" $protected (toJson $trust.statusAnnotation)) | nindent 8 }})
+  variables:
+    - name: clusterUpdater
+      expression: |-
+        resource.Post("authorization.k8s.io/v1", "subjectaccessreviews", "", {
+          "apiVersion": dyn("authorization.k8s.io/v1"),
+          "kind": dyn("SubjectAccessReview"),
+          "spec": dyn({
+            "user": dyn(request.userInfo.username),
+            "groups": has(request.userInfo.groups) ? dyn(request.userInfo.groups) : dyn([]),
+            "extra": has(request.userInfo.extra) ? dyn(request.userInfo.extra) : dyn({}),
+            "resourceAttributes": dyn({
+              "group": dyn("management.cattle.io"),
+              "resource": dyn("clusters"),
+              "name": dyn(object.metadata.namespace),
+              "verb": dyn("update")
+            })
+          })
+        }).status.allowed == true
+  validations:
+    - expression: variables.clusterUpdater
+      message: >-
+        Only a user who can update the Rancher cluster of a project can add, change,
+        or remove {{ $names }} on the project.

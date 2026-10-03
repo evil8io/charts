@@ -78,6 +78,8 @@ tests:
   - it: renders the service-accounts arg and the openbao args when project-sync keeps ServiceAccounts
     set:
       projectSync.serviceAccounts.enabled: true
+      openbao.server.gateway.httpRoute.hosts:
+        - rancher-tokens.example.com
       httpRoute.hostnames:
         - rancher.example.com
     asserts:
@@ -94,12 +96,15 @@ tests:
             - --openbao-token-ttl=24h
             - --openbao-credential-ttl=15m
             - --openbao-credential-max-ttl=2h
+            - --trust-file=/etc/drover/trust/trust.json
             - --interval=60s
             - --patch-rate=50
             - --log-level=info
   - it: takes the openbao rancher URL from global.broker.rancherUrl over the hostname
     set:
       projectSync.serviceAccounts.enabled: true
+      openbao.server.gateway.httpRoute.hosts:
+        - rancher-tokens.example.com
       global.broker.rancherUrl: https://rancher.internal.example.com
       httpRoute.hostnames:
         - rancher.example.com
@@ -110,6 +115,8 @@ tests:
   - it: follows the clusterTokenTTL value
     set:
       projectSync.serviceAccounts.enabled: true
+      openbao.server.gateway.httpRoute.hosts:
+        - rancher-tokens.example.com
       httpRoute.hostnames:
         - rancher.example.com
       global.broker.clusterTokenTTL: 12h
@@ -120,6 +127,8 @@ tests:
   - it: follows the global.broker.credentials TTL and max TTL values
     set:
       projectSync.serviceAccounts.enabled: true
+      openbao.server.gateway.httpRoute.hosts:
+        - rancher-tokens.example.com
       httpRoute.hostnames:
         - rancher.example.com
       global.broker.credentials.ttl: 20m
@@ -134,12 +143,16 @@ tests:
   - it: fails the render without a rancher URL for OpenBao
     set:
       projectSync.serviceAccounts.enabled: true
+      openbao.server.gateway.httpRoute.hosts:
+        - rancher-tokens.example.com
     asserts:
       - failedTemplate:
           errorMessage: projectSync.serviceAccounts.enabled needs global.broker.rancherUrl or httpRoute.hostnames, because OpenBao reaches the clusters through the Rancher proxy
   - it: adds the openbao-token projected volume and its mount when project-sync keeps ServiceAccounts
     set:
       projectSync.serviceAccounts.enabled: true
+      openbao.server.gateway.httpRoute.hosts:
+        - rancher-tokens.example.com
       httpRoute.hostnames:
         - rancher.example.com
     asserts:
@@ -158,6 +171,44 @@ tests:
             name: openbao-token
             mountPath: /var/run/secrets/openbao
             readOnly: true
+  - it: mounts the trust ConfigMap and rolls the pod on a change of the platform rules
+    set:
+      projectSync.serviceAccounts.enabled: true
+      openbao.server.gateway.httpRoute.hosts:
+        - rancher-tokens.example.com
+      httpRoute.hostnames:
+        - rancher.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --trust-file=/etc/drover/trust/trust.json
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: trust
+            configMap:
+              name: drover-project-sync-trust
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: trust
+            mountPath: /etc/drover/trust
+            readOnly: true
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/trust"]
+          pattern: ^[0-9a-f]{64}$
+  - it: omits the trust file, its mount, and the checksum by default
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].args
+          content: --trust-file=/etc/drover/trust/trust.json
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: trust
+          any: true
+      - notExists:
+          path: spec.template.metadata.annotations
   - it: omits the openbao-token volume and mount by default
     asserts:
       - notContains:

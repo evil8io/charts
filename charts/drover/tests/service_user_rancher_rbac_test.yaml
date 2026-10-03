@@ -175,6 +175,20 @@ tests:
           path: rules
           content:
             apiGroups:
+              - management.cattle.io
+            resources:
+              - projects
+            verbs:
+              - get
+              - list
+              - watch
+              - create
+              - patch
+              - manage-namespaces
+      - contains:
+          path: rules
+          content:
+            apiGroups:
               - ""
             resources:
               - serviceaccounts

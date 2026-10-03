@@ -72,6 +72,8 @@ tests:
     set:
       projectSync.serviceAccounts.enabled: true
       global.broker.jwtIssuers.custom.discoveryUrl: https://issuer.example.com
+      global.broker.jwtIssuers.custom.requiredClaims:
+        - sub
     documentIndex: 0
     asserts:
       - exists:
@@ -200,6 +202,23 @@ tests:
       - matchRegex:
           path: data["policy-project-sync.hcl"]
           pattern: 'path "kubernetes/\+/config" \{\n\s+capabilities = \["read", "update"\]\n\}'
+  - it: lets project-sync write, read, list, and delete the login roles of the JWT mounts and the AWS mount
+    set:
+      projectSync.serviceAccounts.enabled: true
+    documentIndex: 0
+    asserts:
+      - matchRegex:
+          path: data["policy-project-sync.hcl"]
+          pattern: 'path "auth/jwt/\+/role/\*" \{\n\s+capabilities = \["create", "read", "update", "delete", "list"\]\n\}'
+      - matchRegex:
+          path: data["policy-project-sync.hcl"]
+          pattern: 'path "auth/jwt/\+/role" \{\n\s+capabilities = \["list"\]\n\}'
+      - matchRegex:
+          path: data["policy-project-sync.hcl"]
+          pattern: 'path "auth/aws/role/\*" \{\n\s+capabilities = \["create", "read", "update", "delete", "list"\]\n\}'
+      - matchRegex:
+          path: data["policy-project-sync.hcl"]
+          pattern: 'path "auth/aws/roles" \{\n\s+capabilities = \["list"\]\n\}'
   - it: writes no AWS client config into the ConfigMap by default
     set:
       projectSync.serviceAccounts.enabled: true

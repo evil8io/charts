@@ -154,14 +154,36 @@ global:
   # aws.enabled in the templates of the openbao subchart.
   broker:
     # JWT issuers of CI jobs. Each issuer gets the auth mount auth/jwt/<name>.
+    # requiredClaims contains the claims that every statement of the issuer must have. The
+    # first claim is the user claim of each login role.
+    # allowedClaims is optional. It is a map from a claim to the values that are valid in a
+    # statement.
     jwtIssuers:
       github:
         discoveryUrl: https://token.actions.githubusercontent.com
+        requiredClaims:
+          - repository_id
       gitlab:
         discoveryUrl: https://gitlab.com
+        requiredClaims:
+          - project_id
     aws:
       # When this key is true, OpenBao has the AWS auth method at auth/aws.
       enabled: false
+      # The AWS accounts of the IAM roles that are valid in a statement. With an empty list,
+      # an IAM role of every account is valid.
+      allowedAccounts: []
+    # The audience of every JWT login role. With an empty value, the audience is
+    # https://<first host of openbao.server.gateway.httpRoute.hosts>.
+    audience: ""
+    # The lifetime of the OpenBao token of a login through a login role, from 1m to 24h.
+    loginTokenTTL: 5m
+    # The Project annotations of the login roles. project-sync writes one login role for each
+    # valid statement of the trust annotation, and it writes the result into the status annotation.
+    trust:
+      annotation: drover-trust
+      statusAnnotation: drover-trust-status
+      maxStatements: 20
     # The lifetime of a credential of a project ServiceAccount, and the longest lifetime that a request can ask for.
     credentials:
       ttl: 15m

@@ -164,8 +164,8 @@ When `projectSync.serviceAccounts.enabled` is true, Helm installs OpenBao in the
 namespace. A client then gets a token in three steps:
 
 1. The client logs in to OpenBao with the identity that it already has: the JWT of its
-   CI system, or its AWS IAM role. The login role of the client has the policy
-   `kubernetes-<cluster id>-<project id>-<role>`.
+   CI system, or its AWS IAM role. project-sync writes the login role from a statement in
+   the trust annotation of the project. See [Trust annotation](#trust-annotation).
 2. The client requests the credential
    `kubernetes/<cluster id>/creds/<project id>-<role>`, with
    `kubernetes_namespace=drover-<project id>`.
@@ -182,8 +182,56 @@ the value is empty, Helm uses the first entry of `httpRoute.hostnames`. OpenBao 
 the certificate of that URL, so a Rancher with a private CA needs the Rancher setting
 `cacerts`.
 
-Helm does not create login roles yet. An OpenBao admin writes each login role. See
-[OpenBao administration](#openbao-administration) for the admin login.
+### Trust annotation
+
+The trust annotation of a project contains the identities that can log in to OpenBao
+for the project, each with a project role. A cluster owner or an admin sets the
+annotation `drover-trust` on the Rancher Project. The value is a JSON document with a
+list of statements:
+
+```json
+{
+  "statements": [
+    {
+      "name": "deploy-main",
+      "jwt": {
+        "issuer": "github",
+        "claims": {"repository_id": "123456789", "ref": "refs/heads/main"}
+      },
+      "role": "project-member"
+    },
+    {
+      "name": "rotator",
+      "aws": {"arn": "arn:aws:iam::123456789012:role/shop-rotator"},
+      "role": "read-only"
+    }
+  ]
+}
+```
+
+- `name` is the identifier of the statement in the project. project-sync writes the
+  login role `<project id>_<name>` for it, for example `p-abc12_deploy-main`.
+- A `jwt` statement has an issuer of `global.broker.jwtIssuers` and the claims that the
+  JWT of the client must have. A claim value is a string or a list of strings.
+- An `aws` statement has the ARN of an IAM role.
+- `role` is the project role of the token: `project-owner`, `project-member`, or
+  `read-only`.
+
+Kyverno denies a change of the annotation by every other user. Kyverno checks the writer
+of every annotation with the prefix `drover-` in the same way, also when
+`projectSync.serviceAccounts.enabled` is false. Thus a project owner cannot set a trust
+annotation before the value is true. When Kyverno does not answer, the API server denies
+such a change. Before the first upgrade to chart 0.32.0, check the Projects for
+`drover-` annotations that a project owner set. Kyverno did not protect these
+annotations before that version.
+
+Kyverno also denies a document that is not valid under a rule of the platform. For a
+JSON document, the message names the failed rule. For text that is not JSON, the
+message contains the error of the JSON parser. project-sync writes the outcome into the
+annotation `drover-trust-status` of the project, with `ready` and a reason for each
+statement. When a user removes a statement, project-sync removes its login role. The
+keys of both annotations and the limit of statements per project are in
+`global.broker.trust`.
 
 ### Login with a JWT
 
@@ -192,6 +240,27 @@ system and logs in with it. For each entry of `global.broker.jwtIssuers`, OpenBa
 JWT auth mount at `auth/jwt/<name>`. The default entries are GitHub Actions and
 GitLab.com. When an entry is removed from the value, OpenBao removes the mount and its
 login roles at the next upgrade.
+
+In `requiredClaims` of each issuer, set the claims that every statement must contain,
+for example the ID of the repository. Add `allowedClaims` to limit the values of a
+claim in a statement, for example the branches of a repository. When a statement does
+not contain such a claim, project-sync binds the login role of the statement to the
+whole list of allowed values.
+
+For the OIDC issuer of a Kubernetes cluster, the `sub` claim names a ServiceAccount by
+its namespace and its name only. While that namespace does not exist, another tenant can
+create it and a ServiceAccount with that name. To bind the statement to one
+ServiceAccount object, also add the claim `/kubernetes.io/serviceaccount/uid`. OpenBao
+reads a claim name that starts with `/` as a JSON pointer (RFC 6901) into the JWT.
+
+For a JWT login role, OpenBao accepts only a JWT with the audience
+`global.broker.audience`. When the value is empty, the audience is `https://<first host of
+openbao.server.gateway.httpRoute.hosts>`. The client requests its JWT with that audience
+and logs in at `auth/jwt/<issuer>/login`:
+
+```json
+{"role": "p-abc12_deploy-main", "jwt": "<JWT of the client>"}
+```
 
 OpenBao reads the discovery URL of each issuer at an install and at an upgrade. When
 OpenBao cannot reach an issuer, the mount keeps its previous config, and a new mount has
@@ -213,17 +282,9 @@ header `X-Vault-AWS-IAM-Server-ID`, with the first host of
 `openbao.server.gateway.httpRoute.hosts` as its value. The client can sign the request
 for the AWS region of its choice.
 
-Write a login role with `resolve_aws_unique_ids=false` and the exact ARN of the IAM
-role. The ARN must have no path and no wildcard.
-
-```sh
-bao write auth/aws/role/<name> auth_type=iam resolve_aws_unique_ids=false \
-  bound_iam_principal_arn=arn:aws:iam::<account id>:role/<role name> \
-  token_policies=kubernetes-<cluster id>-<project id>-<role>
-```
-
-OpenBao identifies an IAM role by its account ID and its name. When a tenant deletes an
-IAM role and creates it again with the same name, the new IAM role can log in.
+For the login role of an `aws` statement, OpenBao accepts the IAM role by its account
+ID and its name. OpenBao ignores the path of the ARN. When a tenant deletes an IAM role
+and creates it again with the same name, a client with the new IAM role can log in.
 
 ### OpenBao administration
 
@@ -307,12 +368,18 @@ value is not set. The keys with the value zero select the default of the drover 
 | `projectSync.serviceAccounts.enabled` | `false` | See [Project ServiceAccounts](#project-serviceaccounts). When true, Helm also installs OpenBao. |
 | `projectPolicy.requiredLabels` | `[]` | See [Required project metadata](#required-project-metadata). |
 | `projectPolicy.requiredAnnotations` | `[]` | See [Required project metadata](#required-project-metadata). |
-| `projectPolicy.failurePolicy` | `Fail` | `Fail` or `Ignore`. |
+| `projectPolicy.failurePolicy` | `Fail` | `Fail` or `Ignore`, for the project policy only. For the [trust annotation](#trust-annotation), the value is always `Fail`. |
 | `clusterProxyConfig.enabled` | `true` | See [ServiceAccount tokens](#serviceaccount-tokens). |
 | `ciliumNetworkPolicy.enabled` | `true` | See [Network policies](#network-policies). |
 | `ciliumNetworkPolicy.gatewayNamespaces` | `[]` | The namespaces of the gateway pods. |
-| `global.broker.jwtIssuers` | GitHub Actions, GitLab.com | A map from a name to the `discoveryUrl` of a JWT issuer. |
+| `global.broker.jwtIssuers` | GitHub Actions, GitLab.com | A map from a name to a JWT issuer, with `discoveryUrl`, `requiredClaims`, and the optional `allowedClaims`. See [Login with a JWT](#login-with-a-jwt). |
 | `global.broker.aws.enabled` | `false` | See [Login with an AWS identity](#login-with-an-aws-identity). |
+| `global.broker.aws.allowedAccounts` | `[]` | The AWS accounts that are valid in an `aws` statement. With an empty list, every account is valid. |
+| `global.broker.audience` | `""` | The audience of the JWT login roles. With an empty value, the audience is `https://<first host of openbao.server.gateway.httpRoute.hosts>`. Helm needs the value or a host in `openbao.server.gateway.httpRoute.hosts`. |
+| `global.broker.loginTokenTTL` | `5m` | The lifetime of the OpenBao token of a login, from 1m to 24h. |
+| `global.broker.trust.annotation` | `drover-trust` | The key of the [trust annotation](#trust-annotation). |
+| `global.broker.trust.statusAnnotation` | `drover-trust-status` | The key of the status annotation. |
+| `global.broker.trust.maxStatements` | `20` | The largest number of statements in a trust annotation, from 1 to 100. |
 | `global.broker.credentials.ttl` | `15m` | The lifetime of a credential. |
 | `global.broker.credentials.maxTTL` | `2h` | The longest lifetime that a client can request. |
 | `global.broker.rancherUrl` | `""` | The Rancher URL through which OpenBao reaches the clusters. |

@@ -20,6 +20,10 @@ spec:
     metadata:
       labels:
         {{- include "drover.componentLabels" $component | nindent 8 }}
+      {{- if .Values.projectSync.serviceAccounts.enabled }}
+      annotations:
+        checksum/trust: {{ include "drover.trust.rules" . | sha256sum }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "drover.projectSync.fullname" . }}
       automountServiceAccountToken: false
@@ -53,6 +57,7 @@ spec:
             - "--openbao-token-ttl={{ .Values.global.broker.clusterTokenTTL }}"
             - "--openbao-credential-ttl={{ .Values.global.broker.credentials.ttl }}"
             - "--openbao-credential-max-ttl={{ .Values.global.broker.credentials.maxTTL }}"
+            - "--trust-file=/etc/drover/trust/trust.json"
             {{- end }}
             - "--interval={{ .Values.projectSync.interval }}"
             - "--patch-rate={{ .Values.projectSync.patchRate }}"
@@ -94,6 +99,9 @@ spec:
             - name: openbao-token
               mountPath: /var/run/secrets/openbao
               readOnly: true
+            - name: trust
+              mountPath: /etc/drover/trust
+              readOnly: true
             {{- end }}
       volumes:
         - name: token
@@ -106,4 +114,7 @@ spec:
               - serviceAccountToken:
                   path: token
                   expirationSeconds: 3600
+        - name: trust
+          configMap:
+            name: {{ include "drover.projectSync.fullname" . }}-trust
         {{- end }}
