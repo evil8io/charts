@@ -422,7 +422,7 @@ loadgen:
   # -- Transport protocol: tcp or udp
   transport: tcp
   target:
-    # -- Target host. An empty value selects the chart's tcpudp Service.
+    # -- Target host. With an empty value, the loadgen sends to the ClusterIP Service of the collector.
     host: ""
     # -- Target port
     port: 514

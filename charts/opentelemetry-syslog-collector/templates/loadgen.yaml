@@ -41,7 +41,7 @@ spec:
             {{- if .Values.loadgen.target.host }}
             - --host={{ .Values.loadgen.target.host }}
             {{- else }}
-            - --host={{ include "opentelemetry-syslog-collector.fullname" . }}-tcpudp
+            - --host={{ include "opentelemetry-syslog-collector.fullname" . }}-collector
             {{- end }}
             - --port={{ .Values.loadgen.target.port }}
             - --transport={{ .Values.loadgen.transport }}
