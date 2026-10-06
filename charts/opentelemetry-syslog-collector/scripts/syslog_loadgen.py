@@ -567,13 +567,16 @@ class TCPSender:
                 self.connect()
                 if _shutdown:
                     return
+            sock = self.sock
+            if sock is None:
+                continue
             try:
-                self.sock.sendall(data)
+                sock.sendall(data)
                 return
             except OSError:
                 logger.warning("TCP send failed, reconnecting")
                 try:
-                    self.sock.close()
+                    sock.close()
                 except OSError:
                     pass
                 self.sock = None

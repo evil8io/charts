@@ -50,4 +50,3 @@ Selector labels. The Deployment selector is immutable: keep these two labels onl
 k8s-app: kube-dns
 app.kubernetes.io/name: {{ include "coredns.name" . }}
 {{- end }}
-

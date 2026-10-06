@@ -115,6 +115,54 @@
         "namespace-orphan": {
           "$ref": "#/definitions/policy"
         },
+        "namespace-platform-metadata": {
+          "additionalProperties": false,
+          "properties": {
+            "annotations": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "labels": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "namespaces": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "type": "object"
+        },
+        "namespace-platform-name": {
+          "additionalProperties": false,
+          "properties": {
+            "deniedPrefixes": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "type": "object"
+        },
         "namespace-project": {
           "additionalProperties": false,
           "properties": {
@@ -160,54 +208,6 @@
         },
         "route-hostname": {
           "$ref": "#/definitions/policy"
-        },
-        "namespace-platform-metadata": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "enabled"
-          ],
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "namespaces": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "labels": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "string"
-              }
-            },
-            "annotations": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "string"
-              }
-            }
-          }
-        },
-        "namespace-platform-name": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "enabled"
-          ],
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "deniedPrefixes": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          }
         }
       },
       "required": [
