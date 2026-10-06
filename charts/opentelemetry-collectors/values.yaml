@@ -198,6 +198,8 @@ collectors:
       # -- A static scrape job of the kube-apiserver, through the kubernetes Service in the default namespace.
       apiserver:
         enabled: true
+        # -- A regex of the metric names that the kube-apiserver job keeps. Empty keeps every name.
+        metricAllowlist: ""
     # -- The target allocator with consistent hashing over the replicas.
     targetAllocator:
       enabled: true

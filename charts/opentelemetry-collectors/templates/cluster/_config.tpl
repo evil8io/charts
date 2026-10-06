@@ -40,6 +40,11 @@ receivers:
           honor_labels: true
           honor_timestamps: true
           metric_relabel_configs:
+            {{- with $v.scrapes.apiserver.metricAllowlist }}
+            - source_labels: [__name__]
+              action: keep
+              regex: {{ . | quote }}
+            {{- end }}
             - target_label: job
               replacement: kube-apiserver
             - source_labels: [__name__]

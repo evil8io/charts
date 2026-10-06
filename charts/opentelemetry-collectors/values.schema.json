@@ -295,6 +295,9 @@
                   "properties": {
                     "enabled": {
                       "type": "boolean"
+                    },
+                    "metricAllowlist": {
+                      "type": "string"
                     }
                   },
                   "type": "object"

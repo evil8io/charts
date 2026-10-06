@@ -124,6 +124,7 @@ See [values.yaml](values.yaml) for all values and their defaults.
 | `collectors.cluster.annotations`, `resources`, `podSecurityContext`, `securityContext`, `priorityClassName`, `nodeSelector`, `tolerations` | see values.yaml | Pod settings of the cluster collector. |
 | `collectors.cluster.podDisruptionBudget` | `minAvailable: 1` | PodDisruptionBudget of the cluster collector. |
 | `collectors.cluster.scrapes.apiserver.enabled` | `true` | A static scrape job of the kube-apiserver, through the kubernetes Service in the default namespace. |
+| `collectors.cluster.scrapes.apiserver.metricAllowlist` | `""` | A regex of the metric names that the kube-apiserver job keeps, as the first metric relabel rule of the job. Empty keeps every name. |
 | `collectors.cluster.targetAllocator.enabled` | `true` | The target allocator with the consistent-hashing strategy over the replicas. |
 | `collectors.cluster.targetAllocator.allowNamespaces` | `[]` | Extra namespaces of the ServiceMonitor, PodMonitor, Probe, and ScrapeConfig objects, next to the release namespace. |
 | `collectors.cluster.targetAllocator.matchLabels` | `target: opentelemetry-cluster-collector` | Labels of the objects that the cluster collector scrapes. |

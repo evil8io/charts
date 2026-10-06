@@ -39,6 +39,16 @@ tests:
           any: true
           content:
             job_name: kube-apiserver
+  - it: keeps only the names of collectors.cluster.scrapes.apiserver.metricAllowlist as the first relabel rule
+    set:
+      collectors.cluster.scrapes.apiserver.metricAllowlist: aggregator_unavailable_apiservice|aggregator_unavailable_apiservice_total
+    asserts:
+      - equal:
+          path: spec.config.receivers.prometheus.config.scrape_configs[0].metric_relabel_configs[0]
+          value:
+            source_labels: [__name__]
+            action: keep
+            regex: aggregator_unavailable_apiservice|aggregator_unavailable_apiservice_total
   - it: omits the kube-apiserver scrape job when collectors.cluster.scrapes.apiserver.enabled is false
     set:
       collectors.cluster.scrapes.apiserver.enabled: false
