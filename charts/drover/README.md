@@ -262,9 +262,10 @@ and logs in at `auth/jwt/<issuer>/login`:
 {"role": "p-abc12_deploy-main", "jwt": "<JWT of the client>"}
 ```
 
-OpenBao reads the discovery URL of each issuer at an install and at an upgrade. When
-OpenBao cannot reach an issuer, the mount keeps its previous config, and a new mount has
-no config until the next upgrade.
+OpenBao reads the discovery URL of each issuer at an install and at an upgrade. The hook
+retries the config write of an issuer 5 times, 5 s apart. When OpenBao cannot reach an
+issuer, the mount keeps its previous config, and a new mount has no config until the
+next upgrade.
 
 ### Login with an AWS identity
 

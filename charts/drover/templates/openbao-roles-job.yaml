@@ -163,10 +163,15 @@ spec:
                 mount=jwt/${file#jwt-}
                 mount=${mount%.json}
                 grep -qx "$mount/" /tmp/mounts || request POST "sys/auth/$mount" /tmp/jwt.json
-                rm -f /tmp/answer.json
-                if ! request POST "auth/$mount/config" "$file"; then
-                  echo "skipped the config of auth/$mount: $(cat /tmp/answer.json 2>/dev/null)" >&2
-                fi
+                attempt=1
+                until rm -f /tmp/answer.json && request POST "auth/$mount/config" "$file"; do
+                  if [ "$attempt" -ge 5 ]; then
+                    echo "skipped the config of auth/$mount: $(cat /tmp/answer.json 2>/dev/null)" >&2
+                    break
+                  fi
+                  attempt=$((attempt + 1))
+                  sleep 5
+                done
               done
               while read -r mount; do
                 file=jwt-${mount#jwt/}

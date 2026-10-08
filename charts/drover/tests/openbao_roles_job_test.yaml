@@ -163,14 +163,17 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: 'request DELETE "sys/auth/'
-  - it: logs a failed issuer config and goes on, and stops on every other failed request
+  - it: retries a failed issuer config 5 times, then logs it and goes on, and stops on every other failed request
     set:
       projectSync.serviceAccounts.enabled: true
     documentIndex: 2
     asserts:
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
-          pattern: 'if ! request POST "auth/\$mount/config" "\$file"; then\n\s+echo "skipped the config of auth/\$mount: .*" >&2\n\s+fi'
+          pattern: 'until rm -f /tmp/answer\.json && request POST "auth/\$mount/config" "\$file"; do\n\s+if \[ "\$attempt" -ge 5 \]; then'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: 'echo "skipped the config of auth/\$mount: .*" >&2\n\s+break\n\s+fi\n\s+attempt=\$\(\(attempt \+ 1\)\)\n\s+sleep 5\n\s+done'
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: 'request\(\) \{\n\s+curl .* "\$addr/v1/\$2" \|\| return\n'
