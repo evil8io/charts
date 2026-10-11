@@ -4,6 +4,7 @@ suite: tenant roles
 templates:
   - templates/tenant-roles.yaml
   - templates/rancher-users.yaml
+  - templates/public-read.yaml
 
 release:
   name: drover-policies
@@ -16,6 +17,9 @@ tests:
         hasDocuments:
           count: 0
       - template: templates/rancher-users.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/public-read.yaml
         hasDocuments:
           count: 0
   - it: aggregates a sorted, de-duplicated view role with the get, list, watch verbs
@@ -140,6 +144,67 @@ tests:
             apiGroup: rbac.authorization.k8s.io
             kind: Group
             name: system:cattle:authenticated
+  - it: grants Rancher users a sorted, de-duplicated read on the public kinds
+    set:
+      publicRead:
+        gateway.networking.k8s.io:
+          - gateways
+          - gatewayclasses
+          - gateways
+        admissionregistration.k8s.io:
+          - validatingadmissionpolicies
+    template: templates/public-read.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - documentIndex: 0
+        equal:
+          path: metadata.name
+          value: drover:public-read
+      - documentIndex: 0
+        equal:
+          path: rules
+          value:
+            - apiGroups:
+                - admissionregistration.k8s.io
+              resources:
+                - validatingadmissionpolicies
+              verbs:
+                - get
+                - list
+                - watch
+            - apiGroups:
+                - gateway.networking.k8s.io
+              resources:
+                - gatewayclasses
+                - gateways
+              verbs:
+                - get
+                - list
+                - watch
+      - documentIndex: 1
+        equal:
+          path: roleRef
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: drover:public-read
+      - documentIndex: 1
+        equal:
+          path: subjects[0]
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Group
+            name: system:cattle:authenticated
+  - it: rejects a wildcard plural in the public kinds
+    set:
+      publicRead:
+        gateway.networking.k8s.io:
+          - "*"
+    template: templates/public-read.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: does not match pattern
   - it: rejects a wildcard plural
     set:
       tenantRoles.view:

@@ -31,7 +31,7 @@
         },
         "type": "array"
       },
-      "description": "The namespaced kinds of one tenant role, as a map from API group to resource plurals.",
+      "description": "Kinds, as a map from API group to resource plurals.",
       "propertyNames": {
         "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*)?$"
       },
@@ -224,6 +224,10 @@
       ],
       "type": "object"
     },
+    "publicRead": {
+      "$ref": "#/definitions/tenantRoleKinds",
+      "description": "Kinds that every Rancher user can get, list, and watch cluster-wide, as a map from API group to resource plurals."
+    },
     "rancher": {
       "additionalProperties": false,
       "properties": {
@@ -278,6 +282,7 @@
     "kyverno",
     "platform",
     "policies",
+    "publicRead",
     "rancher",
     "rancherUsers",
     "tenantRoles"

@@ -71,6 +71,28 @@ Enable the value in the Rancher management cluster only. Principals are not a CR
 Rancher server answers a principal search, and it checks the RBAC of the management
 cluster. In a downstream cluster, Rancher never checks the binding.
 
+### Public reads
+
+Rancher binds the tenant roles only in the namespaces of a project. A kind in
+`tenantRoles` is thus readable only in those namespaces. Set `publicRead` for a kind that
+every Rancher user must read cluster-wide, for example the platform Gateways.
+
+`publicRead` is a map from API group to resource plurals:
+
+```yaml
+publicRead:
+  gateway.networking.k8s.io:
+    - gatewayclasses
+    - gateways
+```
+
+From this map, Helm installs the ClusterRole `drover:public-read` with the verbs get,
+list, and watch. Helm binds the role to the group `system:cattle:authenticated` with a
+ClusterRoleBinding. This group contains every Rancher user.
+
+Every Rancher user can read every object of a listed kind. Do not list a kind whose
+objects contain names or settings of one tenant, for example PolicyExceptions.
+
 ## Context entries
 
 The policies read GlobalContextEntries with the names `drover-<resource>`. A
@@ -96,6 +118,7 @@ the new policy.
 | `tenantRoles.view` | `{}` | The kinds of the `view` role, as a map from API group to resource plurals. See Tenant roles. |
 | `tenantRoles.edit` | `{}` | The kinds of the `edit` role, as a map from API group to resource plurals. See Tenant roles. |
 | `tenantRoles.admin` | `{}` | The kinds of the `admin` role, as a map from API group to resource plurals. See Tenant roles. |
+| `publicRead` | `{}` | The kinds that every Rancher user can get, list, and watch cluster-wide, as a map from API group to resource plurals. See Public reads. |
 | `rancherUsers.enabled` | `false` | When the value is `true`, Helm installs `drover:users` and binds it to `system:cattle:authenticated`. Enable the value in the Rancher management cluster only. See Rancher users. |
 | `policies.<name>.enabled` | `true` | When the value is `true`, Helm renders the policy. |
 | `policies.namespace-project.nameAnnotation` | `project.display_name` | The annotation key on a namespace that has the display name of its project. Kyverno shows the name next to the project id in the deny message. When the value is empty, Kyverno shows no name. |

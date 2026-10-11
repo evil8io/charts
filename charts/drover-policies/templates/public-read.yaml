@@ -1,0 +1,37 @@
+{{- if .Values.publicRead }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: drover:public-read
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+rules:
+  {{- range $group := (keys .Values.publicRead | sortAlpha) }}
+  - apiGroups:
+      - {{ $group | quote }}
+    resources:
+      {{- range (index $.Values.publicRead $group | uniq | sortAlpha) }}
+      - {{ . }}
+      {{- end }}
+    verbs:
+      - get
+      - list
+      - watch
+  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: drover:public-read
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: drover:public-read
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:cattle:authenticated
+{{- end }}
