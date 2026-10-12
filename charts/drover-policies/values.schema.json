@@ -225,8 +225,30 @@
       "type": "object"
     },
     "publicRead": {
-      "$ref": "#/definitions/tenantRoleKinds",
-      "description": "Kinds that every Rancher user can get, list, and watch cluster-wide, as a map from API group to resource plurals."
+      "additionalProperties": false,
+      "description": "The kinds that every Rancher user can get, list, and watch, cluster-wide or in the listed namespaces only.",
+      "properties": {
+        "cluster": {
+          "$ref": "#/definitions/tenantRoleKinds",
+          "description": "Kinds that every Rancher user can read cluster-wide, as a map from API group to resource plurals."
+        },
+        "namespaces": {
+          "additionalProperties": {
+            "$ref": "#/definitions/tenantRoleKinds"
+          },
+          "description": "Kinds that every Rancher user can read in one namespace, as a map from namespace name to a map from API group to resource plurals.",
+          "propertyNames": {
+            "maxLength": 63,
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "cluster",
+        "namespaces"
+      ],
+      "type": "object"
     },
     "rancher": {
       "additionalProperties": false,

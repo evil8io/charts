@@ -510,3 +510,55 @@ tests:
         equal:
           path: spec.template.spec.containers[0].resources.requests.cpu
           value: 20m
+  - it: gives the hook a bind rule for each role of the bindings value
+    template: templates/serviceuser-rancher-rbac.yaml
+    documentIndex: 1
+    set:
+      projectSync.serviceAccounts.enabled: true
+      projectSync.serviceAccounts.bindings:
+        - clusterRole: drover:public-read
+        - role: drover:public-read
+          namespace: kube-public
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - rbac.authorization.k8s.io
+            resources:
+              - clusterroles
+            resourceNames:
+              - admin
+              - edit
+              - view
+              - create-ns
+              - drover:public-read
+            verbs:
+              - bind
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - rbac.authorization.k8s.io
+            resources:
+              - roles
+            resourceNames:
+              - drover:public-read
+            verbs:
+              - bind
+  - it: does not give the hook a bind rule on roles when bindings is empty
+    template: templates/serviceuser-rancher-rbac.yaml
+    documentIndex: 1
+    set:
+      projectSync.serviceAccounts.enabled: true
+    asserts:
+      - notContains:
+          path: rules
+          any: true
+          content:
+            apiGroups:
+              - rbac.authorization.k8s.io
+            resources:
+              - roles
+            verbs:
+              - bind

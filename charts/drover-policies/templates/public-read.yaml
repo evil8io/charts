@@ -1,4 +1,6 @@
-{{- if .Values.publicRead }}
+{{- $cluster := .Values.publicRead.cluster }}
+{{- $namespaces := .Values.publicRead.namespaces }}
+{{- if or $cluster $namespaces }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -7,17 +9,29 @@ metadata:
   labels:
     {{- include "drover-policies.labels" . | nindent 4 }}
 rules:
-  {{- range $group := (keys .Values.publicRead | sortAlpha) }}
+  {{- range $group := (keys $cluster | sortAlpha) }}
   - apiGroups:
       - {{ $group | quote }}
     resources:
-      {{- range (index $.Values.publicRead $group | uniq | sortAlpha) }}
+      {{- range (index $cluster $group | uniq | sortAlpha) }}
       - {{ . }}
       {{- end }}
     verbs:
       - get
       - list
       - watch
+  {{- end }}
+  {{- if $namespaces }}
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    resourceNames:
+      {{- range (keys $namespaces | sortAlpha) }}
+      - {{ . }}
+      {{- end }}
+    verbs:
+      - get
   {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -34,4 +48,50 @@ subjects:
   - apiGroup: rbac.authorization.k8s.io
     kind: Group
     name: system:cattle:authenticated
+{{- range $namespace := (keys $namespaces | sortAlpha) }}
+{{- $kinds := index $namespaces $namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: drover:public-read
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "drover-policies.labels" $ | nindent 4 }}
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
+  {{- range $group := (keys $kinds | sortAlpha) }}
+  - apiGroups:
+      - {{ $group | quote }}
+    resources:
+      {{- range (index $kinds $group | uniq | sortAlpha) }}
+      - {{ . }}
+      {{- end }}
+    verbs:
+      - get
+      - list
+      - watch
+  {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: drover:public-read
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "drover-policies.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: drover:public-read
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:cattle:authenticated
+{{- end }}
 {{- end }}

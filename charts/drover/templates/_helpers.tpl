@@ -111,6 +111,17 @@ u-drover-project-sync
 
 {{- define "drover.projectSync.rules" -}}
 {{- if .Values.projectSync.serviceAccounts.enabled -}}
+{{- $clusterRoles := list -}}
+{{- $roles := list -}}
+{{- range .Values.projectSync.serviceAccounts.bindings -}}
+{{- if .clusterRole -}}
+{{- if not (has .clusterRole $clusterRoles) -}}
+{{- $clusterRoles = append $clusterRoles .clusterRole -}}
+{{- end -}}
+{{- else if not (has .role $roles) -}}
+{{- $roles = append $roles .role -}}
+{{- end -}}
+{{- end -}}
 - apiGroups:
     - ""
   resources:
@@ -177,8 +188,23 @@ u-drover-project-sync
     - edit
     - view
     - create-ns
+{{- range $clusterRoles }}
+    - {{ . | quote }}
+{{- end }}
   verbs:
     - bind
+{{- if $roles }}
+- apiGroups:
+    - rbac.authorization.k8s.io
+  resources:
+    - roles
+  resourceNames:
+{{- range $roles }}
+    - {{ . | quote }}
+{{- end }}
+  verbs:
+    - bind
+{{- end }}
 {{- else -}}
 - apiGroups:
     - ""

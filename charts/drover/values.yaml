@@ -104,6 +104,10 @@ projectSync:
   # Keeps three ServiceAccounts per Rancher project, one per project role, in a hidden project.
   serviceAccounts:
     enabled: false
+    # Extra roles for every project ServiceAccount. An entry is {clusterRole: <name>} for a
+    # ClusterRoleBinding, or {role: <name>, namespace: <namespace>} for a RoleBinding in that
+    # namespace.
+    bindings: []
   annotations: {}
   resources:
     requests:

@@ -19,8 +19,10 @@ tenantRoles:
   edit: {}
   admin: {}
 
-# Kinds that every Rancher user can get, list, and watch cluster-wide, as a map from API group to resource plurals. Helm renders the ClusterRole drover:public-read for these kinds and binds it to the group system:cattle:authenticated. Helm renders nothing for an empty map.
-publicRead: {}
+# The kinds that every Rancher user can get, list, and watch. The key cluster is a map from API group to resource plurals, and the users read these kinds cluster-wide. The key namespaces is a map from namespace name to such a map, and the users read these kinds in that namespace only. Helm renders the ClusterRole drover:public-read and binds it to the group system:cattle:authenticated. For each namespace, Helm renders a Role and a RoleBinding, and the Role also grants get on the namespace object itself. When both maps are empty, Helm does not render any object.
+publicRead:
+  cluster: {}
+  namespaces: {}
 
 # When true, Helm installs the ClusterRole drover:users and binds it to the group system:cattle:authenticated, so that every Rancher user can read principals and roletemplates. The Rancher UI reads both when a project owner adds members to a project. Rancher checks this access in the Rancher management cluster only, so enable it there.
 rancherUsers:

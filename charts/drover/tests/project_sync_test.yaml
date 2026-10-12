@@ -100,6 +100,50 @@ tests:
             - --interval=60s
             - --patch-rate=50
             - --log-level=info
+  - it: rejects two equal bindings entries
+    set:
+      projectSync.serviceAccounts.enabled: true
+      openbao.server.gateway.httpRoute.hosts:
+        - rancher-tokens.example.com
+      httpRoute.hostnames:
+        - rancher.example.com
+      projectSync.serviceAccounts.bindings:
+        - clusterRole: drover:public-read
+        - clusterRole: drover:public-read
+    asserts:
+      - failedTemplate:
+          errorPattern: items at 0 and 1 are equal
+  - it: renders one bind arg for each binding after the trust-file arg
+    set:
+      projectSync.serviceAccounts.enabled: true
+      openbao.server.gateway.httpRoute.hosts:
+        - rancher-tokens.example.com
+      httpRoute.hostnames:
+        - rancher.example.com
+      projectSync.serviceAccounts.bindings:
+        - clusterRole: drover:public-read
+        - role: drover:public-read
+          namespace: kube-public
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - project-sync
+            - --rancher-url=https://rancher.cattle-system.svc
+            - --token-file=/var/run/secrets/drover/token/token
+            - --service-accounts
+            - --openbao-address=http://drover-openbao-active.cattle-system:8200
+            - --openbao-jwt-file=/var/run/secrets/openbao/token
+            - --openbao-rancher-url=https://rancher.example.com
+            - --openbao-token-ttl=24h
+            - --openbao-credential-ttl=15m
+            - --openbao-credential-max-ttl=2h
+            - --trust-file=/etc/drover/trust/trust.json
+            - --bind-cluster-role=drover:public-read
+            - --bind-role=kube-public/drover:public-read
+            - --interval=60s
+            - --patch-rate=50
+            - --log-level=info
   - it: takes the openbao rancher URL from global.broker.rancherUrl over the hostname
     set:
       projectSync.serviceAccounts.enabled: true

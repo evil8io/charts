@@ -146,7 +146,7 @@ tests:
             name: system:cattle:authenticated
   - it: grants Rancher users a sorted, de-duplicated read on the public kinds
     set:
-      publicRead:
+      publicRead.cluster:
         gateway.networking.k8s.io:
           - gateways
           - gatewayclasses
@@ -196,9 +196,149 @@ tests:
             apiGroup: rbac.authorization.k8s.io
             kind: Group
             name: system:cattle:authenticated
+  - it: grants Rancher users a read on the public kinds of the listed namespaces only
+    set:
+      publicRead.cluster:
+        gateway.networking.k8s.io:
+          - gateways
+      publicRead.namespaces:
+        kube-public:
+          "":
+            - configmaps
+            - configmaps
+        gw-a: {}
+    template: templates/public-read.yaml
+    asserts:
+      - hasDocuments:
+          count: 6
+      - documentIndex: 0
+        isKind:
+          of: ClusterRole
+      - documentIndex: 0
+        equal:
+          path: rules
+          value:
+            - apiGroups:
+                - gateway.networking.k8s.io
+              resources:
+                - gateways
+              verbs:
+                - get
+                - list
+                - watch
+            - apiGroups:
+                - ""
+              resources:
+                - namespaces
+              resourceNames:
+                - gw-a
+                - kube-public
+              verbs:
+                - get
+      - documentIndex: 1
+        isKind:
+          of: ClusterRoleBinding
+      - documentIndex: 2
+        isKind:
+          of: Role
+      - documentIndex: 2
+        equal:
+          path: metadata.namespace
+          value: gw-a
+      - documentIndex: 2
+        equal:
+          path: rules
+          value:
+            - apiGroups:
+                - ""
+              resources:
+                - namespaces
+              verbs:
+                - get
+      - documentIndex: 3
+        isKind:
+          of: RoleBinding
+      - documentIndex: 3
+        equal:
+          path: metadata.namespace
+          value: gw-a
+      - documentIndex: 4
+        isKind:
+          of: Role
+      - documentIndex: 4
+        equal:
+          path: metadata.namespace
+          value: kube-public
+      - documentIndex: 4
+        equal:
+          path: rules
+          value:
+            - apiGroups:
+                - ""
+              resources:
+                - namespaces
+              verbs:
+                - get
+            - apiGroups:
+                - ""
+              resources:
+                - configmaps
+              verbs:
+                - get
+                - list
+                - watch
+      - documentIndex: 5
+        isKind:
+          of: RoleBinding
+      - documentIndex: 5
+        equal:
+          path: metadata.namespace
+          value: kube-public
+      - documentIndex: 5
+        equal:
+          path: roleRef
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Role
+            name: drover:public-read
+      - documentIndex: 5
+        equal:
+          path: subjects[0]
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: Group
+            name: system:cattle:authenticated
+  - it: renders a ClusterRole with only the namespaces rule when the cluster map is empty
+    set:
+      publicRead.namespaces:
+        kube-public: {}
+    template: templates/public-read.yaml
+    asserts:
+      - hasDocuments:
+          count: 4
+      - documentIndex: 0
+        equal:
+          path: rules
+          value:
+            - apiGroups:
+                - ""
+              resources:
+                - namespaces
+              resourceNames:
+                - kube-public
+              verbs:
+                - get
+  - it: rejects a namespace name that is not a DNS label
+    set:
+      publicRead.namespaces:
+        Kube_Public: {}
+    template: templates/public-read.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: does not match pattern
   - it: rejects a wildcard plural in the public kinds
     set:
-      publicRead:
+      publicRead.cluster:
         gateway.networking.k8s.io:
           - "*"
     template: templates/public-read.yaml

@@ -148,6 +148,15 @@ With this value on, the service user of project-sync gets wide rights in every c
 It gets every verb on namespaces. It can also create ServiceAccounts, roles, and
 bindings, and it can create tokens of the project ServiceAccounts.
 
+With `projectSync.serviceAccounts.bindings`, project-sync binds extra roles to every
+project ServiceAccount. An entry is `{clusterRole: <name>}` or
+`{role: <name>, namespace: <namespace>}`. project-sync does not read the roles. A binding
+to a role that does not exist in a cluster is thus valid. For a Role entry, the namespace
+must exist in every cluster. When it does not exist, project-sync does not create the
+RoleBinding there, and it logs a warning in each run. One use is a ClusterRole with the
+reads that every Rancher user has, for example `drover:public-read` of the drover-policies
+chart.
+
 ## Short-lived credentials
 
 A tenant can have automation outside the cluster that works in the namespaces of its
@@ -367,6 +376,7 @@ value is not set. The keys with the value zero select the default of the drover 
 | `projectSync.nameLabel` | `""` | The label key for the label-safe display name. An empty value turns it off. |
 | `projectSync.nameAnnotation` | `""` | The annotation key for the display name. An empty value turns it off. |
 | `projectSync.serviceAccounts.enabled` | `false` | See [Project ServiceAccounts](#project-serviceaccounts). When true, Helm also installs OpenBao. |
+| `projectSync.serviceAccounts.bindings` | `[]` | Extra roles for every project ServiceAccount. See [Project ServiceAccounts](#project-serviceaccounts). |
 | `projectPolicy.requiredLabels` | `[]` | See [Required project metadata](#required-project-metadata). |
 | `projectPolicy.requiredAnnotations` | `[]` | See [Required project metadata](#required-project-metadata). |
 | `projectPolicy.failurePolicy` | `Fail` | `Fail` or `Ignore`, for the project policy only. For the [trust annotation](#trust-annotation), the value is always `Fail`. |

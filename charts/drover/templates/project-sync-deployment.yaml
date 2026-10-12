@@ -58,6 +58,13 @@ spec:
             - "--openbao-credential-ttl={{ .Values.global.broker.credentials.ttl }}"
             - "--openbao-credential-max-ttl={{ .Values.global.broker.credentials.maxTTL }}"
             - "--trust-file=/etc/drover/trust/trust.json"
+            {{- range .Values.projectSync.serviceAccounts.bindings }}
+            {{- if .clusterRole }}
+            - "--bind-cluster-role={{ .clusterRole }}"
+            {{- else }}
+            - "--bind-role={{ .namespace }}/{{ .role }}"
+            {{- end }}
+            {{- end }}
             {{- end }}
             - "--interval={{ .Values.projectSync.interval }}"
             - "--patch-rate={{ .Values.projectSync.patchRate }}"
