@@ -50,6 +50,7 @@ subjects:
     name: system:cattle:authenticated
 {{- range $namespace := (keys $namespaces | sortAlpha) }}
 {{- $kinds := index $namespaces $namespace }}
+{{- if $kinds }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -93,5 +94,6 @@ subjects:
   - apiGroup: rbac.authorization.k8s.io
     kind: Group
     name: system:cattle:authenticated
+{{- end }}
 {{- end }}
 {{- end }}

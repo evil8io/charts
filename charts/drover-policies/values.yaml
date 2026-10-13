@@ -19,7 +19,7 @@ tenantRoles:
   edit: {}
   admin: {}
 
-# The kinds that every Rancher user can get, list, and watch. The key cluster is a map from API group to resource plurals, and the users read these kinds cluster-wide. The key namespaces is a map from namespace name to such a map, and the users read these kinds in that namespace only. Helm renders the ClusterRole drover:public-read and binds it to the group system:cattle:authenticated. For each namespace, Helm renders a Role and a RoleBinding, and the Role also grants get on the namespace object itself. When both maps are empty, Helm does not render any object.
+# The kinds that every Rancher user can get, list, and watch. The key cluster is a map from API group to resource plurals, and the users read these kinds cluster-wide. The key namespaces is a map from namespace name to such a map, and the users read these kinds in that namespace only. Helm renders the ClusterRole drover:public-read and binds it to the group system:cattle:authenticated. The ClusterRole also contains get on each namespace of the key namespaces. For each namespace with a map that is not empty, Helm renders a Role and a RoleBinding. The Role also contains the verb get on the namespace object itself. For a namespace with an empty map, Helm does not render a Role. The users can get that namespace object through the ClusterRole only. When both maps are empty, Helm does not render any object.
 publicRead:
   cluster: {}
   namespaces: {}

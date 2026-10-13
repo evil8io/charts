@@ -196,7 +196,7 @@ tests:
             apiGroup: rbac.authorization.k8s.io
             kind: Group
             name: system:cattle:authenticated
-  - it: grants Rancher users a read on the public kinds of the listed namespaces only
+  - it: grants Rancher users a read on the public kinds of the listed namespaces only, and does not render a Role for an empty kind map
     set:
       publicRead.cluster:
         gateway.networking.k8s.io:
@@ -207,10 +207,11 @@ tests:
             - configmaps
             - configmaps
         gw-a: {}
+        zz: {}
     template: templates/public-read.yaml
     asserts:
       - hasDocuments:
-          count: 6
+          count: 4
       - documentIndex: 0
         isKind:
           of: ClusterRole
@@ -233,6 +234,7 @@ tests:
               resourceNames:
                 - gw-a
                 - kube-public
+                - zz
               verbs:
                 - get
       - documentIndex: 1
@@ -244,32 +246,8 @@ tests:
       - documentIndex: 2
         equal:
           path: metadata.namespace
-          value: gw-a
-      - documentIndex: 2
-        equal:
-          path: rules
-          value:
-            - apiGroups:
-                - ""
-              resources:
-                - namespaces
-              verbs:
-                - get
-      - documentIndex: 3
-        isKind:
-          of: RoleBinding
-      - documentIndex: 3
-        equal:
-          path: metadata.namespace
-          value: gw-a
-      - documentIndex: 4
-        isKind:
-          of: Role
-      - documentIndex: 4
-        equal:
-          path: metadata.namespace
           value: kube-public
-      - documentIndex: 4
+      - documentIndex: 2
         equal:
           path: rules
           value:
@@ -287,21 +265,21 @@ tests:
                 - get
                 - list
                 - watch
-      - documentIndex: 5
+      - documentIndex: 3
         isKind:
           of: RoleBinding
-      - documentIndex: 5
+      - documentIndex: 3
         equal:
           path: metadata.namespace
           value: kube-public
-      - documentIndex: 5
+      - documentIndex: 3
         equal:
           path: roleRef
           value:
             apiGroup: rbac.authorization.k8s.io
             kind: Role
             name: drover:public-read
-      - documentIndex: 5
+      - documentIndex: 3
         equal:
           path: subjects[0]
           value:
@@ -315,7 +293,7 @@ tests:
     template: templates/public-read.yaml
     asserts:
       - hasDocuments:
-          count: 4
+          count: 2
       - documentIndex: 0
         equal:
           path: rules

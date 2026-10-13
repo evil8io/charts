@@ -98,17 +98,20 @@ every Rancher user. Every Rancher user can read every object of a listed kind,
 cluster-wide. Do not list a kind whose objects contain names or settings of one tenant,
 for example PolicyExceptions.
 
-`namespaces` is a map from namespace name to a map from API group to resource plurals.
-For each namespace, Helm installs the Role `drover:public-read` and a RoleBinding to the
-same group in that namespace. The Role grants get, list, and watch on the listed kinds in
-that namespace only. In the example, every Rancher user can read the ConfigMaps of
-`kube-public`.
+`namespaces` is a map from namespace name to a kind map, which is a map from API group to
+resource plurals. For each namespace with a kind map that is not empty, Helm installs the
+Role `drover:public-read` in that namespace. Helm binds the Role to the same group with a
+RoleBinding in that namespace. The Role contains the verbs get, list, and watch on the
+listed kinds in that namespace only, and `get` on the namespace object. In the example,
+every Rancher user can read the ConfigMaps of `kube-public`.
 
-The Role also grants `get` on the Namespace object itself. A Rancher user then sees the
+The ClusterRole `drover:public-read` also contains a rule with `get` on `namespaces` and
+every listed namespace name in `resourceNames`. Helm installs this ClusterRole and its
+ClusterRoleBinding also when `cluster` is empty. A Rancher user then sees each listed
 namespace in its namespace list, and `kubectl get ns kube-public` succeeds. For a
-namespace with an empty kind map, the Role contains this rule only. Helm also adds a rule to the ClusterRole
-`drover:public-read` with `get` on `namespaces` and the listed namespace names in
-`resourceNames`.
+namespace with an empty kind map, this rule is the only rule of the chart for that
+namespace. Helm does not install an object in such a namespace, so the namespace does not
+need to exist at the install.
 
 When both maps are empty, Helm does not render any object.
 
@@ -138,7 +141,7 @@ the new policy.
 | `tenantRoles.edit` | `{}` | The kinds of the `edit` role, as a map from API group to resource plurals. See Tenant roles. |
 | `tenantRoles.admin` | `{}` | The kinds of the `admin` role, as a map from API group to resource plurals. See Tenant roles. |
 | `publicRead.cluster` | `{}` | The kinds that every Rancher user can get, list, and watch cluster-wide, as a map from API group to resource plurals. See Public reads. |
-| `publicRead.namespaces` | `{}` | The kinds that every Rancher user can get, list, and watch in one namespace. The value is a map from namespace name to a map from API group to resource plurals. See Public reads. |
+| `publicRead.namespaces` | `{}` | The kinds that every Rancher user can get, list, and watch in one namespace. The value is a map from namespace name to a map from API group to resource plurals. For a namespace with an empty kind map, every Rancher user can get only the namespace object. See Public reads. |
 | `rancherUsers.enabled` | `false` | When the value is `true`, Helm installs `drover:users` and binds it to `system:cattle:authenticated`. Enable the value in the Rancher management cluster only. See Rancher users. |
 | `policies.<name>.enabled` | `true` | When the value is `true`, Helm renders the policy. |
 | `policies.namespace-project.nameAnnotation` | `project.display_name` | The annotation key on a namespace that has the display name of its project. Kyverno shows the name next to the project id in the deny message. When the value is empty, Kyverno shows no name. |
