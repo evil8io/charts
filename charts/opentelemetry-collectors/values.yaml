@@ -117,7 +117,7 @@ aws:
             - GeoLite2-Country
           image:
             repository: curlimages/curl
-            tag: "8.22.0"
+            tag: "8.23.0"
     # -- Other log groups, one receiver and one pipeline per key. An entry has either a name,
     # or a prefix or a pattern with a limit. The pattern is a case-sensitive substring.
     # streams.names and streams.prefixes filter the log streams.
