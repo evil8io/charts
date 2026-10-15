@@ -11,6 +11,6 @@ sources:
   - https://github.com/evil8io/drover
 dependencies:
   - name: openbao
-    version: 0.30.3
+    version: 0.30.4
     repository: https://openbao.github.io/openbao-helm
     condition: projectSync.serviceAccounts.enabled
