@@ -46,7 +46,7 @@ The config of the cloudwatch collector.
 {{- $geoip := and $v.sources.cloudfront.enabled $v.sources.cloudfront.geoip.enabled }}
 receivers:
   {{- if $v.sources.controlPlane.enabled }}
-  awscloudwatch/cluster:
+  aws_cloudwatch/cluster:
     region: {{ $v.region | quote }}
     storage: file_storage
     logs:
@@ -56,7 +56,7 @@ receivers:
           {{ required "aws.cloudwatch.sources.controlPlane.logGroup is required" $v.sources.controlPlane.logGroup }}: {}
   {{- end }}
   {{- if $v.sources.fargate.enabled }}
-  awscloudwatch/fargate:
+  aws_cloudwatch/fargate:
     region: {{ $v.region | quote }}
     storage: file_storage
     logs:
@@ -66,7 +66,7 @@ receivers:
           {{ required "aws.cloudwatch.sources.fargate.logGroup is required" $v.sources.fargate.logGroup }}: {}
   {{- end }}
   {{- if $v.sources.cloudfront.enabled }}
-  awscloudwatch/cloudfront:
+  aws_cloudwatch/cloudfront:
     region: {{ $v.sources.cloudfront.region | quote }}
     storage: file_storage
     logs:
@@ -76,7 +76,7 @@ receivers:
           {{ required "aws.cloudwatch.sources.cloudfront.logGroup is required" $v.sources.cloudfront.logGroup }}: {}
   {{- end }}
   {{- range $id, $group := $v.logGroups }}
-  awscloudwatch/{{ $id }}:
+  aws_cloudwatch/{{ $id }}:
     region: {{ $v.region | quote }}
     storage: file_storage
     logs:
@@ -146,7 +146,7 @@ processors:
       - stream
       - log.iostream
       - container.image.name
-      - container.image.tag
+      - container.image.tags
       - k8s.container.name
       - k8s.pod.name
       - k8s.job.name
@@ -162,7 +162,7 @@ processors:
       - context: resource
         statements:
           - set(resource.attributes["cloud.provider"], "aws")
-          - set(resource.attributes["cloud.region"], resource.attributes["aws.region"])
+          - set(resource.attributes["cloud.region"], resource.attributes["aws.region"]) where resource.attributes["aws.region"] != nil
           - delete_key(resource.attributes, "aws.region")
           - set(resource.attributes["k8s.cluster.name"], {{ .Values.clusterName | quote }})
   {{- if $v.sources.controlPlane.enabled }}
@@ -172,7 +172,7 @@ processors:
       - context: resource
         statements:
           - set(resource.attributes["cloud.platform"], "aws_eks")
-          - set(resource.attributes["service.name"], resource.attributes["cloudwatch.log.stream"])
+          - set(resource.attributes["service.name"], resource.attributes["cloudwatch.log.stream"]) where resource.attributes["cloudwatch.log.stream"] != nil
           - >-
             replace_pattern(
               resource.attributes["service.name"],
@@ -199,12 +199,12 @@ processors:
       - context: resource
         statements:
           - set(resource.attributes["service.name"], "cloudfront-access-logs")
-          - set(resource.attributes["service.instance.id"], resource.attributes["cloudwatch.log.stream"])
+          - set(resource.attributes["service.instance.id"], resource.attributes["cloudwatch.log.stream"]) where resource.attributes["cloudwatch.log.stream"] != nil
       - context: log
         statements:
           - set(log.cache, ParseJSON(log.body))
           {{- range $field, $attribute := include "opentelemetry-collectors.cloudfrontAttributes" . | fromYaml }}
-          - set(log.attributes["{{ $attribute }}"], log.cache["{{ $field }}"])
+          - set(log.attributes["{{ $attribute }}"], log.cache["{{ $field }}"]) where log.cache["{{ $field }}"] != nil
           {{- end }}
   {{- end }}
   {{- if $v.sources.fargate.enabled }}
@@ -232,13 +232,13 @@ processors:
           - set(log.cache, ParseJSON(log.body))
           - flatten(log.cache)
 
-          - set(log.body, log.cache["log"])
-          - set(log.attributes["stream"], log.cache["stream"])
-          - set(log.attributes["log.iostream"], log.cache["stream"])
+          - set(log.body, log.cache["log"]) where log.cache["log"] != nil
+          - set(log.attributes["stream"], log.cache["stream"]) where log.cache["stream"] != nil
+          - set(log.attributes["log.iostream"], log.cache["stream"]) where log.cache["stream"] != nil
 
-          - set(log.attributes["k8s.pod.name"], log.cache["kubernetes.pod_name"])
-          - set(log.attributes["k8s.namespace.name"], log.cache["kubernetes.namespace_name"])
-          - set(log.attributes["k8s.container.name"], log.cache["kubernetes.container_name"])
+          - set(log.attributes["k8s.pod.name"], log.cache["kubernetes.pod_name"]) where log.cache["kubernetes.pod_name"] != nil
+          - set(log.attributes["k8s.namespace.name"], log.cache["kubernetes.namespace_name"]) where log.cache["kubernetes.namespace_name"] != nil
+          - set(log.attributes["k8s.container.name"], log.cache["kubernetes.container_name"]) where log.cache["kubernetes.container_name"] != nil
   {{- end }}
 
 service:
@@ -254,7 +254,7 @@ service:
     {{- if $v.sources.controlPlane.enabled }}
     logs/cluster:
       receivers:
-        - awscloudwatch/cluster
+        - aws_cloudwatch/cluster
       processors:
         - memory_limiter
         - transform/common_attributes
@@ -267,7 +267,7 @@ service:
     {{- if $v.sources.fargate.enabled }}
     logs/fargate:
       receivers:
-        - awscloudwatch/fargate
+        - aws_cloudwatch/fargate
       processors:
         - memory_limiter
         - transform/common_attributes
@@ -281,7 +281,7 @@ service:
     {{- if $v.sources.cloudfront.enabled }}
     logs/cloudfront:
       receivers:
-        - awscloudwatch/cloudfront
+        - aws_cloudwatch/cloudfront
       processors:
         - memory_limiter
         - transform/common_attributes
@@ -297,7 +297,7 @@ service:
     {{- range $id, $group := $v.logGroups }}
     logs/{{ $id }}:
       receivers:
-        - awscloudwatch/{{ $id }}
+        - aws_cloudwatch/{{ $id }}
       processors:
         - memory_limiter
         - transform/common_attributes

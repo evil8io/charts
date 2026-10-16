@@ -231,6 +231,17 @@ tests:
         notContains:
           path: spec.config.service.extensions
           content: basicauth
+  - it: sets the resources of the node target allocator
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.targetAllocator.resources
+          value:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 512Mi
   - it: builds the node target allocator selectors from collectors.cluster.targetAllocator.matchLabels
     set:
       collectors.cluster.targetAllocator.matchLabels.target: custom-cluster-collector

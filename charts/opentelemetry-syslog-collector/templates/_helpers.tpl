@@ -88,6 +88,23 @@ When collector.debug is true, adds the debug exporter to every pipeline.
 {{- end -}}
 
 {{/*
+Helm renders "true" when the collector serves a Prometheus metrics endpoint. That is the case when
+the merged config has a pull reader, or when it has no reader and the operator adds the default one.
+*/}}
+{{- define "opentelemetry-syslog-collector.hasPullReader" -}}
+{{- $cfg := include "opentelemetry-syslog-collector.otelConfig" . | fromYaml -}}
+{{- $metrics := ((($cfg.service | default dict).telemetry | default dict).metrics | default dict) -}}
+{{- $readers := $metrics.readers | default list -}}
+{{- if not (kindIs "slice" $readers) -}}
+{{- fail "service.telemetry.metrics.readers must be a list" -}}
+{{- end -}}
+{{- if not $readers }}true{{ end -}}
+{{- range $readers -}}
+{{- if hasKey . "pull" }}true{{ end -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
 Builds the OTEL_RESOURCE_ATTRIBUTES value from .Values.resourceAttributes.
 Each value renders through tpl.
 */}}

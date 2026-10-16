@@ -31,8 +31,10 @@ specs:
               {{- end }}
               - port: {{ .Values.exporter.port | quote }}
                 protocol: TCP
+              {{- if include "opentelemetry-syslog-collector.hasPullReader" . }}
               - port: "8888"
                 protocol: TCP
+              {{- end }}
               - port: "13133"
                 protocol: TCP
     egress:

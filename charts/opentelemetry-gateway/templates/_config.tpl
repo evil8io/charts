@@ -145,7 +145,7 @@ connectors:
   {{- end }}
   {{- if .Values.grafanaCloudMetrics.enabled }}
   # https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/connector/grafanacloudconnector/README.md
-  grafanacloud:
+  grafana_cloud:
     host_identifiers:
       - k8s.node.name
       - k8s.node.uid
@@ -350,7 +350,7 @@ service:
         - span_metrics
         {{- end }}
         {{- if .Values.grafanaCloudMetrics.enabled }}
-        - grafanacloud
+        - grafana_cloud
         {{- end }}
     {{- if .Values.spanMetrics.enabled }}
 
@@ -374,7 +374,7 @@ service:
     #--------------------------------------------------------------------
     metrics/grafanacloud:
       receivers:
-        - grafanacloud
+        - grafana_cloud
       processors:
         - memory_limiter
         - transform

@@ -10,8 +10,10 @@ metadata:
     {{- end }}
 spec:
   endpoints:
+    {{- if include "opentelemetry-syslog-collector.hasPullReader" . }}
     - interval: {{ .Values.serviceMonitor.interval }}
       port: monitoring
+    {{- end }}
     - interval: {{ .Values.serviceMonitor.interval }}
       port: sng-metrics
   namespaceSelector:

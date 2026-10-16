@@ -72,26 +72,26 @@ processors:
           - set(log.time, Time(log.cache["object.deprecatedLastTimestamp"], "%Y-%m-%dT%H:%M:%SZ")) where log.cache["object.deprecatedLastTimestamp"] != nil
           - set(log.time, Time(log.cache["object.eventTime"], "%Y-%m-%dT%H:%M:%S.%fZ")) where log.cache["object.eventTime"] != nil
           - set(log.time, Time(log.cache["object.series.lastObservedTime"], "%Y-%m-%dT%H:%M:%S.%fZ")) where log.cache["object.series.lastObservedTime"] != nil
-          - set(log.severity_text, ConvertCase(log.cache["object.type"], "lower"))
+          - set(log.severity_text, ConvertCase(log.cache["object.type"], "lower")) where log.cache["object.type"] != nil
           - set(log.severity_text, "info") where log.cache["object.type"] == "Normal"
           - set(log.severity_text, "error") where IsMatch(log.cache["object.reason"], "(?i)(error|emerg|fatal)")
           - set(log.severity_number, SEVERITY_NUMBER_INFO) where log.severity_text == "info"
           - set(log.severity_number, SEVERITY_NUMBER_WARN) where log.severity_text == "warning"
           - set(log.severity_number, SEVERITY_NUMBER_ERROR) where log.severity_text == "error"
           # https://opentelemetry.io/docs/specs/semconv/registry/attributes/k8s/
-          - set(log.attributes["k8s.event.name"], log.cache["object.metadata.name"])
-          - set(log.attributes["k8s.event.uid"], log.cache["object.metadata.uid"])
-          - set(log.attributes["k8s.event.reason"], log.cache["object.reason"])
+          - set(log.attributes["k8s.event.name"], log.cache["object.metadata.name"]) where log.cache["object.metadata.name"] != nil
+          - set(log.attributes["k8s.event.uid"], log.cache["object.metadata.uid"]) where log.cache["object.metadata.uid"] != nil
+          - set(log.attributes["k8s.event.reason"], log.cache["object.reason"]) where log.cache["object.reason"] != nil
           - set(log.attributes["k8s.event.action"], log.cache["object.action"]) where log.cache["object.action"] != nil
-          - set(log.attributes["k8s.event.start_time"], log.cache["object.metadata.creationTimestamp"])
+          - set(log.attributes["k8s.event.start_time"], log.cache["object.metadata.creationTimestamp"]) where log.cache["object.metadata.creationTimestamp"] != nil
           # series.count replaces deprecatedCount for a repeated event.
           - set(log.attributes["k8s.event.count"], log.cache["object.deprecatedCount"]) where log.cache["object.deprecatedCount"] != nil
           - set(log.attributes["k8s.event.count"], log.cache["object.series.count"]) where log.cache["object.series.count"] != nil
-          - set(log.attributes["k8s.event.regarding.kind"], log.cache["object.regarding.kind"])
-          - set(log.attributes["k8s.event.regarding.name"], log.cache["object.regarding.name"])
+          - set(log.attributes["k8s.event.regarding.kind"], log.cache["object.regarding.kind"]) where log.cache["object.regarding.kind"] != nil
+          - set(log.attributes["k8s.event.regarding.name"], log.cache["object.regarding.name"]) where log.cache["object.regarding.name"] != nil
           # events.k8s.io allows an event outside the namespace of the regarding object.
           - set(log.attributes["k8s.event.regarding.namespace"], log.cache["object.regarding.namespace"]) where log.cache["object.regarding.namespace"] != nil
-          - set(log.attributes["k8s.event.regarding.uid"], log.cache["object.regarding.uid"])
+          - set(log.attributes["k8s.event.regarding.uid"], log.cache["object.regarding.uid"]) where log.cache["object.regarding.uid"] != nil
           - set(log.attributes["k8s.event.regarding.field_path"], log.cache["object.regarding.fieldPath"]) where log.cache["object.regarding.fieldPath"] != nil
           - set(log.attributes["k8s.event.reporting_controller"], log.cache["object.reportingController"]) where log.cache["object.reportingController"] != nil
           - >-
@@ -135,7 +135,8 @@ processors:
           - delete_key(log.attributes, "k8s.horizontalpodautoscaler.uid")
           # The raw object is dropped. The attributes above have every queryable field.
           - set(log.body, log.cache["object.note"]) where log.cache["object.note"] != nil
-          - set(log.body, log.cache["object.reason"]) where log.cache["object.note"] == nil
+          - set(log.body, log.cache["object.reason"]) where log.cache["object.note"] == nil and log.cache["object.reason"] != nil
+          - set(log.body, "") where log.cache["object.note"] == nil and log.cache["object.reason"] == nil
 
 service:
   extensions:

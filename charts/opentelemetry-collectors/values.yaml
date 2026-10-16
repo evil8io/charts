@@ -172,6 +172,13 @@ collectors:
     # ScrapeConfig without the labels of collectors.cluster.targetAllocator.matchLabels.
     targetAllocator:
       enabled: true
+      # -- Resources of the target allocator pod.
+      resources:
+        limits:
+          memory: 512Mi
+        requests:
+          cpu: 50m
+          memory: 512Mi
     # -- Deep-merged on top of the node collector config.
     configOverrides: {}
 
@@ -203,6 +210,13 @@ collectors:
     # -- The target allocator with consistent hashing over the replicas.
     targetAllocator:
       enabled: true
+      # -- Resources of the target allocator pod.
+      resources:
+        limits:
+          memory: 512Mi
+        requests:
+          cpu: 50m
+          memory: 512Mi
       # -- Namespaces of the ServiceMonitor, PodMonitor, Probe, and ScrapeConfig objects, next
       # to the release namespace.
       allowNamespaces: []

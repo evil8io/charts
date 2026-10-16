@@ -90,7 +90,7 @@ See [values.yaml](values.yaml) for all values and their defaults.
 | `selfTelemetry.endpoint` | `""` | OTLP gRPC endpoint (`host:port`) for the spans and metrics of the collectors. The node collector reports to itself. |
 | `selfTelemetry.tracesSampleRatio` | `0.01` | Sample ratio for the root spans of the collectors. |
 | `resourceAttributes` | `{}` | Static resource attributes, added to every signal. Use them on a platform without a resource detector. |
-| `targetAllocator.image.repository`, `tag` | `ghcr.io/open-telemetry/opentelemetry-operator/target-allocator`, `v0.159.0` | Image of the target allocator of the node and cluster collectors. |
+| `targetAllocator.image.repository`, `tag` | `ghcr.io/open-telemetry/opentelemetry-operator/target-allocator`, `v0.160.0` | Image of the target allocator of the node and cluster collectors. |
 | `targetAllocator.scrapeInterval` | `30s` | Scrape interval of the target allocators. |
 | `aws.enabled` | `false` | Adds the eks resource detector to the node, cluster, and events collectors. |
 | `aws.roleArn` | `""` | IAM role for the ServiceAccounts of the node, cluster, and events collectors (IRSA). The eks detector calls `ec2:DescribeInstances`. |
@@ -118,6 +118,7 @@ See [values.yaml](values.yaml) for all values and their defaults.
 | `collectors.node.cadvisor.enabled` | `true` | Scrapes the cAdvisor metrics of the node. |
 | `collectors.node.fileStorage.maxSize` | `1073741824` | Cap of each bbolt file, in bytes, on the node root volume. |
 | `collectors.node.targetAllocator.enabled` | `true` | The per-node target allocator. It scrapes every ServiceMonitor, PodMonitor, Probe, and ScrapeConfig object without the labels of `collectors.cluster.targetAllocator.matchLabels`. |
+| `collectors.node.targetAllocator.resources` | `requests.cpu: 50m`, `requests.memory: 512Mi`, `limits.memory: 512Mi` | Resources of the target allocator pod. |
 | `collectors.node.configOverrides` | `{}` | Deep-merged on top of the node collector config. |
 | `collectors.cluster.enabled` | `true` | Enables the cluster collector, a StatefulSet. |
 | `collectors.cluster.replicas` | `3` | Replicas of the cluster collector. |
@@ -128,6 +129,7 @@ See [values.yaml](values.yaml) for all values and their defaults.
 | `collectors.cluster.targetAllocator.enabled` | `true` | The target allocator with the consistent-hashing strategy over the replicas. |
 | `collectors.cluster.targetAllocator.allowNamespaces` | `[]` | Extra namespaces of the ServiceMonitor, PodMonitor, Probe, and ScrapeConfig objects, next to the release namespace. |
 | `collectors.cluster.targetAllocator.matchLabels` | `target: opentelemetry-cluster-collector` | Labels of the objects that the cluster collector scrapes. |
+| `collectors.cluster.targetAllocator.resources` | `requests.cpu: 50m`, `requests.memory: 512Mi`, `limits.memory: 512Mi` | Resources of the target allocator pod. |
 | `collectors.cluster.configOverrides` | `{}` | Deep-merged on top of the cluster collector config. |
 | `collectors.events.enabled` | `true` | Enables the events collector, a StatefulSet with one replica. |
 | `collectors.events.annotations`, `resources`, `podDisruptionBudget`, `podSecurityContext`, `securityContext`, `priorityClassName`, `nodeSelector`, `tolerations` | see values.yaml | Pod settings of the events collector. |

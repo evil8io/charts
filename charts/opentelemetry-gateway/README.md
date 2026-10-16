@@ -82,7 +82,7 @@ See [values.yaml](values.yaml) for all values and their defaults.
 | `nameOverride` | `gateway` | Name part of the object names. |
 | `image.repository` | `otel/opentelemetry-collector-contrib` | Collector image. |
 | `image.tag` | `""` | Collector image tag. An empty tag selects the chart `appVersion`. |
-| `featureGates` | `connector.spanmetrics.includeCollectorInstanceID,service.profilesSupport` | Feature gates, comma-separated. The profiles pipeline needs `service.profilesSupport`. |
+| `featureGates` | `service.profilesSupport` | Feature gates, comma-separated. The profiles pipeline needs `service.profilesSupport`. |
 | `replicaCount` | `3` | Replicas of each collector when KEDA is off. |
 | `resources` | 1 CPU, 2Gi | Resources of each collector pod. |
 | `podSecurityContext`, `securityContext` | restricted | Security contexts of the collector pods. |

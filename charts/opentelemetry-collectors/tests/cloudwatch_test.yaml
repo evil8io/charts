@@ -54,7 +54,7 @@ tests:
         equal:
           path: metadata.name
           value: opentelemetry-cloudwatch
-  - it: receives from awscloudwatch/cluster and awscloudwatch/fargate
+  - it: receives from aws_cloudwatch/cluster and aws_cloudwatch/fargate
     set:
       aws.enabled: true
       aws.cloudwatch.enabled: true
@@ -64,10 +64,10 @@ tests:
     asserts:
       - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
         exists:
-          path: spec.config.receivers["awscloudwatch/cluster"]
+          path: spec.config.receivers["aws_cloudwatch/cluster"]
       - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
         exists:
-          path: spec.config.receivers["awscloudwatch/fargate"]
+          path: spec.config.receivers["aws_cloudwatch/fargate"]
   - it: sends the logs/cluster and logs/fargate pipelines
     set:
       aws.enabled: true
@@ -92,11 +92,11 @@ tests:
     asserts:
       - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
         notExists:
-          path: spec.config.receivers["awscloudwatch/cloudfront"]
+          path: spec.config.receivers["aws_cloudwatch/cloudfront"]
       - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
         notExists:
           path: spec.config.service.pipelines["logs/cloudfront"]
-  - it: adds the awscloudwatch/cloudfront receiver and pipeline only with the cloudfront source
+  - it: adds the aws_cloudwatch/cloudfront receiver and pipeline only with the cloudfront source
     set:
       aws.enabled: true
       aws.cloudwatch.enabled: true
@@ -108,7 +108,7 @@ tests:
     asserts:
       - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
         exists:
-          path: spec.config.receivers["awscloudwatch/cloudfront"]
+          path: spec.config.receivers["aws_cloudwatch/cloudfront"]
       - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
         exists:
           path: spec.config.service.pipelines["logs/cloudfront"]
@@ -164,12 +164,12 @@ tests:
     asserts:
       - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
         equal:
-          path: spec.config.receivers["awscloudwatch/app"].logs.groups.named
+          path: spec.config.receivers["aws_cloudwatch/app"].logs.groups.named
           value:
             /aws/app: {}
       - template: templates/aws/cloudwatch/opentelemetrycollector.yaml
         equal:
-          path: spec.config.receivers["awscloudwatch/lambda"].logs.groups.autodiscover.prefix
+          path: spec.config.receivers["aws_cloudwatch/lambda"].logs.groups.autodiscover.prefix
           value: /aws/lambda/
   - it: matches the snapshot with both sources enabled
     set:

@@ -10,7 +10,7 @@ image:
   tag: ""
 
 # -- Feature gates, comma-separated. The profiles pipeline needs service.profilesSupport.
-featureGates: "connector.spanmetrics.includeCollectorInstanceID,service.profilesSupport"
+featureGates: "service.profilesSupport"
 
 # -- Replicas of each collector when autoscaling.keda.enabled is false.
 replicaCount: 3
@@ -158,7 +158,7 @@ noisyUrlPatterns:
 spanMetrics:
   enabled: true
 
-# -- The grafanacloud connector: Grafana Cloud host metrics from the spans, exported to Mimir.
+# -- The grafana_cloud connector: Grafana Cloud host metrics from the spans, exported to Mimir.
 grafanaCloudMetrics:
   enabled: false
 

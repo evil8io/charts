@@ -325,6 +325,9 @@
                     "type": "string"
                   },
                   "type": "object"
+                },
+                "resources": {
+                  "type": "object"
                 }
               },
               "type": "object"
@@ -470,6 +473,9 @@
               "properties": {
                 "enabled": {
                   "type": "boolean"
+                },
+                "resources": {
+                  "type": "object"
                 }
               },
               "type": "object"

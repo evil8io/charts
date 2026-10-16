@@ -29,6 +29,10 @@ spec:
   targetAllocator:
     enabled: true
     image: {{ include "opentelemetry-collectors.targetAllocatorImage" . }}
+    {{- with $v.targetAllocator.resources }}
+    resources:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
     allocationStrategy: consistent-hashing
     filterStrategy: relabel-config
     prometheusCR:

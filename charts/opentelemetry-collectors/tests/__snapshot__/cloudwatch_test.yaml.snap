@@ -23,7 +23,7 @@ matches the snapshot with both sources enabled:
           - stream
           - log.iostream
           - container.image.name
-          - container.image.tag
+          - container.image.tags
           - k8s.container.name
           - k8s.pod.name
           - k8s.job.name
@@ -52,7 +52,7 @@ matches the snapshot with both sources enabled:
             - k8s.cronjob.name
             - k8s.statefulset.name
             - k8s.statefulset.uid
-            - container.image.tag
+            - container.image.tags
             - container.image.name
             - k8s.cluster.uid
             - service.namespace
@@ -78,7 +78,7 @@ matches the snapshot with both sources enabled:
           - context: resource
             statements:
               - set(resource.attributes["cloud.provider"], "aws")
-              - set(resource.attributes["cloud.region"], resource.attributes["aws.region"])
+              - set(resource.attributes["cloud.region"], resource.attributes["aws.region"]) where resource.attributes["aws.region"] != nil
               - delete_key(resource.attributes, "aws.region")
               - set(resource.attributes["k8s.cluster.name"], "test-cluster")
       transform/controlplane_attributes:
@@ -87,7 +87,7 @@ matches the snapshot with both sources enabled:
           - context: resource
             statements:
               - set(resource.attributes["cloud.platform"], "aws_eks")
-              - set(resource.attributes["service.name"], resource.attributes["cloudwatch.log.stream"])
+              - set(resource.attributes["service.name"], resource.attributes["cloudwatch.log.stream"]) where resource.attributes["cloudwatch.log.stream"] != nil
               - |-
                 replace_pattern(
                   resource.attributes["service.name"],
@@ -115,14 +115,14 @@ matches the snapshot with both sources enabled:
             statements:
               - set(log.cache, ParseJSON(log.body))
               - flatten(log.cache)
-              - set(log.body, log.cache["log"])
-              - set(log.attributes["stream"], log.cache["stream"])
-              - set(log.attributes["log.iostream"], log.cache["stream"])
-              - set(log.attributes["k8s.pod.name"], log.cache["kubernetes.pod_name"])
-              - set(log.attributes["k8s.namespace.name"], log.cache["kubernetes.namespace_name"])
-              - set(log.attributes["k8s.container.name"], log.cache["kubernetes.container_name"])
+              - set(log.body, log.cache["log"]) where log.cache["log"] != nil
+              - set(log.attributes["stream"], log.cache["stream"]) where log.cache["stream"] != nil
+              - set(log.attributes["log.iostream"], log.cache["stream"]) where log.cache["stream"] != nil
+              - set(log.attributes["k8s.pod.name"], log.cache["kubernetes.pod_name"]) where log.cache["kubernetes.pod_name"] != nil
+              - set(log.attributes["k8s.namespace.name"], log.cache["kubernetes.namespace_name"]) where log.cache["kubernetes.namespace_name"] != nil
+              - set(log.attributes["k8s.container.name"], log.cache["kubernetes.container_name"]) where log.cache["kubernetes.container_name"] != nil
     receivers:
-      awscloudwatch/cluster:
+      aws_cloudwatch/cluster:
         logs:
           groups:
             named:
@@ -130,7 +130,7 @@ matches the snapshot with both sources enabled:
           poll_interval: 10s
         region: eu-west-1
         storage: file_storage
-      awscloudwatch/fargate:
+      aws_cloudwatch/fargate:
         logs:
           groups:
             named:
@@ -153,7 +153,7 @@ matches the snapshot with both sources enabled:
             - batch
             - groupbyattrs
           receivers:
-            - awscloudwatch/cluster
+            - aws_cloudwatch/cluster
         logs/fargate:
           exporters:
             - otlp_http
@@ -165,7 +165,7 @@ matches the snapshot with both sources enabled:
             - groupbyattrs
             - k8s_attributes
           receivers:
-            - awscloudwatch/fargate
+            - aws_cloudwatch/fargate
       telemetry:
         logs:
           encoding: json

@@ -98,6 +98,16 @@ tests:
           value:
             - opentelemetry-collector
             - extra-ns
+  - it: sets the resources of the cluster target allocator
+    asserts:
+      - equal:
+          path: spec.targetAllocator.resources
+          value:
+            limits:
+              memory: 512Mi
+            requests:
+              cpu: 50m
+              memory: 512Mi
   - it: gives every selector the same matchLabels
     asserts:
       - equal:

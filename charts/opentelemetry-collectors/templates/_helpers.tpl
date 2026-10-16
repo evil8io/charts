@@ -311,7 +311,7 @@ The metadata keys of the k8s_attributes processor and of the groupbyattrs proces
 - k8s.cronjob.name
 - k8s.statefulset.name
 - k8s.statefulset.uid
-- container.image.tag
+- container.image.tags
 - container.image.name
 - k8s.cluster.uid
 - service.namespace
