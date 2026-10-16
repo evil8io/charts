@@ -1,5 +1,7 @@
 {{- $policy := index .Values.policies "namespace-metadata" }}
 {{- if $policy.enabled }}
+{{- $labelsRecord := printf "%ssynced-labels" .Values.managedPrefix | toJson }}
+{{- $annotationsRecord := printf "%ssynced-annotations" .Values.managedPrefix | toJson }}
 ---
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
@@ -14,9 +16,10 @@ metadata:
     policies.kyverno.io/subject: Namespace
     policies.kyverno.io/description: >-
       Denies an update of a Namespace that sets, changes, or removes a key that
-      the drover project sync recorded in the annotations drover-managed-labels
-      or drover-managed-annotations, or one of those two records, when the
-      requester may not patch every namespace of the cluster.
+      the drover project sync recorded in the annotations
+      {{ .Values.managedPrefix }}synced-labels or
+      {{ .Values.managedPrefix }}synced-annotations. A requester with permission
+      to patch every namespace of the cluster is exempt.
 spec:
   evaluation:
     background:
@@ -37,15 +40,12 @@ spec:
     - name: recorded-key-touched
       expression: |-
         has(oldObject.metadata.annotations) && (
-          ["drover-managed-labels", "drover-managed-annotations"].exists(k,
-            (k in oldObject.metadata.annotations ? oldObject.metadata.annotations[k] : "") !=
-            (has(object.metadata.annotations) && k in object.metadata.annotations ? object.metadata.annotations[k] : "")) ||
-          ("drover-managed-labels" in oldObject.metadata.annotations &&
-            oldObject.metadata.annotations["drover-managed-labels"].split(",").exists(k,
+          ({{ $labelsRecord }} in oldObject.metadata.annotations &&
+            oldObject.metadata.annotations[{{ $labelsRecord }}].split(",").exists(k,
               (has(oldObject.metadata.labels) && k in oldObject.metadata.labels ? oldObject.metadata.labels[k] : "") !=
               (has(object.metadata.labels) && k in object.metadata.labels ? object.metadata.labels[k] : ""))) ||
-          ("drover-managed-annotations" in oldObject.metadata.annotations &&
-            oldObject.metadata.annotations["drover-managed-annotations"].split(",").exists(k,
+          ({{ $annotationsRecord }} in oldObject.metadata.annotations &&
+            oldObject.metadata.annotations[{{ $annotationsRecord }}].split(",").exists(k,
               (k in oldObject.metadata.annotations ? oldObject.metadata.annotations[k] : "") !=
               (has(object.metadata.annotations) && k in object.metadata.annotations ? object.metadata.annotations[k] : "")))
         )
@@ -60,10 +60,10 @@ spec:
       expression: 'has(oldObject.metadata.annotations) ? oldObject.metadata.annotations : {}'
     - name: recordedLabels
       expression: |-
-        ("drover-managed-labels" in variables.oldAnnotations ? variables.oldAnnotations["drover-managed-labels"] : "").split(",")
+        ({{ $labelsRecord }} in variables.oldAnnotations ? variables.oldAnnotations[{{ $labelsRecord }}] : "").split(",")
     - name: recordedAnnotations
       expression: |-
-        (["drover-managed-labels", "drover-managed-annotations"] + ("drover-managed-annotations" in variables.oldAnnotations ? variables.oldAnnotations["drover-managed-annotations"] : "").split(","))
+        ({{ $annotationsRecord }} in variables.oldAnnotations ? variables.oldAnnotations[{{ $annotationsRecord }}] : "").split(",")
     - name: touchedLabels
       expression: |-
         variables.recordedLabels.filter(k, (k in variables.labels ? variables.labels[k] : "") != (k in variables.oldLabels ? variables.oldLabels[k] : ""))

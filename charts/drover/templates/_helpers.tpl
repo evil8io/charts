@@ -325,10 +325,21 @@ http://{{ include "drover.openbao.fullname" . }}-active.{{ .Release.Namespace }}
 {{- toJson $issuers }}
 {{- end }}
 
+{{- define "drover.managedDomainCheck" -}}
+{{- range . }}
+{{- if regexMatch "(^|\\.)managed\\.drover\\.evil8\\.io/" . }}
+{{- fail (printf "the key %s is under managed.drover.evil8.io, and project-sync does not start when a copy key or a name key is under that domain" .) }}
+{{- end }}
+{{- end }}
+{{- end }}
+
 {{- define "drover.trust.rules" -}}
 {{- $broker := .Values.global.broker }}
-{{- if eq $broker.trust.annotation $broker.trust.statusAnnotation }}
-{{- fail "global.broker.trust.annotation and global.broker.trust.statusAnnotation must differ, because the status write of project-sync must not change the trust document" }}
+{{- if regexMatch "(^|\\.)managed\\.drover\\.evil8\\.io/" $broker.trust.annotation }}
+{{- fail "global.broker.trust.annotation must not be under managed.drover.evil8.io, because project-sync does not start when the trust key is under that domain" }}
+{{- end }}
+{{- if not (hasPrefix "managed.drover.evil8.io/" $broker.trust.statusAnnotation) }}
+{{- fail "global.broker.trust.statusAnnotation must start with managed.drover.evil8.io/, because with the drover-policies chart the API server protects only the keys under that prefix" }}
 {{- end }}
 {{- range list $broker.trust.annotation $broker.trust.statusAnnotation }}
 {{- if or (has . $.Values.projectSync.annotationKeys) (eq . $.Values.projectSync.nameAnnotation) }}
@@ -460,7 +471,7 @@ spec:
         {{- range $key, $value := include "drover.selectorLabels" . | fromYaml }}
         {{ $key | quote }}: dyn({{ $value | quote }}),
         {{- end }}
-        "drover-route-revision": dyn(variables.revision)
+        "managed.drover.evil8.io/route-revision": dyn(variables.revision)
       })
     }),
     "spec": dyn({

@@ -2,6 +2,9 @@
 # The platform that the cluster runs on: generic, aws, or azure. It selects the cloud-specific policies. This policy set has none yet.
 platform: generic
 
+# The prefix of the keys of drover itself: the records of the project sync, the labels of the project ServiceAccounts and their bindings, the route revision label, and the trust status annotation. The keys that the project sync copies from a Rancher project are not under this prefix. The value must equal the constant managedPrefix in internal/projectsync/keys.go of drover. Through the managed-metadata policy, the API server denies a write to a key under this prefix. A ServiceAccount of the Kyverno namespace and a requester with permission to patch every namespace are exempt.
+managedPrefix: managed.drover.evil8.io/
+
 kyverno:
   # The namespace of the Kyverno controllers. Their ServiceAccounts may write generated objects.
   namespace: kyverno
@@ -70,6 +73,8 @@ policies:
   prometheus-monitors:
     enabled: true
   generated-integrity:
+    enabled: true
+  managed-metadata:
     enabled: true
 
 # An entry without enabled follows the policies that read it.

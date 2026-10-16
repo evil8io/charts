@@ -1,3 +1,4 @@
+{{- include "drover.managedDomainCheck" (concat .Values.projectSync.labelKeys .Values.projectSync.annotationKeys (compact (list .Values.projectSync.nameLabel .Values.projectSync.nameAnnotation))) }}
 {{- $component := dict "root" . "component" "project-sync" }}
 apiVersion: apps/v1
 kind: Deployment

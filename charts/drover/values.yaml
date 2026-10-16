@@ -184,9 +184,11 @@ global:
     loginTokenTTL: 5m
     # The Project annotations of the login roles. project-sync writes one login role for each
     # valid statement of the trust annotation, and it writes the result into the status annotation.
+    # The key of the trust annotation must not be under the domain managed.drover.evil8.io or a
+    # subdomain of it. The key of the status annotation must start with managed.drover.evil8.io/.
     trust:
-      annotation: drover-trust
-      statusAnnotation: drover-trust-status
+      annotation: drover.evil8.io/trust-policy
+      statusAnnotation: managed.drover.evil8.io/trust-policy-status
       maxStatements: 20
     # The lifetime of a credential of a project ServiceAccount, and the longest lifetime that a request can ask for.
     credentials:

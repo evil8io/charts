@@ -92,6 +92,12 @@
       ],
       "type": "object"
     },
+    "managedPrefix": {
+      "description": "The prefix of the keys of drover itself, for example the records of the project sync. The keys that the project sync copies from a Rancher project are not under this prefix. The value must equal the constant managedPrefix in internal/projectsync/keys.go of drover.",
+      "maxLength": 254,
+      "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/$",
+      "type": "string"
+    },
     "platform": {
       "enum": [
         "generic",
@@ -107,6 +113,9 @@
           "$ref": "#/definitions/policy"
         },
         "listenerset-hostname": {
+          "$ref": "#/definitions/policy"
+        },
+        "managed-metadata": {
           "$ref": "#/definitions/policy"
         },
         "namespace-metadata": {
@@ -213,6 +222,7 @@
       "required": [
         "generated-integrity",
         "listenerset-hostname",
+        "managed-metadata",
         "namespace-metadata",
         "namespace-orphan",
         "namespace-platform-metadata",
@@ -302,6 +312,7 @@
     "externalDns",
     "globalContextEntries",
     "kyverno",
+    "managedPrefix",
     "platform",
     "policies",
     "publicRead",

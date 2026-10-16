@@ -11,8 +11,8 @@ metadata:
     policies.kyverno.io/severity: medium
     policies.kyverno.io/subject: HTTPRoute
     policies.kyverno.io/description: >-
-      Deletes every drover HTTPRoute in this namespace whose drover-route-revision
-      label is not the current route revision.
+      Deletes every drover HTTPRoute in this namespace whose label
+      managed.drover.evil8.io/route-revision is not the current route revision.
 spec:
   schedule: "* * * * *"
   matchConstraints:
@@ -32,5 +32,5 @@ spec:
     - name: stale-revision
       expression: >-
         !has(object.metadata.labels) ||
-        !("drover-route-revision" in object.metadata.labels) ||
-        object.metadata.labels["drover-route-revision"] != {{ include "drover.routes.revision" . | quote }}
+        !("managed.drover.evil8.io/route-revision" in object.metadata.labels) ||
+        object.metadata.labels["managed.drover.evil8.io/route-revision"] != {{ include "drover.routes.revision" . | quote }}

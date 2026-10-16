@@ -77,7 +77,7 @@ tests:
     asserts:
       - matchRegex:
           path: spec.variables[2].expression
-          pattern: '"labels": dyn\(\{\s+"app\.kubernetes\.io/instance": dyn\("drover"\),\s+"app\.kubernetes\.io/name": dyn\("drover"\),\s+"drover-route-revision": dyn\(variables\.revision\)\s+\}\)'
+          pattern: '"labels": dyn\(\{\s+"app\.kubernetes\.io/instance": dyn\("drover"\),\s+"app\.kubernetes\.io/name": dyn\("drover"\),\s+"managed\.drover\.evil8\.io/route-revision": dyn\(variables\.revision\)\s+\}\)'
   - it: sets the route revision to the first 8 hex characters of the sha256 of the route literal
     values:
       - ../ci/all-components-values.yaml
@@ -87,7 +87,7 @@ tests:
           path: spec.variables[1]
           value:
             name: revision
-            expression: '"32429769"'
+            expression: '"739edb40"'
   - it: changes the route revision when the fanout is turned off
     values:
       - ../ci/all-components-values.yaml
@@ -97,7 +97,7 @@ tests:
     asserts:
       - equal:
           path: spec.variables[1].expression
-          value: '"edc43222"'
+          value: '"9169b8eb"'
   - it: changes the route revision when a hostname changes
     values:
       - ../ci/all-components-values.yaml
@@ -108,7 +108,7 @@ tests:
     asserts:
       - equal:
           path: spec.variables[1].expression
-          value: '"4bc1384b"'
+          value: '"ca9a4b3e"'
   - it: deletes every route of the release namespace without the current route revision each minute
     values:
       - ../ci/all-components-values.yaml
@@ -138,7 +138,7 @@ tests:
             - httproutes
       - matchRegex:
           path: spec.conditions[0].expression
-          pattern: 'object\.metadata\.labels\["drover-route-revision"\] != "32429769"'
+          pattern: 'object\.metadata\.labels\["managed\.drover\.evil8\.io/route-revision"\] != "739edb40"'
   - it: keeps the routes of the new route revision after the fanout is turned off
     values:
       - ../ci/all-components-values.yaml
@@ -148,7 +148,7 @@ tests:
     asserts:
       - matchRegex:
           path: spec.conditions[0].expression
-          pattern: '!= "edc43222"'
+          pattern: '!= "9169b8eb"'
   - it: writes the filtered paths and the filter backend into the route
     values:
       - ../ci/all-components-values.yaml

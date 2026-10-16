@@ -1,0 +1,75 @@
+{{- if (index .Values.policies "managed-metadata").enabled }}
+{{- $prefix := .Values.managedPrefix | toJson }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: drover.managed-metadata
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    # Kubernetes excludes subresources from "*". At a write to the status or
+    # the finalize subresource of a namespace, the API server keeps the labels
+    # and the annotations of the request. Thus both subresources are in the
+    # list.
+    resourceRules:
+      - apiGroups:
+          - "*"
+        apiVersions:
+          - "*"
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - "*"
+          - namespaces/status
+          - namespaces/finalize
+  matchConditions:
+    # The variables are not available in a match condition, so the check is inline.
+    # oldObject is null on CREATE.
+    - name: managed-key-touched
+      expression: >-
+        (has(object.metadata.labels) && object.metadata.labels != null &&
+          object.metadata.labels.exists(k, k.startsWith({{ $prefix }}) &&
+            (oldObject == null || !has(oldObject.metadata.labels) || oldObject.metadata.labels == null ||
+            !(k in oldObject.metadata.labels) || oldObject.metadata.labels[k] != object.metadata.labels[k]))) ||
+        (oldObject != null && has(oldObject.metadata.labels) && oldObject.metadata.labels != null &&
+          oldObject.metadata.labels.exists(k, k.startsWith({{ $prefix }}) &&
+            (!has(object.metadata.labels) || object.metadata.labels == null || !(k in object.metadata.labels)))) ||
+        (has(object.metadata.annotations) && object.metadata.annotations != null &&
+          object.metadata.annotations.exists(k, k.startsWith({{ $prefix }}) &&
+            (oldObject == null || !has(oldObject.metadata.annotations) || oldObject.metadata.annotations == null ||
+            !(k in oldObject.metadata.annotations) || oldObject.metadata.annotations[k] != object.metadata.annotations[k]))) ||
+        (oldObject != null && has(oldObject.metadata.annotations) && oldObject.metadata.annotations != null &&
+          oldObject.metadata.annotations.exists(k, k.startsWith({{ $prefix }}) &&
+            (!has(object.metadata.annotations) || object.metadata.annotations == null || !(k in object.metadata.annotations))))
+  variables:
+    - name: touchedKeys
+      expression: >-
+        (has(object.metadata.labels) && object.metadata.labels != null ?
+          object.metadata.labels.filter(k, k.startsWith({{ $prefix }}) &&
+            (oldObject == null || !has(oldObject.metadata.labels) || oldObject.metadata.labels == null ||
+            !(k in oldObject.metadata.labels) || oldObject.metadata.labels[k] != object.metadata.labels[k])) : []) +
+        (oldObject != null && has(oldObject.metadata.labels) && oldObject.metadata.labels != null ?
+          oldObject.metadata.labels.filter(k, k.startsWith({{ $prefix }}) &&
+            (!has(object.metadata.labels) || object.metadata.labels == null || !(k in object.metadata.labels))) : []) +
+        (has(object.metadata.annotations) && object.metadata.annotations != null ?
+          object.metadata.annotations.filter(k, k.startsWith({{ $prefix }}) &&
+            (oldObject == null || !has(oldObject.metadata.annotations) || oldObject.metadata.annotations == null ||
+            !(k in oldObject.metadata.annotations) || oldObject.metadata.annotations[k] != object.metadata.annotations[k])) : []) +
+        (oldObject != null && has(oldObject.metadata.annotations) && oldObject.metadata.annotations != null ?
+          oldObject.metadata.annotations.filter(k, k.startsWith({{ $prefix }}) &&
+            (!has(object.metadata.annotations) || object.metadata.annotations == null || !(k in object.metadata.annotations))) : [])
+    - name: authorized
+      expression: >-
+        (has(request.userInfo.groups) && request.userInfo.groups.exists(g,
+          g == "system:serviceaccounts:{{ .Values.kyverno.namespace }}")) ||
+        authorizer.group("").resource("namespaces").check("patch").allowed()
+  validations:
+    - expression: variables.authorized
+      messageExpression: >-
+        "Only a ServiceAccount of the Kyverno namespace and a requester with permission to patch every namespace can set, change, or remove a key under {{ .Values.managedPrefix }}. This request sets, changes, or removes " +
+        variables.touchedKeys.join(", ") + "."
+{{- end }}

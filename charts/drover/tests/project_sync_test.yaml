@@ -12,6 +12,20 @@ set:
   rancher.url: https://rancher.cattle-system.svc
 
 tests:
+  - it: fails when a copy key or a name key is under the managed domain
+    set:
+      projectSync.labelKeys:
+        - team
+        - managed.drover.evil8.io/team
+    asserts:
+      - failedTemplate:
+          errorMessage: the key managed.drover.evil8.io/team is under managed.drover.evil8.io, and project-sync does not start when a copy key or a name key is under that domain
+  - it: fails when the name annotation is in a subdomain of the managed domain
+    set:
+      projectSync.nameAnnotation: x.managed.drover.evil8.io/name
+    asserts:
+      - failedTemplate:
+          errorMessage: the key x.managed.drover.evil8.io/name is under managed.drover.evil8.io, and project-sync does not start when a copy key or a name key is under that domain
   - it: runs one pod and replaces it on an update
     asserts:
       - isKind:

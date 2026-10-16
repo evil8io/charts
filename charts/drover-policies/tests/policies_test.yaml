@@ -15,6 +15,8 @@ templates:
   - templates/prometheus-monitors-existing.mutatingpolicy.yaml
   - templates/generated-integrity.validatingadmissionpolicy.yaml
   - templates/generated-integrity.validatingadmissionpolicybinding.yaml
+  - templates/managed-metadata.validatingadmissionpolicy.yaml
+  - templates/managed-metadata.validatingadmissionpolicybinding.yaml
 
 release:
   name: drover-policies
@@ -71,6 +73,14 @@ tests:
         equal:
           path: spec.policyName
           value: drover.generated-integrity
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        equal:
+          path: metadata.name
+          value: drover.managed-metadata
+      - template: templates/managed-metadata.validatingadmissionpolicybinding.yaml
+        equal:
+          path: spec.policyName
+          value: drover.managed-metadata
   - it: reads the prefixed context entries
     template: templates/namespace-project.mutatingpolicy.yaml
     asserts:
@@ -110,6 +120,10 @@ tests:
     asserts:
       - matchRegex:
           path: spec.variables[0].expression
+          pattern: system:serviceaccounts:kyverno-system
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "authorized")].expression
           pattern: system:serviceaccounts:kyverno-system
   - it: reads the external-dns hostname annotation with the configured prefix
     set:
@@ -313,7 +327,7 @@ tests:
         equal:
           path: spec.matchConditions[0].expression
           value: '(has(object.metadata.annotations) && "field.cattle.io/projectId" in object.metadata.annotations ? object.metadata.annotations["field.cattle.io/projectId"] : "") != (has(oldObject.metadata.annotations) && "field.cattle.io/projectId" in oldObject.metadata.annotations ? oldObject.metadata.annotations["field.cattle.io/projectId"] : "")'
-  - it: protects the keys that the two ownership records list, on update only
+  - it: protects the keys in the two record annotations of the sync, on update only
     template: templates/namespace-metadata.validatingpolicy.yaml
     asserts:
       - equal:
@@ -322,13 +336,93 @@ tests:
             - UPDATE
       - matchRegex:
           path: spec.matchConditions[0].expression
-          pattern: '"drover-managed-labels"'
+          pattern: '"managed\.drover\.evil8\.io/synced-labels"'
       - matchRegex:
           path: spec.matchConditions[0].expression
-          pattern: '"drover-managed-annotations"'
+          pattern: '"managed\.drover\.evil8\.io/synced-annotations"'
       - matchRegex:
           path: spec.matchConditions[0].expression
           pattern: '\.split\(","\)'
+      - notMatchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: drover-managed-
+      - equal:
+          path: spec.variables[?(@.name == "recordedAnnotations")].expression
+          value: |-
+            ("managed.drover.evil8.io/synced-annotations" in variables.oldAnnotations ? variables.oldAnnotations["managed.drover.evil8.io/synced-annotations"] : "").split(",")
+  - it: denies a write to a key under managedPrefix unless the requester is a Kyverno ServiceAccount or has permission to patch every namespace
+    asserts:
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        isKind:
+          of: ValidatingAdmissionPolicy
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        equal:
+          path: spec.failurePolicy
+          value: Fail
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        equal:
+          path: spec.matchConstraints.resourceRules[0].operations
+          value:
+            - CREATE
+            - UPDATE
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        equal:
+          path: spec.matchConstraints.resourceRules[0].resources
+          value:
+            - "*"
+            - namespaces/status
+            - namespaces/finalize
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        notExists:
+          path: spec.matchConstraints.objectSelector
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        equal:
+          path: spec.matchConditions[0].name
+          value: managed-key-touched
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        matchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: 'k\.startsWith\("managed\.drover\.evil8\.io/"\)'
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        matchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: 'oldObject != null'
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "authorized")].expression
+          pattern: 'system:serviceaccounts:kyverno"'
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        matchRegex:
+          path: spec.variables[?(@.name == "authorized")].expression
+          pattern: 'authorizer\.group\(""\)\.resource\("namespaces"\)\.check\("patch"\)\.allowed\(\)'
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        equal:
+          path: spec.validations[0].expression
+          value: variables.authorized
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        matchRegex:
+          path: spec.validations[0].messageExpression
+          pattern: 'under managed\.drover\.evil8\.io/'
+      - template: templates/managed-metadata.validatingadmissionpolicybinding.yaml
+        isKind:
+          of: ValidatingAdmissionPolicyBinding
+      - template: templates/managed-metadata.validatingadmissionpolicybinding.yaml
+        equal:
+          path: spec.validationActions
+          value:
+            - Deny
+  - it: reads managedPrefix in the managed-metadata policy and in the namespace-metadata policy
+    set:
+      managedPrefix: keys.example.com/
+    asserts:
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        matchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: 'k\.startsWith\("keys\.example\.com/"\)'
+      - template: templates/namespace-metadata.validatingpolicy.yaml
+        matchRegex:
+          path: spec.matchConditions[0].expression
+          pattern: '"keys\.example\.com/synced-labels"'
   - it: fails closed, matches update only, and skips the rancher namespace service accounts
     set:
       rancher.namespace: cattle-test
@@ -422,7 +516,14 @@ tests:
       policies.namespace-orphan.enabled: false
       policies.generated-integrity.enabled: false
       policies.namespace-platform-name.enabled: false
+      policies.managed-metadata.enabled: false
     asserts:
+      - template: templates/managed-metadata.validatingadmissionpolicy.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/managed-metadata.validatingadmissionpolicybinding.yaml
+        hasDocuments:
+          count: 0
       - template: templates/namespace-platform-name.validatingpolicy.yaml
         hasDocuments:
           count: 0

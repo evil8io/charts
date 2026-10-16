@@ -24,6 +24,12 @@ The chart needs these items in the cluster:
   false.
 - The `PodMonitor` kind of the Prometheus operator, when
   `projectSync.serviceAccounts.enabled` is true.
+- The drover-policies chart, for its policy `drover.managed-metadata`, with
+  `managedPrefix` at its default and `kyverno.namespace` set to the namespace of
+  Kyverno. Without the policy, a tenant can write the keys of drover under
+  `managed.drover.evil8.io/`, for example the status annotation of its trust
+  annotation. With another namespace in `kyverno.namespace`, the API server denies the
+  routes that Kyverno generates for drover.
 
 ## Install
 
@@ -115,9 +121,10 @@ project-sync copies metadata from a Rancher project to each namespace of the pro
   characters at most.
 
 project-sync lists the keys that it wrote in the namespace annotations
-`drover-managed-labels` and `drover-managed-annotations`. When the project no longer has
-a key from these lists, project-sync removes the key from the namespace. A key outside
-these lists belongs to the tenant, and project-sync does not change it.
+`managed.drover.evil8.io/synced-labels` and `managed.drover.evil8.io/synced-annotations`.
+When the project no longer has a key from these lists, project-sync removes the key from
+the namespace. A key outside these lists belongs to the tenant, and project-sync does not
+change it.
 
 ## Required project metadata
 
@@ -194,9 +201,11 @@ the certificate of that URL, so a Rancher with a private CA needs the Rancher se
 ### Trust annotation
 
 The trust annotation of a project contains the identities that can log in to OpenBao
-for the project, each with a project role. A cluster owner or an admin sets the
-annotation `drover-trust` on the Rancher Project. The value is a JSON document with a
-list of statements:
+for the project, each with a project role. A project owner sets the annotation
+`drover.evil8.io/trust-policy` on its Rancher Project. A cluster owner and an admin can
+set it too, because the permission to update a Project depends on Rancher RBAC. The
+value is a JSON
+document with a list of statements:
 
 ```json
 {
@@ -226,21 +235,15 @@ list of statements:
 - `role` is the project role of the token: `project-owner`, `project-member`, or
   `read-only`.
 
-Kyverno denies a change of the annotation by every other user. Kyverno checks the writer
-of every annotation with the prefix `drover-` in the same way, also when
-`projectSync.serviceAccounts.enabled` is false. Thus a project owner cannot set a trust
-annotation before the value is true. When Kyverno does not answer, the API server denies
-such a change. Before the first upgrade to chart 0.32.0, check the Projects for
-`drover-` annotations that a project owner set. Kyverno did not protect these
-annotations before that version.
-
-Kyverno also denies a document that is not valid under a rule of the platform. For a
-JSON document, the message names the failed rule. For text that is not JSON, the
-message contains the error of the JSON parser. project-sync writes the outcome into the
-annotation `drover-trust-status` of the project, with `ready` and a reason for each
-statement. When a user removes a statement, project-sync removes its login role. The
-keys of both annotations and the limit of statements per project are in
-`global.broker.trust`.
+Kyverno denies a document that is not valid under a rule of the platform. For a JSON
+document, the message contains the failed rule. For text that is not JSON, the message
+contains the error of the JSON parser. project-sync writes the outcome into the
+annotation `managed.drover.evil8.io/trust-policy-status` of the project, with `ready`
+and a reason for each statement. Through the `drover.managed-metadata` policy of
+drover-policies, the API server denies a write of a tenant to every key under
+`managed.drover.evil8.io/`, also to that annotation. When a user removes a statement, project-sync
+removes its login role. The keys of both annotations and the limit of statements per
+project are in `global.broker.trust`.
 
 ### Login with a JWT
 
@@ -340,6 +343,39 @@ scrapes need a separate policy. For a cluster without Cilium, set
   `pkg-containers.githubusercontent.com`, and the hosts `sts.*.amazonaws.com`. These
   rules are rules by host name, so the cluster needs the Cilium DNS proxy.
 
+## Upgrade from a chart before 0.35.0
+
+From chart 0.35.0, every key of drover itself is under the prefix
+`managed.drover.evil8.io/`. Examples are the namespace annotations
+`managed.drover.evil8.io/synced-labels` and `managed.drover.evil8.io/synced-annotations`,
+and the labels of the project ServiceAccounts. The default trust annotation is
+`drover.evil8.io/trust-policy`. project-sync 0.28.0 finds its objects by the new label
+keys only, and it does not migrate the old objects. After the upgrade, run these
+commands on the Rancher cluster and on every downstream cluster. project-sync creates
+the new objects within one `projectSync.interval`, 60s by default. The tokens of the
+project ServiceAccounts become invalid.
+
+```sh
+kubectl delete clusterrolebindings -l drover-project --ignore-not-found
+kubectl delete rolebindings -A -l drover-project --ignore-not-found
+kubectl delete ns -l drover-project --ignore-not-found --wait=false
+kubectl delete ns -l drover-role=openbao --ignore-not-found --wait=false
+kubectl annotate ns --all drover-managed-labels- drover-managed-annotations-
+```
+
+Then run these commands on the Rancher cluster only:
+
+```sh
+kubectl delete projects.management.cattle.io -A -l drover-service-accounts=true --ignore-not-found
+kubectl annotate projects.management.cattle.io -A --all drover-trust-status-
+```
+
+A project owner moves its trust document from the annotation `drover-trust` to
+`drover.evil8.io/trust-policy`. Until then, the project does not have login roles,
+because project-sync reads the new key only. To keep the old key, set
+`global.broker.trust.annotation` to `drover-trust`. After the upgrade, Kyverno also
+replaces every drover HTTPRoute, in the same way as after a change of `httpRoute`.
+
 ## Uninstall
 
 Helm does not delete these objects at an uninstall:
@@ -349,7 +385,9 @@ Helm does not delete these objects at an uninstall:
 - The objects of `projectSync.serviceAccounts`: the hidden projects, the
   `drover-<project id>` namespaces, the ServiceAccounts, and their bindings. A token of
   such a ServiceAccount stays valid. To remove the objects, delete the projects with the
-  label `drover-service-accounts` and the namespaces with the label `drover-project`.
+  label `managed.drover.evil8.io/account-project`. Then delete the namespaces with the
+  label `managed.drover.evil8.io/tenant-project` or the label
+  `managed.drover.evil8.io/role`.
 
 ## Values
 
@@ -388,8 +426,8 @@ value is not set. The keys with the value zero select the default of the drover 
 | `global.broker.aws.allowedAccounts` | `[]` | The AWS accounts that are valid in an `aws` statement. With an empty list, every account is valid. |
 | `global.broker.audience` | `""` | The audience of the JWT login roles. With an empty value, the audience is `https://<first host of openbao.server.gateway.httpRoute.hosts>`. Helm needs the value or a host in `openbao.server.gateway.httpRoute.hosts`. |
 | `global.broker.loginTokenTTL` | `5m` | The lifetime of the OpenBao token of a login, from 1m to 24h. |
-| `global.broker.trust.annotation` | `drover-trust` | The key of the [trust annotation](#trust-annotation). |
-| `global.broker.trust.statusAnnotation` | `drover-trust-status` | The key of the status annotation. |
+| `global.broker.trust.annotation` | `drover.evil8.io/trust-policy` | The key of the [trust annotation](#trust-annotation). It must not be under the domain `managed.drover.evil8.io` or a subdomain of it. |
+| `global.broker.trust.statusAnnotation` | `managed.drover.evil8.io/trust-policy-status` | The key of the status annotation. It must start with `managed.drover.evil8.io/`. |
 | `global.broker.trust.maxStatements` | `20` | The largest number of statements in a trust annotation, from 1 to 100. |
 | `global.broker.credentials.ttl` | `15m` | The lifetime of a credential. |
 | `global.broker.credentials.maxTTL` | `2h` | The longest lifetime that a client can request. |
