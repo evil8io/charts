@@ -101,6 +101,31 @@ extensions:
 
 connectors:
   {{- if .Values.spanMetrics.enabled }}
+  {{- $dimensions := list
+    "db.system.name"
+    "deployment.environment.name"
+    "http.request.method"
+    "http.response.status_code"
+    "http.route"
+    "k8s.cluster.name"
+    "k8s.container.name"
+    "k8s.cronjob.name"
+    "k8s.daemonset.name"
+    "k8s.deployment.name"
+    "k8s.namespace.name"
+    "k8s.statefulset.name"
+    "rpc.grpc.status_code"
+    "rpc.system"
+    "server.address"
+    "service.namespace"
+    "service.version"
+    "telemetry.sdk.language"
+  }}
+  {{- range .Values.spanMetrics.extraDimensions }}
+  {{- if has . (list "service.name" "span.name" "span.kind" "status.code" "collector.instance.id") }}
+  {{- fail (printf "spanMetrics.extraDimensions must not contain the intrinsic dimension %q" .) }}
+  {{- end }}
+  {{- end }}
   # https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/connector/spanmetricsconnector/README.md
   span_metrics:
     histogram:
@@ -117,24 +142,9 @@ connectors:
     exemplars:
       enabled: true
     dimensions:
-      - name: db.system.name
-      - name: deployment.environment.name
-      - name: http.request.method
-      - name: http.response.status_code
-      - name: http.route
-      - name: k8s.cluster.name
-      - name: k8s.container.name
-      - name: k8s.cronjob.name
-      - name: k8s.daemonset.name
-      - name: k8s.deployment.name
-      - name: k8s.namespace.name
-      - name: k8s.statefulset.name
-      - name: rpc.grpc.status_code
-      - name: rpc.system
-      - name: server.address
-      - name: service.namespace
-      - name: service.version
-      - name: telemetry.sdk.language
+      {{- range uniq (concat $dimensions .Values.spanMetrics.extraDimensions) }}
+      - name: {{ . | quote }}
+      {{- end }}
     resource_metrics_key_attributes:
       - deployment.environment.name
       - k8s.cluster.name

@@ -102,6 +102,7 @@ See [values.yaml](values.yaml) for all values and their defaults.
 | `noisyUrlAttributes` | see values.yaml | Span attributes that the noisy URL filter reads. |
 | `noisyUrlPatterns` | see values.yaml | Regular expressions (RE2) of the noisy URL filter. |
 | `spanMetrics.enabled` | `true` | Derives RED metrics from the spans. |
+| `spanMetrics.extraDimensions` | `[]` | Attribute keys that the connector adds as dimensions, next to the built-in list. |
 | `grafanaCloudMetrics.enabled` | `false` | Derives Grafana Cloud host metrics from the spans. |
 | `configOverrides` | `{}` | Deep-merged on top of the collector config. |
 | `httpRoute.enabled`, `hostnames`, `parentRefs` | off | HTTPRoute for OTLP/HTTP. |

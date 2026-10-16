@@ -157,6 +157,8 @@ noisyUrlPatterns:
 # -- The span_metrics connector: RED metrics from the spans, exported to Mimir.
 spanMetrics:
   enabled: true
+  # -- Attribute keys that the connector adds as dimensions, next to the built-in list.
+  extraDimensions: []
 
 # -- The grafana_cloud connector: Grafana Cloud host metrics from the spans, exported to Mimir.
 grafanaCloudMetrics:
