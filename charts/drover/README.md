@@ -9,6 +9,8 @@ extensions for Rancher. Install the chart in the Rancher management cluster.
 | [Cluster-wide reads](#cluster-wide-reads) | A tenant can read a namespaced kind in all its namespaces with one request, for example `kubectl get pods -A`. | `apiFilter.fanout` |
 | [Project metadata](#project-metadata) | Each namespace of a project gets the labels, the annotations, and the display name of the project. | `projectSync` |
 | [Required project metadata](#required-project-metadata) | Kyverno denies a project without the required keys. | `projectPolicy` |
+| [Unique display names](#unique-display-names) | Kyverno denies a project with the display name of another project of the same cluster. | `projectPolicy.uniqueDisplayName` |
+| [Project delete](#project-delete) | Kyverno denies the delete of a project that has namespaces. | `projectDeletePolicy` |
 | [Project ServiceAccounts](#project-serviceaccounts) | Each project gets three ServiceAccounts, one for each project role. | `projectSync.serviceAccounts` |
 | [Short-lived credentials](#short-lived-credentials) | A client of a tenant outside the cluster, for example a CI job, gets a short-lived token of a project ServiceAccount without a stored secret. | `global.broker`, `openbao` |
 
@@ -128,6 +130,9 @@ When the project no longer has a key from these lists, project-sync removes the 
 the namespace. A key outside these lists belongs to the tenant, and project-sync does not
 change it.
 
+project-sync also writes the number of namespaces of each project into the project
+annotation `managed.drover.evil8.io/namespace-count`.
+
 ## Required project metadata
 
 List the keys that each project must have in `projectPolicy.requiredLabels` and
@@ -141,12 +146,55 @@ key stays editable, for example the System project and the Default project.
 With `projectPolicy.failurePolicy: Fail`, the default, a project write is denied when
 Kyverno does not answer. With `Ignore`, the write is allowed.
 
+## Unique display names
+
+The Rancher UI shows a project by its display name. With `projectSync.nameLabel` or
+`projectSync.nameAnnotation`, project-sync also copies the display name to the
+namespaces of the project. When `projectPolicy.uniqueDisplayName` is true,
+Kyverno denies a new project when another project of the same cluster has the same
+display name. Kyverno also denies a rename of a project to such a name.
+
+- Kyverno ignores the case of the ASCII letters and the white space around the name. For
+  example, `Shop` and `shop` are the same name, also with a space before or after it.
+- Kyverno allows the same display name in another cluster.
+- The message contains the id of the existing project, for example
+  `A project with the display name Shop exists in this cluster: p-abc12. Choose another display name.`
+- Kyverno checks only the create of a project and the rename of a project. When two
+  projects have the same display name before you set `projectPolicy.uniqueDisplayName`
+  to true, Kyverno does not deny the updates that keep that name.
+- Kyverno does not check the writes of the project-sync service user. The hidden
+  project of [Project ServiceAccounts](#project-serviceaccounts) has the display name
+  `drover`. Thus project-sync can create that project also when a tenant project has
+  the display name `drover`.
+
+The API server applies `projectPolicy.failurePolicy` to this policy too.
+
+## Project delete
+
+When Rancher deletes a project, it removes the project from the namespaces of the project.
+These namespaces then are not in a project. When `projectDeletePolicy.enabled` is true,
+Kyverno denies the delete of a project that has namespaces. The message contains the
+number of namespaces, for example
+`The project has 2 namespaces. Delete each namespace first.`
+
+To delete such a project, the tenant deletes each namespace of the project first. After
+the last namespace is gone, project-sync sets the annotation
+`managed.drover.evil8.io/namespace-count` of the project to 0. The delay is not measured.
+Until then, Kyverno denies the delete of the project.
+
+Kyverno denies the delete for every user, also for an admin. To delete a project that
+has namespaces, an admin sets `projectDeletePolicy.enabled` to false.
+
+With `projectDeletePolicy.failurePolicy: Fail`, the default, the API server denies a
+project delete when Kyverno does not answer. With `Ignore`, the API server allows the
+delete.
+
 ## Project ServiceAccounts
 
 When `projectSync.serviceAccounts.enabled` is true, project-sync keeps three
 ServiceAccounts for each tenant project: `project-owner`, `project-member`, and
-`read-only`. The ServiceAccounts are in the namespace `drover-<project id>`, in a hidden
-project of the cluster.
+`read-only`. The ServiceAccounts are in the namespace `drover-<cluster id>-<project id>`,
+for example `drover-c-m-4x2kq7bd-p-abc12`, in a hidden project of the cluster.
 
 A token of such a ServiceAccount has the Kubernetes rights of its project role in every
 namespace of the project: `admin`, `edit`, or `view`. It also has the namespace rights of
@@ -186,7 +234,7 @@ namespace. A client then gets a token in three steps:
    the trust annotation of the project. See [Trust annotation](#trust-annotation).
 2. The client requests the credential
    `kubernetes/<cluster id>/creds/<project id>-<role>`, with
-   `kubernetes_namespace=drover-<project id>`.
+   `kubernetes_namespace=drover-<cluster id>-<project id>`.
 3. The client uses the token from the answer at
    `<Rancher URL>/k8s/clusters/<cluster id>`, for example with `kubectl`.
 
@@ -230,7 +278,9 @@ document with a list of statements:
 ```
 
 - `name` is the identifier of the statement in the project. project-sync writes the
-  login role `<project id>_<name>` for it, for example `p-abc12_deploy-main`.
+  login role `<cluster id>_<project id>_<name>` for it, for example
+  `c-m-4x2kq7bd_p-abc12_deploy-main`. The login role name contains the cluster id, because
+  OpenBao does not have a separate auth mount for each cluster.
 - A `jwt` statement has an issuer of `global.broker.jwtIssuers` and the claims that the
   JWT of the client must have. A claim value is a string or a list of strings.
 - An `aws` statement has the ARN of an IAM role.
@@ -273,7 +323,7 @@ openbao.server.gateway.httpRoute.hosts>`. The client requests its JWT with that 
 and logs in at `auth/jwt/<issuer>/login`:
 
 ```json
-{"role": "p-abc12_deploy-main", "jwt": "<JWT of the client>"}
+{"role": "c-m-4x2kq7bd_p-abc12_deploy-main", "jwt": "<JWT of the client>"}
 ```
 
 OpenBao reads the discovery URL of each issuer at an install and at an upgrade. The hook
@@ -345,39 +395,6 @@ scrapes need a separate policy. For a cluster without Cilium, set
   `pkg-containers.githubusercontent.com`, and the hosts `sts.*.amazonaws.com`. These
   rules are rules by host name, so the cluster needs the Cilium DNS proxy.
 
-## Upgrade from a chart before 0.35.0
-
-From chart 0.35.0, every key of drover itself is under the prefix
-`managed.drover.evil8.io/`. Examples are the namespace annotations
-`managed.drover.evil8.io/synced-labels` and `managed.drover.evil8.io/synced-annotations`,
-and the labels of the project ServiceAccounts. The default trust annotation is
-`drover.evil8.io/trust-policy`. project-sync 0.28.0 finds its objects by the new label
-keys only, and it does not migrate the old objects. After the upgrade, run these
-commands on the Rancher cluster and on every downstream cluster. project-sync creates
-the new objects within one `projectSync.interval`, 60s by default. The tokens of the
-project ServiceAccounts become invalid.
-
-```sh
-kubectl delete clusterrolebindings -l drover-project --ignore-not-found
-kubectl delete rolebindings -A -l drover-project --ignore-not-found
-kubectl delete ns -l drover-project --ignore-not-found --wait=false
-kubectl delete ns -l drover-role=openbao --ignore-not-found --wait=false
-kubectl annotate ns --all drover-managed-labels- drover-managed-annotations-
-```
-
-Then run these commands on the Rancher cluster only:
-
-```sh
-kubectl delete projects.management.cattle.io -A -l drover-service-accounts=true --ignore-not-found
-kubectl annotate projects.management.cattle.io -A --all drover-trust-status-
-```
-
-A project owner moves its trust document from the annotation `drover-trust` to
-`drover.evil8.io/trust-policy`. Until then, the project does not have login roles,
-because project-sync reads the new key only. To keep the old key, set
-`global.broker.trust.annotation` to `drover-trust`. After the upgrade, Kyverno also
-replaces every drover HTTPRoute, in the same way as after a change of `httpRoute`.
-
 ## Uninstall
 
 Helm does not delete these objects at an uninstall:
@@ -385,10 +402,10 @@ Helm does not delete these objects at an uninstall:
 - The seal key Secret and the `data-*` PersistentVolumeClaims of OpenBao. After a
   reinstall, OpenBao thus unseals the old data.
 - The objects of `projectSync.serviceAccounts`: the hidden projects, the
-  `drover-<project id>` namespaces, the ServiceAccounts, and their bindings. A token of
-  such a ServiceAccount stays valid. To remove the objects, delete the projects with the
-  label `managed.drover.evil8.io/account-project`. Then delete the namespaces with the
-  label `managed.drover.evil8.io/tenant-project` or the label
+  `drover-<cluster id>-<project id>` namespaces, the ServiceAccounts, and their
+  bindings. A token of such a ServiceAccount stays valid. To remove the objects, delete
+  the projects with the label `managed.drover.evil8.io/account-project`. Then delete the
+  namespaces with the label `managed.drover.evil8.io/tenant-project` or the label
   `managed.drover.evil8.io/role`.
 
 ## Values
@@ -419,7 +436,10 @@ value is not set. The keys with the value zero select the default of the drover 
 | `projectSync.serviceAccounts.bindings` | `[]` | Extra roles for every project ServiceAccount. See [Project ServiceAccounts](#project-serviceaccounts). |
 | `projectPolicy.requiredLabels` | `[]` | See [Required project metadata](#required-project-metadata). |
 | `projectPolicy.requiredAnnotations` | `[]` | See [Required project metadata](#required-project-metadata). |
-| `projectPolicy.failurePolicy` | `Fail` | `Fail` or `Ignore`, for the project policy only. For the [trust annotation](#trust-annotation), the value is always `Fail`. |
+| `projectPolicy.uniqueDisplayName` | `false` | See [Unique display names](#unique-display-names). |
+| `projectPolicy.failurePolicy` | `Fail` | `Fail` or `Ignore`, for the policy of the required keys and the display name policy only. For the [trust annotation](#trust-annotation), the value is always `Fail`. |
+| `projectDeletePolicy.enabled` | `false` | See [Project delete](#project-delete). |
+| `projectDeletePolicy.failurePolicy` | `Fail` | `Fail` or `Ignore`, for the project delete policy. |
 | `clusterProxyConfig.enabled` | `true` | See [ServiceAccount tokens](#serviceaccount-tokens). |
 | `ciliumNetworkPolicy.enabled` | `true` | See [Network policies](#network-policies). |
 | `ciliumNetworkPolicy.gatewayNamespaces` | `[]` | The namespaces of the gateway pods. |

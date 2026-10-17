@@ -1,0 +1,13 @@
+{{- if .Values.projectPolicy.uniqueDisplayName }}
+apiVersion: kyverno.io/v2
+kind: GlobalContextEntry
+metadata:
+  name: {{ include "drover.fullname" . }}-projects
+  labels:
+    {{- include "drover.labels" . | nindent 4 }}
+spec:
+  kubernetesResource:
+    group: management.cattle.io
+    version: v3
+    resource: projects
+{{- end }}

@@ -316,6 +316,22 @@
       },
       "type": "object"
     },
+    "projectDeletePolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "failurePolicy": {
+          "enum": [
+            "Fail",
+            "Ignore"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "projectPolicy": {
       "additionalProperties": false,
       "properties": {
@@ -339,6 +355,9 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "uniqueDisplayName": {
+          "type": "boolean"
         }
       },
       "type": "object"

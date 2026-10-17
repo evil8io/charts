@@ -1,0 +1,139 @@
+---
+suite: project display name policy
+
+templates:
+  - templates/project-display-name.validatingpolicy.yaml
+  - templates/project-display-name.globalcontextentry.yaml
+  - templates/kyverno-rbac.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: does not render the policy or the GlobalContextEntry by default
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/project-display-name.validatingpolicy.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/project-display-name.globalcontextentry.yaml
+  - it: denies a duplicate display name on a created or renamed Rancher project when enabled
+    set:
+      projectPolicy.uniqueDisplayName: true
+    template: templates/project-display-name.validatingpolicy.yaml
+    asserts:
+      - isKind:
+          of: ValidatingPolicy
+      - isAPIVersion:
+          of: policies.kyverno.io/v1
+      - equal:
+          path: metadata.name
+          value: drover-project-display-name
+      - equal:
+          path: spec.failurePolicy
+          value: Fail
+      - equal:
+          path: spec.evaluation.background.enabled
+          value: false
+      - equal:
+          path: spec.matchConstraints.resourceRules
+          value:
+            - apiGroups:
+                - management.cattle.io
+              apiVersions:
+                - v3
+              operations:
+                - CREATE
+                - UPDATE
+              resources:
+                - projects
+      - equal:
+          path: spec.variables[0].expression
+          value: 'globalContext.Get("drover-projects", "") == null ? [] : globalContext.Get("drover-projects", "")'
+  - it: skips the project-sync service user and the updates that keep the display name
+    set:
+      projectPolicy.uniqueDisplayName: true
+    template: templates/project-display-name.validatingpolicy.yaml
+    asserts:
+      - lengthEqual:
+          path: spec.matchConditions
+          count: 2
+      - equal:
+          path: spec.matchConditions[0]
+          value:
+            name: not-project-sync-user
+            expression: request.userInfo.username != "u-drover-project-sync"
+      - equal:
+          path: spec.matchConditions[1].name
+          value: create-or-display-name-changed
+      - matchRegex:
+          path: spec.matchConditions[1].expression
+          pattern: '^request\.operation == "CREATE" \|\| \(has\(object\.spec\) && has\(object\.spec\.displayName\)'
+  - it: sets the failure policy from the values
+    set:
+      projectPolicy.uniqueDisplayName: true
+      projectPolicy.failurePolicy: Ignore
+    template: templates/project-display-name.validatingpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.failurePolicy
+          value: Ignore
+  - it: renders the GlobalContextEntry of the projects that Kyverno reads for the policy when enabled
+    set:
+      projectPolicy.uniqueDisplayName: true
+    template: templates/project-display-name.globalcontextentry.yaml
+    asserts:
+      - isKind:
+          of: GlobalContextEntry
+      - isAPIVersion:
+          of: kyverno.io/v2
+      - equal:
+          path: metadata.name
+          value: drover-projects
+      - equal:
+          path: spec.kubernetesResource
+          value:
+            group: management.cattle.io
+            version: v3
+            resource: projects
+  - it: grants the kyverno background and cleanup controllers a read on the projects when enabled
+    set:
+      projectPolicy.uniqueDisplayName: true
+    template: templates/kyverno-rbac.yaml
+    asserts:
+      - contains:
+          path: rules[1].resources
+          content: projects
+        documentIndex: 0
+      - equal:
+          path: metadata.name
+          value: drover-kyverno-cleanup-controller
+        documentIndex: 2
+      - contains:
+          path: rules
+          content:
+            apiGroups:
+              - management.cattle.io
+            resources:
+              - projects
+            verbs:
+              - get
+              - list
+              - watch
+        documentIndex: 2
+  - it: does not grant the kyverno background and cleanup controllers a read on the projects by default
+    template: templates/kyverno-rbac.yaml
+    asserts:
+      - notContains:
+          path: rules[1].resources
+          content: projects
+        documentIndex: 0
+      - lengthEqual:
+          path: rules
+          count: 1
+        documentIndex: 2

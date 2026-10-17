@@ -223,6 +223,7 @@ u-drover-project-sync
     - get
     - list
     - watch
+    - patch
 {{- end }}
 {{- end }}
 

@@ -116,13 +116,21 @@ projectSync:
     limits:
       memory: 64Mi
 
-# A ValidatingPolicy on the Rancher projects. It renders when a key is listed.
+# This block contains the settings of the ValidatingPolicies on the Rancher projects. Helm renders the policy of the required keys when you list a key in requiredLabels or requiredAnnotations.
 projectPolicy:
   # Label keys that every project must have. Each key must be in projectSync.labelKeys.
   requiredLabels: []
   # Annotation keys that every project must have. Each key must be in projectSync.annotationKeys.
   requiredAnnotations: []
+  # When this key is true, Kyverno denies a project create or rename when another project of the same cluster has the same display name.
+  uniqueDisplayName: false
   # Fail denies a project write when Kyverno does not answer. Ignore lets it through.
+  failurePolicy: Fail
+
+# A ValidatingPolicy on the delete of a Rancher project. Kyverno denies the delete of a project that has namespaces, also for an admin.
+projectDeletePolicy:
+  enabled: false
+  # With Fail, the API server denies a project delete when Kyverno does not answer. With Ignore, the API server allows the delete.
   failurePolicy: Fail
 
 httpRoute:

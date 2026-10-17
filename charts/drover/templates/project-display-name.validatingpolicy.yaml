@@ -1,0 +1,64 @@
+{{- if .Values.projectPolicy.uniqueDisplayName }}
+{{- $entry := printf "%s-projects" (include "drover.fullname" .) | quote }}
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: {{ include "drover.fullname" . }}-project-display-name
+  labels:
+    {{- include "drover.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Project Display Name Unique
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Project
+    policies.kyverno.io/description: >-
+      Denies the create or the rename of a Rancher Project when another Project
+      of the same cluster has the same display name. Kyverno ignores the case of
+      the ASCII letters and the white space around the name when it compares the
+      display names. Kyverno skips the writes of the project-sync service user.
+spec:
+  failurePolicy: {{ .Values.projectPolicy.failurePolicy }}
+  evaluation:
+    background:
+      enabled: false
+  validationActions:
+    - Deny
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - management.cattle.io
+        apiVersions:
+          - v3
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - projects
+  matchConditions:
+    - name: not-project-sync-user
+      expression: 'request.userInfo.username != {{ include "drover.projectSync.user" . | quote }}'
+    - name: create-or-display-name-changed
+      expression: >-
+        request.operation == "CREATE" ||
+        (has(object.spec) && has(object.spec.displayName) ? object.spec.displayName : "") !=
+        (has(oldObject.spec) && has(oldObject.spec.displayName) ? oldObject.spec.displayName : "")
+  variables:
+    - name: projects
+      expression: 'globalContext.Get({{ $entry }}, "") == null ? [] : globalContext.Get({{ $entry }}, "")'
+    - name: name
+      expression: '(has(object.spec) && has(object.spec.displayName) ? object.spec.displayName : "").trim()'
+    - name: displayName
+      expression: 'variables.name.lowerAscii()'
+    - name: duplicates
+      expression: >-
+        variables.projects.filter(p,
+          p.metadata.namespace == object.metadata.namespace &&
+          p.metadata.name != object.metadata.name &&
+          has(p.spec.displayName) &&
+          p.spec.displayName.trim().lowerAscii() == variables.displayName
+        ).map(p, p.metadata.name)
+  validations:
+    - expression: 'variables.duplicates.size() == 0'
+      messageExpression: >-
+        'A project with the display name ' + variables.name + ' exists in this cluster: ' + variables.duplicates.join(', ') + '. Choose another display name.'
+{{- end }}

@@ -93,6 +93,7 @@ tests:
                 - get
                 - list
                 - watch
+                - patch
             - apiGroups:
                 - management.cattle.io
               resources:
@@ -130,6 +131,13 @@ tests:
       - notMatchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: '      - clusters\n'
+  - it: renders patch on projects in the RoleTemplate of project-sync by default
+    template: templates/serviceuser-rancher-rbac-job.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)kind: RoleTemplate\nmetadata:\n  name: drover-project-sync\n.*      - projects\n    verbs:\n      - get\n      - list\n      - watch\n      - patch\nEOF\nkubectl apply -f - <<EOF\napiVersion:
+            management\.cattle\.io/v3\nkind: GlobalRole\n'
   - it: keeps the hook rules narrow by default
     template: templates/serviceuser-rancher-rbac.yaml
     documentIndex: 1

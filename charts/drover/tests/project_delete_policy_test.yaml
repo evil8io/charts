@@ -1,0 +1,57 @@
+---
+suite: project delete policy
+
+templates:
+  - templates/project-delete.validatingpolicy.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: does not render a policy by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: renders a Deny policy on each Rancher project delete, without a match condition, when projectDeletePolicy.enabled is true
+    set:
+      projectDeletePolicy.enabled: true
+    asserts:
+      - isKind:
+          of: ValidatingPolicy
+      - isAPIVersion:
+          of: policies.kyverno.io/v1
+      - equal:
+          path: metadata.name
+          value: drover-project-delete
+      - equal:
+          path: spec.failurePolicy
+          value: Fail
+      - equal:
+          path: spec.validationActions
+          value:
+            - Deny
+      - equal:
+          path: spec.matchConstraints.resourceRules
+          value:
+            - apiGroups:
+                - management.cattle.io
+              apiVersions:
+                - v3
+              operations:
+                - DELETE
+              resources:
+                - projects
+      - notExists:
+          path: spec.matchConditions
+  - it: renders spec.failurePolicy from projectDeletePolicy.failurePolicy
+    set:
+      projectDeletePolicy.enabled: true
+      projectDeletePolicy.failurePolicy: Ignore
+    asserts:
+      - equal:
+          path: spec.failurePolicy
+          value: Ignore

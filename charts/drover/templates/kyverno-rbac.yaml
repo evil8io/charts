@@ -22,6 +22,9 @@ rules:
       - management.cattle.io
     resources:
       - clusters
+      {{- if .Values.projectPolicy.uniqueDisplayName }}
+      - projects
+      {{- end }}
     verbs:
       - get
       - list
@@ -88,3 +91,13 @@ rules:
       - get
       - list
       - watch
+  {{- if .Values.projectPolicy.uniqueDisplayName }}
+  - apiGroups:
+      - management.cattle.io
+    resources:
+      - projects
+    verbs:
+      - get
+      - list
+      - watch
+  {{- end }}

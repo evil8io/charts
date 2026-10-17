@@ -1,0 +1,46 @@
+{{- if .Values.projectDeletePolicy.enabled }}
+{{- $key := "managed.drover.evil8.io/namespace-count" | quote }}
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: {{ include "drover.fullname" . }}-project-delete
+  labels:
+    {{- include "drover.labels" . | nindent 4 }}
+  annotations:
+    policies.kyverno.io/title: Project Empty Before Delete
+    policies.kyverno.io/category: Multi-Tenancy
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Project
+    policies.kyverno.io/description: >-
+      Denies the delete of a Rancher Project when the value of its annotation
+      managed.drover.evil8.io/namespace-count is not 0. Kyverno allows the delete
+      when the cluster namespace of the Project is in deletion.
+spec:
+  failurePolicy: {{ .Values.projectDeletePolicy.failurePolicy }}
+  evaluation:
+    background:
+      enabled: false
+  validationActions:
+    - Deny
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - management.cattle.io
+        apiVersions:
+          - v3
+        operations:
+          - DELETE
+        resources:
+          - projects
+  variables:
+    - name: count
+      expression: 'has(oldObject.metadata.annotations) && {{ $key }} in oldObject.metadata.annotations ? oldObject.metadata.annotations[{{ $key }}] : "0"'
+    - name: terminating
+      expression: has(namespaceObject.metadata.deletionTimestamp)
+  validations:
+    - expression: variables.terminating || variables.count == "0"
+      messageExpression: >-
+        variables.count == "1" ?
+        'The project has 1 namespace. Delete it first.' :
+        'The project has ' + variables.count + ' namespaces. Delete each namespace first.'
+{{- end }}
