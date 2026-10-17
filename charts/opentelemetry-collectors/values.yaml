@@ -41,7 +41,7 @@ resourceAttributes: {}
 targetAllocator:
   image:
     repository: ghcr.io/open-telemetry/opentelemetry-operator/target-allocator
-    tag: "v0.160.0"
+    tag: "v0.161.0"
   scrapeInterval: 30s
 
 # -- Platform settings for AWS.
@@ -117,7 +117,7 @@ aws:
             - GeoLite2-Country
           image:
             repository: curlimages/curl
-            tag: "8.22.0"
+            tag: "8.23.0"
     # -- Other log groups, one receiver and one pipeline per key. An entry has either a name,
     # or a prefix or a pattern with a limit. The pattern is a case-sensitive substring.
     # streams.names and streams.prefixes filter the log streams.

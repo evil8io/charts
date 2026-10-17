@@ -3,7 +3,7 @@ apiVersion: v2
 name: drover
 description: Tenancy extensions for Rancher
 type: application
-version: 0.35.0
+version: 0.35.1
 appVersion: "0.28.0"
 kubeVersion: '>=1.30.0-0'
 home: https://github.com/evil8io/drover
@@ -11,6 +11,6 @@ sources:
   - https://github.com/evil8io/drover
 dependencies:
   - name: openbao
-    version: 0.30.3
+    version: 0.30.4
     repository: https://openbao.github.io/openbao-helm
     condition: projectSync.serviceAccounts.enabled
