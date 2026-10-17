@@ -104,10 +104,12 @@ every write to Rancher, except the `selfsubjectaccessreviews` request.
 ## ServiceAccount tokens
 
 With drover, Rancher accepts a ServiceAccount token of a downstream cluster on its
-cluster proxy. In the Rancher UI, the name of this setting is JWT Authentication, and
-Kyverno enables it for each downstream cluster. To turn this off, set
-`clusterProxyConfig.enabled` to false. Rancher then refuses these tokens, as it does
-after an uninstall.
+cluster proxy. In the Rancher UI, the name of this setting is JWT Authentication. To
+enable it for each downstream cluster, Kyverno creates a `ClusterProxyConfig` in the
+cluster namespace. When `clusterProxyConfig.enabled` is false, Kyverno does not create a
+`ClusterProxyConfig` for a new cluster. Kyverno does not delete the `ClusterProxyConfig`
+objects that exist, also after an uninstall of the chart. Rancher accepts the tokens
+until you delete these objects.
 
 ## Project metadata
 
