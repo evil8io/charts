@@ -172,6 +172,18 @@ tests:
       - notMatchRegex:
           path: spec.variables[?(@.name == "choices")].expression
           pattern: labels
+  - it: reads the project of the quota namespace from the stored namespace
+    template: templates/namespace-quotas.generatingpolicy.yaml
+    asserts:
+      - equal:
+          path: spec.variables[?(@.name == "live")].expression
+          value: 'dyn(resource.Get("v1", "namespaces", "", object.metadata.name))'
+      - matchRegex:
+          path: spec.variables[?(@.name == "trigger")].expression
+          pattern: 'variables\.live\.metadata\.resourceVersion != oldObject\.metadata\.resourceVersion'
+      - matchRegex:
+          path: spec.variables[?(@.name == "trigger")].expression
+          pattern: ': \{\}\["the namespace update is not stored yet"\]$'
   - it: reads the project of a namespace from the annotation and checks the cluster prefix
     asserts:
       - template: templates/route-hostname.validatingpolicy.yaml
@@ -193,7 +205,7 @@ tests:
       - template: templates/namespace-quotas.generatingpolicy.yaml
         matchRegex:
           path: spec.variables[?(@.name == "projectAnnotation")].expression
-          pattern: '^\(has\(object\.metadata\.annotations\) && "field\.cattle\.io/projectId" in object\.metadata\.annotations \? object\.metadata\.annotations\["field\.cattle\.io/projectId"\] : ""\)$'
+          pattern: '^\(has\(variables\.trigger\.metadata\.annotations\) && "field\.cattle\.io/projectId" in variables\.trigger\.metadata\.annotations \? variables\.trigger\.metadata\.annotations\["field\.cattle\.io/projectId"\] : ""\)$'
       - template: templates/route-hostname.validatingpolicy.yaml
         equal:
           path: spec.variables[?(@.name == "projectId")].expression
@@ -322,7 +334,7 @@ tests:
       - template: templates/namespace-quotas.generatingpolicy.yaml
         equal:
           path: spec.matchConditions[0].expression
-          value: '(has(object.metadata.annotations) && "field.cattle.io/projectId" in object.metadata.annotations ? object.metadata.annotations["field.cattle.io/projectId"] : "") != ""'
+          value: 'request.operation == "UPDATE" || (has(object.metadata.annotations) && "field.cattle.io/projectId" in object.metadata.annotations ? object.metadata.annotations["field.cattle.io/projectId"] : "") != ""'
       - template: templates/prometheus-monitors-existing.mutatingpolicy.yaml
         equal:
           path: spec.matchConditions[0].expression

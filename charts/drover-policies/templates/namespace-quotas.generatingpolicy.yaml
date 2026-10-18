@@ -15,7 +15,9 @@ metadata:
     policies.kyverno.io/description: >-
       Generates a ResourceQuota and a LimitRange in every namespace with the
       annotation field.cattle.io/projectId, except a namespace in the System or
-      the Default project.
+      the Default project. Kyverno reads the annotation of the stored namespace,
+      so Kyverno does not change the two objects for an update that the API
+      server rejects.
 spec:
   evaluation:
     synchronize:
@@ -36,11 +38,22 @@ spec:
   matchConditions:
     - name: has-project-annotation
       expression: >-
+        request.operation == "UPDATE" ||
         {{ include "drover-policies.projectAnnotation" "object" }} != ""
   variables:
     - name: nsAll
       expression: 'globalContext.Get("drover-namespaces", "") == null ? [] : globalContext.Get("drover-namespaces", "")'
-    {{- include "drover-policies.projectVariables" (dict "ns" "object") | nindent 4 }}
+    - name: live
+      expression: 'dyn(resource.Get("v1", "namespaces", "", object.metadata.name))'
+    - name: trigger
+      expression: >-
+        variables.live == null || oldObject == null || !has(oldObject.metadata) ||
+        variables.live.metadata.resourceVersion != oldObject.metadata.resourceVersion ||
+        {{ include "drover-policies.projectAnnotation" "object" }} ==
+        {{ include "drover-policies.projectAnnotation" "oldObject" }}
+        ? (variables.live == null ? object : variables.live)
+        : {}["the namespace update is not stored yet"]
+    {{- include "drover-policies.projectVariables" (dict "ns" "variables.trigger") | nindent 4 }}
     {{- include "drover-policies.excludedProjectVariables" . | nindent 4 }}
     - name: governed
       expression: >-
