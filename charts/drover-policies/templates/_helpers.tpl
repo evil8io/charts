@@ -129,3 +129,8 @@ services:
   expression: >-
     variables.excludedProjectIds.size() == 2 && !("" in variables.excludedProjectIds)
 {{- end }}
+
+{{- define "drover-policies.resourceVersionMatchCondition" -}}
+- name: resource-version-current
+  expression: 'oldObject == null || !has(oldObject.metadata) || !has(object.metadata.resourceVersion) || object.metadata.resourceVersion == "" || object.metadata.resourceVersion == oldObject.metadata.resourceVersion'
+{{- end }}

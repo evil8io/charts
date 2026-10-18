@@ -39,6 +39,7 @@ spec:
         {{ include "drover-policies.projectAnnotation" "object" }}
         !=
         {{ include "drover-policies.projectAnnotation" "oldObject" }}
+    {{- include "drover-policies.resourceVersionMatchCondition" . | nindent 4 }}
   variables:
     - name: nsName
       expression: request.object.metadata.name

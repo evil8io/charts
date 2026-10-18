@@ -557,3 +557,16 @@ tests:
       - template: templates/namespace-project.mutatingpolicy.yaml
         hasDocuments:
           count: 1
+  - it: skips an update with an old resourceVersion in the mutate-existing triggers
+    set:
+      policies.namespace-platform-metadata.labels:
+        platform.tier: system
+    asserts:
+      - template: templates/prometheus-monitors-existing.mutatingpolicy.yaml
+        equal:
+          path: spec.matchConditions[?(@.name == "resource-version-current")].expression
+          value: 'oldObject == null || !has(oldObject.metadata) || !has(object.metadata.resourceVersion) || object.metadata.resourceVersion == "" || object.metadata.resourceVersion == oldObject.metadata.resourceVersion'
+      - template: templates/namespace-platform-metadata.mutatingpolicy.yaml
+        equal:
+          path: spec.matchConditions[?(@.name == "resource-version-current")].expression
+          value: 'oldObject == null || !has(oldObject.metadata) || !has(object.metadata.resourceVersion) || object.metadata.resourceVersion == "" || object.metadata.resourceVersion == oldObject.metadata.resourceVersion'
