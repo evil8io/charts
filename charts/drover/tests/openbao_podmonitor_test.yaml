@@ -39,6 +39,11 @@ tests:
               params:
                 format:
                   - prometheus
+              metricRelabelings:
+                - sourceLabels: [cluster]
+                  targetLabel: openbao_cluster
+                - action: labeldrop
+                  regex: cluster
   - it: follows the openbao name override in the selector
     set:
       projectSync.serviceAccounts.enabled: true

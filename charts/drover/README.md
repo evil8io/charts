@@ -28,10 +28,7 @@ The chart needs these items in the cluster:
   `projectSync.serviceAccounts.enabled` is true.
 - The drover-policies chart, for its policy `drover.managed-metadata`, with
   `managedPrefix` at its default and `kyverno.namespace` set to the namespace of
-  Kyverno. Without the policy, a tenant can write the keys of drover under
-  `managed.drover.evil8.io/`, for example the status annotation of its trust
-  annotation. With another namespace in `kyverno.namespace`, the API server denies the
-  routes that Kyverno generates for drover.
+  Kyverno.
 
 ## Install
 
@@ -66,40 +63,28 @@ drover logs in to Rancher as two service users. The API filter uses `u-drover`, 
 project-sync uses `u-drover-project-sync`. Helm creates both users and their Rancher
 roles.
 
-external-secrets makes a new password for each user at every
-`serviceUser.password.refreshInterval`. A CronJob renews the API token of each user when
-the token expires within `tokenRotation.renewBefore`. The token in use stays valid after
-a password change and after a renewal, so these changes cause no outage.
+drover rotates the password of each user at every `serviceUser.password.refreshInterval`,
+and it renews the API token of each user before the token expires. The API filter and
+project-sync continue to work during these changes.
 
 ## Namespace list
 
 In Rancher, a tenant cannot list the namespaces of a cluster. With drover, the tenant gets
 the namespaces of its own projects as the answer.
 
-For each Rancher cluster, Kyverno creates one `HTTPRoute` on the gateway of Rancher.
-Through this route, the gateway sends these two requests to the API filter, and all
-other requests to Rancher:
-
-- `GET /k8s/clusters/<cluster id>/api/v1/namespaces`
-- `POST /k8s/clusters/<cluster id>/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`
-
-After a change of `httpRoute`, of `apiFilter.fanout.enabled`, or of the release
-namespace, Kyverno replaces the routes. During the replacement, the requests of a cluster
-can go to Rancher without the API filter, until Kyverno creates the new route.
+For each Rancher cluster, Kyverno creates one `HTTPRoute` on the gateway in
+`httpRoute.parentRefs`. Through this route, the gateway sends the namespace list request
+of the cluster to the API filter.
 
 ## Cluster-wide reads
 
-When `apiFilter.fanout.enabled` is true, the gateway also sends every `GET` under
-`/api/v1` and `/apis` of a cluster to the API filter. For a cluster-wide read of a
-namespaced kind, the API filter sends one request for each namespace of the tenant. The
-gateway sends `exec`, `attach`, `portforward`, and log streams to Rancher. It also sends
-every write to Rancher, except the `selfsubjectaccessreviews` request.
+When `apiFilter.fanout.enabled` is true, a tenant can read a namespaced kind in all its
+namespaces with one request. The answer contains the objects of each namespace of the
+tenant in which the tenant can read that kind.
 
-- The API filter is then in the path of most tenant reads. When the API filter is not
-  available, these reads fail. The default of the value is thus false.
+- When the API filter is not available, these reads fail.
 - Set `httpRoute.rancherBackendRef` to the Rancher Service. A Service in another
   namespace needs a `ReferenceGrant` in that namespace, and Helm does not create it.
-  Without the grant, the gateway answers `500`.
 - The keys under `apiFilter.fanout` and the rate keys under `apiFilter` are limits for
   the load on the API filter and on Rancher. See [values.yaml](values.yaml).
 
@@ -124,14 +109,8 @@ project-sync copies metadata from a Rancher project to each namespace of the pro
   this copy, each character outside `[A-Za-z0-9._-]` is `-`, and the value has 63
   characters at most.
 
-project-sync lists the keys that it wrote in the namespace annotations
-`managed.drover.evil8.io/synced-labels` and `managed.drover.evil8.io/synced-annotations`.
-When the project no longer has a key from these lists, project-sync removes the key from
-the namespace. A key outside these lists belongs to the tenant, and project-sync does not
-change it.
-
-project-sync also writes the number of namespaces of each project into the project
-annotation `managed.drover.evil8.io/namespace-count`.
+project-sync removes a key from the namespace when the project no longer has it.
+project-sync does not change a key that it did not write.
 
 ## Required project metadata
 
@@ -162,10 +141,8 @@ display name. Kyverno also denies a rename of a project to such a name.
 - Kyverno checks only the create of a project and the rename of a project. When two
   projects have the same display name before you set `projectPolicy.uniqueDisplayName`
   to true, Kyverno does not deny the updates that keep that name.
-- Kyverno does not check the writes of the project-sync service user. The hidden
-  project of [Project ServiceAccounts](#project-serviceaccounts) has the display name
-  `drover`. Thus project-sync can create that project also when a tenant project has
-  the display name `drover`.
+- When `projectSync.serviceAccounts.enabled` is true, each cluster has a hidden project
+  with the display name `drover`. Kyverno then denies a tenant project with that name.
 
 The API server applies `projectPolicy.failurePolicy` to this policy too.
 
@@ -178,12 +155,12 @@ number of namespaces, for example
 `The project has 2 namespaces. Delete each namespace first.`
 
 To delete such a project, the tenant deletes each namespace of the project first. After
-the last namespace is gone, project-sync sets the annotation
-`managed.drover.evil8.io/namespace-count` of the project to 0. The delay is not measured.
-Until then, Kyverno denies the delete of the project.
+the last namespace is gone, project-sync updates the namespace count of the project, and
+Kyverno then allows the delete.
 
 Kyverno denies the delete for every user, also for an admin. To delete a project that
-has namespaces, an admin sets `projectDeletePolicy.enabled` to false.
+has namespaces, an admin sets `projectDeletePolicy.enabled` to false. When an admin
+deletes the cluster, Kyverno allows the delete of its projects.
 
 With `projectDeletePolicy.failurePolicy: Fail`, the default, the API server denies a
 project delete when Kyverno does not answer. With `Ignore`, the API server allows the
@@ -207,8 +184,8 @@ bindings, and it can create tokens of the project ServiceAccounts.
 
 With `projectSync.serviceAccounts.bindings`, project-sync binds extra roles to every
 project ServiceAccount. An entry is `{clusterRole: <name>}` or
-`{role: <name>, namespace: <namespace>}`. project-sync does not read the roles. A binding
-to a role that does not exist in a cluster is thus valid. For a Role entry, the namespace
+`{role: <name>, namespace: <namespace>}`. A binding to a role that does not exist in a
+cluster is valid. For a Role entry, the namespace
 must exist in every cluster. When it does not exist, project-sync does not create the
 RoleBinding there, and it logs a warning in each run. One use is a ClusterRole with the
 reads that every Rancher user has, for example `drover:public-read` of the drover-policies
@@ -238,10 +215,10 @@ namespace. A client then gets a token in three steps:
 3. The client uses the token from the answer at
    `<Rancher URL>/k8s/clusters/<cluster id>`, for example with `kubectl`.
 
-The role is `project-owner`, `project-member`, or `read-only`. project-sync writes the
-credential roles and the policies for each project, and it removes them for a deleted
-project. A credential is valid for `global.broker.credentials.ttl`. A client can request
-a longer time, up to `global.broker.credentials.maxTTL`.
+The role is `project-owner`, `project-member`, or `read-only`. After the delete of a
+project, a client cannot get a credential of that project. A credential is valid for
+`global.broker.credentials.ttl`. A client can request a longer time, up to
+`global.broker.credentials.maxTTL`.
 
 OpenBao reaches each cluster through the Rancher URL in `global.broker.rancherUrl`. When
 the value is empty, Helm uses the first entry of `httpRoute.hostnames`. OpenBao verifies
@@ -279,8 +256,7 @@ document with a list of statements:
 
 - `name` is the identifier of the statement in the project. project-sync writes the
   login role `<cluster id>_<project id>_<name>` for it, for example
-  `c-m-4x2kq7bd_p-abc12_deploy-main`. The login role name contains the cluster id, because
-  OpenBao does not have a separate auth mount for each cluster.
+  `c-m-4x2kq7bd_p-abc12_deploy-main`.
 - A `jwt` statement has an issuer of `global.broker.jwtIssuers` and the claims that the
   JWT of the client must have. A claim value is a string or a list of strings.
 - An `aws` statement has the ARN of an IAM role.
@@ -291,11 +267,9 @@ Kyverno denies a document that is not valid under a rule of the platform. For a 
 document, the message contains the failed rule. For text that is not JSON, the message
 contains the error of the JSON parser. project-sync writes the outcome into the
 annotation `managed.drover.evil8.io/trust-policy-status` of the project, with `ready`
-and a reason for each statement. Through the `drover.managed-metadata` policy of
-drover-policies, the API server denies a write of a tenant to every key under
-`managed.drover.evil8.io/`, also to that annotation. When a user removes a statement, project-sync
-removes its login role. The keys of both annotations and the limit of statements per
-project are in `global.broker.trust`.
+and a reason for each statement. When a user removes a statement, project-sync removes
+its login role. The keys of both annotations and the limit of statements per project are
+in `global.broker.trust`.
 
 ### Login with a JWT
 
@@ -326,10 +300,9 @@ and logs in at `auth/jwt/<issuer>/login`:
 {"role": "c-m-4x2kq7bd_p-abc12_deploy-main", "jwt": "<JWT of the client>"}
 ```
 
-OpenBao reads the discovery URL of each issuer at an install and at an upgrade. The hook
-retries the config write of an issuer 5 times, 5 s apart. When OpenBao cannot reach an
-issuer, the mount keeps its previous config, and a new mount has no config until the
-next upgrade.
+When OpenBao cannot reach the discovery URL of an issuer at an install or an upgrade,
+Helm does not fail. A new issuer then has no config, and each login with it fails until
+the next upgrade.
 
 ### Login with an AWS identity
 

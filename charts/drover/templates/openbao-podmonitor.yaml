@@ -15,4 +15,9 @@ spec:
       params:
         format:
           - prometheus
+      metricRelabelings:
+        - sourceLabels: [cluster]
+          targetLabel: openbao_cluster
+        - action: labeldrop
+          regex: cluster
 {{- end }}
