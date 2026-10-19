@@ -40,7 +40,7 @@ resets the count to that value.
 | `nameOverride` | `""` | Replaces the chart name in the object names and in the `app.kubernetes.io/name` label. The label is part of the Deployment selector. |
 | `fullnameOverride` | `""` | Replaces the name of the Deployment, ConfigMap, ServiceAccount, PodDisruptionBudget, and PodMonitor. |
 | `image.repository` | `registry.k8s.io/coredns/coredns` | The CoreDNS image. |
-| `image.tag` | `v1.14.3` | The image tag. |
+| `image.tag` | `v1.14.7` | The image tag. |
 | `replicaCount` | `3` | The replica count at the first install, and at each upgrade when `autoscaling.enabled` is false. |
 | `autoscaling.enabled` | `true` | Renders the replica count of the live Deployment, so that an upgrade keeps the count of an autoscaler. See Replicas. |
 | `corefile` | CoreDNS for `cluster.local`, forward to `/etc/resolv.conf` of the node, 30 s cache | The Corefile. The `reload` plugin loads a change without a pod restart. |

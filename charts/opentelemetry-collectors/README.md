@@ -90,7 +90,7 @@ See [values.yaml](values.yaml) for all values and their defaults.
 | `selfTelemetry.endpoint` | `""` | OTLP gRPC endpoint (`host:port`) for the spans and metrics of the collectors. The node collector reports to itself. |
 | `selfTelemetry.tracesSampleRatio` | `0.01` | Sample ratio for the root spans of the collectors. |
 | `resourceAttributes` | `{}` | Static resource attributes, added to every signal. Use them on a platform without a resource detector. |
-| `targetAllocator.image.repository`, `tag` | `ghcr.io/open-telemetry/opentelemetry-operator/target-allocator`, `v0.160.0` | Image of the target allocator of the node and cluster collectors. |
+| `targetAllocator.image.repository`, `tag` | `ghcr.io/open-telemetry/opentelemetry-operator/target-allocator`, `v0.161.0` | Image of the target allocator of the node and cluster collectors. |
 | `targetAllocator.scrapeInterval` | `30s` | Scrape interval of the target allocators. |
 | `aws.enabled` | `false` | Adds the eks resource detector to the node, cluster, and events collectors. |
 | `aws.roleArn` | `""` | IAM role for the ServiceAccounts of the node, cluster, and events collectors (IRSA). The eks detector calls `ec2:DescribeInstances`. |

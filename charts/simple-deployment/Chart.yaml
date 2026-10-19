@@ -3,5 +3,5 @@ apiVersion: v2
 name: simple-deployment
 description: Deploy a Deployment that runs a simple script
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: 0.1.0

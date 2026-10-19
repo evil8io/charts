@@ -136,7 +136,7 @@ Helm 3 treats a DaemonSet with the `OnDelete` strategy as ready at once.
 | `fullnameOverride` | `""` | Replaces the name of the DaemonSet, ConfigMap, ServiceAccount, ClusterRole, ClusterRoleBinding, and PodMonitor. |
 | `platform` | `generic` | `generic` or `aws`. Every platform gets a node affinity for Linux nodes with amd64 or arm64. `aws` also excludes the nodes with the label `eks.amazonaws.com/compute-type: fargate`, because EKS Fargate does not run DaemonSet pods. |
 | `image.repository` | `registry.k8s.io/dns/k8s-dns-node-cache` | The node-cache image. |
-| `image.tag` | `1.26.8` | The image tag. |
+| `image.tag` | `1.27.1` | The image tag. |
 | `localIp` | `172.20.0.1` | The value of the `-localip` flag of node-cache. |
 | `extraArgs` | the three flags of the Cilium local redirect mode | The node-cache flags after `-localip`, `-conf`, and `-upstreamsvc`. |
 | `upstreamService.name` | `kube-dns-upstream` | The name of the Service in front of the upstream DNS server, and the value of the `-upstreamsvc` flag. |
