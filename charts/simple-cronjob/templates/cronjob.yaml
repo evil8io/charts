@@ -9,6 +9,9 @@ metadata:
 spec:
   schedule: '{{ .Values.schedule }}'
   timeZone: '{{ .Values.timeZone }}'
+  {{- with .Values.startingDeadlineSeconds }}
+  startingDeadlineSeconds: {{ . }}
+  {{- end }}
   concurrencyPolicy: {{ .Values.concurrencyPolicy }}
   {{- with .Values.successfulJobsHistoryLimit }}
   successfulJobsHistoryLimit: {{ . }}
@@ -20,7 +23,6 @@ spec:
     spec:
       backoffLimit: {{ .Values.backoffLimit }}
       activeDeadlineSeconds: {{ .Values.activeDeadlineSeconds }}
-      startingDeadlineSeconds: {{ .Values.startingDeadlineSeconds }}
       {{- with .Values.ttlSecondsAfterFinished }}
       ttlSecondsAfterFinished: {{ . }}
       {{- end }}
