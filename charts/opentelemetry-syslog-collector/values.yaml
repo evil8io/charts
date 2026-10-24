@@ -31,7 +31,7 @@ collector:
   debug: false
   image:
     repository: otel/opentelemetry-collector-contrib
-    tag: "0.163.1"
+    tag: "0.163.2"
     pullPolicy: IfNotPresent
   resources:
     limits:
@@ -150,7 +150,7 @@ syslogng:
 exporter:
   image:
     repository: python
-    tag: "3.15.0-alpine"
+    tag: "3.15.1-alpine"
     pullPolicy: IfNotPresent
   resources:
     limits:
