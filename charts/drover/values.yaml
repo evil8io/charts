@@ -347,7 +347,7 @@ openbao:
           plugin_auto_download = true
           plugin_auto_register = true
           plugin "auth" "aws" {
-            image = "ghcr.io/openbao/openbao-plugin-auth-aws:v0.1.1@sha256:d6c92d1bbfa986ac2ebd510f36eb4e6fc21bbe99622d97e1a0a3645e6029de03"
+            image = "ghcr.io/openbao/openbao-plugin-auth-aws:v0.1.2@sha256:bd17aee90584851f427cbed1d4effa91ea53ce713c9b9d8568620328d843d919"
           }
           {{- else }}
           plugin_auto_register = false
