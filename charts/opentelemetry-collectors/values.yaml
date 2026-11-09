@@ -68,7 +68,7 @@ aws:
     # logs:FilterLogEvents, and logs:DescribeLogGroups for an autodiscover entry of logGroups.
     roleArn: ""
     region: ""
-    pollInterval: 10s
+    pollInterval: 1m
     resources:
       limits:
         memory: 250Mi

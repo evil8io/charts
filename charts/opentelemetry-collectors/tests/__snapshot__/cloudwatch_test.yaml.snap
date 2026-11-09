@@ -127,7 +127,7 @@ matches the snapshot with both sources enabled:
           groups:
             named:
               /aws/eks/test/cluster: {}
-          poll_interval: 10s
+          poll_interval: 1m
         region: eu-west-1
         storage: file_storage
       aws_cloudwatch/fargate:
@@ -135,7 +135,7 @@ matches the snapshot with both sources enabled:
           groups:
             named:
               /aws/eks/test/fargate: {}
-          poll_interval: 10s
+          poll_interval: 1m
         region: eu-west-1
         storage: file_storage
     service:

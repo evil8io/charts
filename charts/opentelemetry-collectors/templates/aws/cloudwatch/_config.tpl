@@ -1,27 +1,65 @@
 {{/*
-The CloudFront standard log fields and their attribute keys.
+These maps contain the CloudFront standard log fields and their attribute keys, by value type.
+A field without a semantic convention has a key under aws.cloudfront.
 https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/standard-logs-reference.html
 */}}
-{{- define "opentelemetry-collectors.cloudfrontAttributes" -}}
-time-taken: http.request.duration
-cs(User-Agent): user_agent.original
+{{- define "opentelemetry-collectors.cloudfrontStringAttributes" -}}
 c-ip: client.address
-c-port: client.port
-cs-protocol-version: network.protocol.name
-cs-protocol: url.scheme
-cs-uri-stem: url.path
-cs-uri-query: url.query
-cs(Host): server.address
-ssl-cipher: tls.cipher
-ssl-protocol: tls.protocol.name
+cs(Host): aws.cloudfront.distribution.domain_name
+cs(Referer): http.request.header.referer
+cs(User-Agent): user_agent.original
 cs-method: http.request.method
+cs-protocol: url.scheme
+cs-uri-query: url.query
+cs-uri-stem: url.path
+ssl-cipher: tls.cipher
+x-edge-detailed-result-type: aws.cloudfront.edge.detailed_result_type
+x-edge-location: aws.cloudfront.edge.location
+x-edge-request-id: aws.cloudfront.edge.request_id
+x-edge-response-result-type: aws.cloudfront.edge.response_result_type
+x-edge-result-type: aws.cloudfront.edge.result_type
+x-forwarded-for: http.request.header.x-forwarded-for
+x-host-header: server.address
+{{- end }}
+
+{{- define "opentelemetry-collectors.cloudfrontIntAttributes" -}}
+c-port: client.port
+cs-bytes: http.request.size
+sc-bytes: http.response.size
 sc-status: http.response.status_code
-x-host-header: http.request.header.host
-x-edge-location: http.response.header.x-edge-location
-x-edge-request-id: http.response.header.x-edge-request-id
-x-edge-result-type: http.response.header.x-edge-result-type
-x-edge-response-result-type: http.response.header.x-edge-response-result-type
-x-edge-detailed-result-type: http.response.header.x-edge-detailed-result-type
+{{- end }}
+
+{{/*
+The CloudFront durations are in seconds.
+*/}}
+{{- define "opentelemetry-collectors.cloudfrontDoubleAttributes" -}}
+time-taken: aws.cloudfront.time_taken
+time-to-first-byte: aws.cloudfront.time_to_first_byte
+{{- end }}
+
+{{/*
+This list contains the escapes that CloudFront writes in the field values, with their characters.
+CloudFront also escapes the % of an escape in the request path and query.
+%25 is last, so that a decoded % does not start a new escape.
+*/}}
+{{- define "opentelemetry-collectors.cloudfrontEscapes" -}}
+- ["%09", "\t"]
+- ["%20", " "]
+- ["%22", "\""]
+- ["%23", "#"]
+- ["%27", "'"]
+- ["%3C", "<"]
+- ["%3E", ">"]
+- ["%5B", "["]
+- ["%5C", "\\"]
+- ["%5D", "]"]
+- ["%5E", "^"]
+- ["%60", "`"]
+- ["%7B", "{"]
+- ["%7C", "|"]
+- ["%7D", "}"]
+- ["%7E", "~"]
+- ["%25", "%"]
 {{- end }}
 
 {{/*
@@ -203,9 +241,29 @@ processors:
       - context: log
         statements:
           - set(log.cache, ParseJSON(log.body))
-          {{- range $field, $attribute := include "opentelemetry-collectors.cloudfrontAttributes" . | fromYaml }}
-          - set(log.attributes["{{ $attribute }}"], log.cache["{{ $field }}"]) where log.cache["{{ $field }}"] != nil
+          {{- range $escape := include "opentelemetry-collectors.cloudfrontEscapes" . | fromYamlArray }}
+          - replace_all_patterns(log.cache, "value", {{ index $escape 0 | quote }}, {{ index $escape 1 | quote }})
           {{- end }}
+          {{- range $field, $attribute := include "opentelemetry-collectors.cloudfrontStringAttributes" . | fromYaml }}
+          - set(log.attributes["{{ $attribute }}"], log.cache["{{ $field }}"]) where log.cache["{{ $field }}"] != nil and log.cache["{{ $field }}"] != "-"
+          {{- end }}
+          {{- range $field, $attribute := include "opentelemetry-collectors.cloudfrontIntAttributes" . | fromYaml }}
+          - set(log.attributes["{{ $attribute }}"], Int(log.cache["{{ $field }}"])) where log.cache["{{ $field }}"] != nil and log.cache["{{ $field }}"] != "-"
+          {{- end }}
+          {{- range $field, $attribute := include "opentelemetry-collectors.cloudfrontDoubleAttributes" . | fromYaml }}
+          - set(log.attributes["{{ $attribute }}"], Double(log.cache["{{ $field }}"])) where log.cache["{{ $field }}"] != nil and log.cache["{{ $field }}"] != "-"
+          {{- end }}
+          # Status 000: the viewer closed the connection before the response.
+          - delete_key(log.attributes, "http.response.status_code") where log.cache["sc-status"] == "000"
+          # HTTP/2.0 -> http and 2
+          - set(log.cache["protocol"], ExtractPatterns(log.cache["cs-protocol-version"], "^(?P<name>[A-Z]+)/(?P<version>[0-9.]+)$")) where log.cache["cs-protocol-version"] != nil
+          - set(log.attributes["network.protocol.name"], ToLowerCase(log.cache["protocol"]["name"])) where log.cache["protocol"]["name"] != nil
+          - set(log.attributes["network.protocol.version"], log.cache["protocol"]["version"]) where log.cache["protocol"]["version"] != nil
+          - replace_pattern(log.attributes["network.protocol.version"], "^([23])[.]0$", "$1")
+          # TLSv1.3 -> tls and 1.3
+          - set(log.cache["tls"], ExtractPatterns(log.cache["ssl-protocol"], "^(?P<name>[A-Z]+)v(?P<version>[0-9.]+)$")) where log.cache["ssl-protocol"] != nil and log.cache["ssl-protocol"] != "-"
+          - set(log.attributes["tls.protocol.name"], ToLowerCase(log.cache["tls"]["name"])) where log.cache["tls"]["name"] != nil
+          - set(log.attributes["tls.protocol.version"], log.cache["tls"]["version"]) where log.cache["tls"]["version"] != nil
   {{- end }}
   {{- if $v.sources.fargate.enabled }}
   k8s_attributes:

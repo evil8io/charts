@@ -99,7 +99,7 @@ See [values.yaml](values.yaml) for all values and their defaults.
 | `aws.cloudwatch.enabled` | `false` | The cloudwatch collector, a StatefulSet with one replica. It reads CloudWatch log groups. |
 | `aws.cloudwatch.image.repository`, `tag` | `otel/opentelemetry-collector-contrib`, `""` | Image of the cloudwatch collector. |
 | `aws.cloudwatch.roleArn` | `""` | IAM role for the ServiceAccount of the cloudwatch collector (IRSA). The receiver calls `logs:FilterLogEvents` and `logs:DescribeLogGroups`. |
-| `aws.cloudwatch.region`, `pollInterval` | `""`, `10s` | AWS region and poll interval of the CloudWatch log groups. |
+| `aws.cloudwatch.region`, `pollInterval` | `""`, `1m` | AWS region and poll interval of the CloudWatch log groups. |
 | `aws.cloudwatch.annotations`, `resources`, `podSecurityContext`, `securityContext`, `priorityClassName`, `nodeSelector`, `tolerations` | see values.yaml | Pod settings of the cloudwatch collector. |
 | `aws.cloudwatch.podDisruptionBudget` | `maxUnavailable: 1` | PodDisruptionBudget of the cloudwatch collector. |
 | `aws.cloudwatch.storage` | `1Gi` | PersistentVolumeClaim for the receiver checkpoints and the exporter queue. |
