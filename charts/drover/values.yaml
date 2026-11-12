@@ -198,6 +198,11 @@ global:
       annotation: drover.evil8.io/trust-policy
       statusAnnotation: managed.drover.evil8.io/trust-policy-status
       maxStatements: 20
+      # When this key is true, project-sync exports the metric drover.sync.trust.statements.info.
+      # The metric has the issuer, the bound claims or the IAM role, and the project role of each
+      # valid statement. The claim values that a tenant writes are then in the metrics backend.
+      statementsInfo:
+        enabled: false
     # The lifetime of a credential of a project ServiceAccount, and the longest lifetime that a request can ask for.
     credentials:
       ttl: 15m

@@ -59,6 +59,9 @@ spec:
             - "--openbao-credential-ttl={{ .Values.global.broker.credentials.ttl }}"
             - "--openbao-credential-max-ttl={{ .Values.global.broker.credentials.maxTTL }}"
             - "--trust-file=/etc/drover/trust/trust.json"
+            {{- if .Values.global.broker.trust.statementsInfo.enabled }}
+            - "--trust-statements-info"
+            {{- end }}
             {{- range .Values.projectSync.serviceAccounts.bindings }}
             {{- if .clusterRole }}
             - "--bind-cluster-role={{ .clusterRole }}"

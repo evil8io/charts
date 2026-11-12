@@ -230,6 +230,7 @@ Helm does not delete these objects at an uninstall:
 | `global.broker.audience` | `""` | The audience of a JWT login. With an empty value, the audience is `https://<first host of openbao.server.gateway.httpRoute.hosts>`. |
 | `global.broker.loginTokenTTL` | `5m` | The lifetime of the OpenBao token of a login, from 1m to 24h. |
 | `global.broker.trust.maxStatements` | `20` | The largest number of statements in a trust annotation, from 1 to 100. |
+| `global.broker.trust.statementsInfo.enabled` | `false` | When this key is true, project-sync exports the metric `drover.sync.trust.statements.info`. The metric has the issuer, the bound claims or the IAM role, and the project role of each valid statement. The claim values that a tenant writes are then in the metrics backend. |
 | `global.broker.credentials.ttl` | `15m` | The lifetime of a credential. |
 | `global.broker.credentials.maxTTL` | `2h` | The longest lifetime that a client can request. |
 | `global.broker.rancherUrl` | `""` | The Rancher URL through which OpenBao reaches the clusters. With an empty value, the URL is `https://<first entry of httpRoute.hostnames>`. |

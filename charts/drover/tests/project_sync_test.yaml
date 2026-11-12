@@ -127,6 +127,18 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: items at 0 and 1 are equal
+  - it: renders the trust-statements-info arg when global.broker.trust.statementsInfo.enabled is true
+    set:
+      projectSync.serviceAccounts.enabled: true
+      openbao.server.gateway.httpRoute.hosts:
+        - rancher-tokens.example.com
+      httpRoute.hostnames:
+        - rancher.example.com
+      global.broker.trust.statementsInfo.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --trust-statements-info
   - it: renders one bind arg for each binding after the trust-file arg
     set:
       projectSync.serviceAccounts.enabled: true
