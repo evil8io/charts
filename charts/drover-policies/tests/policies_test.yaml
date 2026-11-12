@@ -17,6 +17,8 @@ templates:
   - templates/generated-integrity.validatingadmissionpolicybinding.yaml
   - templates/managed-metadata.validatingadmissionpolicy.yaml
   - templates/managed-metadata.validatingadmissionpolicybinding.yaml
+  - templates/managed-rolebindings.validatingadmissionpolicy.yaml
+  - templates/managed-rolebindings.validatingadmissionpolicybinding.yaml
 
 release:
   name: drover-policies
@@ -81,6 +83,14 @@ tests:
         equal:
           path: spec.policyName
           value: drover.managed-metadata
+      - template: templates/managed-rolebindings.validatingadmissionpolicy.yaml
+        equal:
+          path: metadata.name
+          value: drover.managed-rolebindings
+      - template: templates/managed-rolebindings.validatingadmissionpolicybinding.yaml
+        equal:
+          path: spec.policyName
+          value: drover.managed-rolebindings
   - it: reads the prefixed context entries
     template: templates/namespace-project.mutatingpolicy.yaml
     asserts:

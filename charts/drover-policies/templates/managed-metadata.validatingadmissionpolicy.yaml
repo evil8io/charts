@@ -70,6 +70,7 @@ spec:
   validations:
     - expression: variables.authorized
       messageExpression: >-
-        "Only a ServiceAccount of the Kyverno namespace and a requester with permission to patch every namespace can set, change, or remove a key under {{ .Values.managedPrefix }}. This request sets, changes, or removes " +
-        variables.touchedKeys.join(", ") + "."
+        "This request sets, changes, or removes keys that are managed by drover: " +
+        variables.touchedKeys.join(", ") +
+        ". Only an administrator can write a key under {{ .Values.managedPrefix }}."
 {{- end }}

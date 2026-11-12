@@ -65,6 +65,6 @@ spec:
   validations:
     - expression: variables.unrestricted
       message: >-
-        A namespace cannot leave its project. Move the namespace to another
-        project, or delete it.
+        This namespace must stay in a project. Move it to another project, or
+        delete it.
 {{- end }}

@@ -89,7 +89,7 @@ spec:
   validations:
     - expression: variables.allowed
       messageExpression: >-
-        'The drover project sync owns these keys on this namespace: ' +
+        'This request changes keys that are managed by drover: ' +
         (variables.touchedLabels + variables.touchedAnnotations).join(', ') +
-        '. A synced key takes its value from the Rancher project.'
+        '. Change them on the Rancher project.'
 {{- end }}

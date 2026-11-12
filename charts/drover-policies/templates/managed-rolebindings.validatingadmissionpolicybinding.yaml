@@ -1,0 +1,13 @@
+{{- if (index .Values.policies "managed-rolebindings").enabled }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: drover.managed-rolebindings
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+spec:
+  policyName: drover.managed-rolebindings
+  validationActions:
+    - Deny
+{{- end }}

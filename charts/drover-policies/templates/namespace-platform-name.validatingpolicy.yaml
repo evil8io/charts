@@ -57,9 +57,9 @@ spec:
         }).status.allowed == true
   validations:
     - expression: '!(object.metadata.name in {{ toJson $platform.namespaces }}) || variables.allowed'
-      message: The namespace name is reserved for the platform.
+      message: This namespace name is reserved for the platform. Use another name.
 {{- if $policy.deniedPrefixes }}
     - expression: '!{{ toJson $policy.deniedPrefixes }}.exists(p, object.metadata.name.startsWith(p)) || variables.allowed'
-      message: The namespace name prefix is reserved for the platform.
+      message: This namespace name prefix is reserved for the platform. Use another name.
 {{- end }}
 {{- end }}

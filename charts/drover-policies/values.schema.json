@@ -118,6 +118,9 @@
         "managed-metadata": {
           "$ref": "#/definitions/policy"
         },
+        "managed-rolebindings": {
+          "$ref": "#/definitions/policy"
+        },
         "namespace-metadata": {
           "$ref": "#/definitions/policy"
         },
@@ -223,6 +226,7 @@
         "generated-integrity",
         "listenerset-hostname",
         "managed-metadata",
+        "managed-rolebindings",
         "namespace-metadata",
         "namespace-orphan",
         "namespace-platform-metadata",

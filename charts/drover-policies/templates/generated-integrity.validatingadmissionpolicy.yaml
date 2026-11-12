@@ -53,7 +53,5 @@ spec:
         variables.sameTop && variables.sameMeta
   validations:
     - expression: "variables.authorized || variables.finalizerOnlyUpdate"
-      messageExpression: >-
-        "This object is managed by a GeneratingPolicy; " +
-        request.operation + " is restricted to platform controllers and cluster admins."
+      message: This object is managed by Kyverno. Only an administrator can create, update, or delete it.
 {{- end }}

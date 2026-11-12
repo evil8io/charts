@@ -1,0 +1,38 @@
+{{- if (index .Values.policies "managed-rolebindings").enabled }}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: drover.managed-rolebindings
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    # The API server compares the selector with the old object and the new
+    # object of the request. Thus the policy also applies to an update that
+    # removes the label.
+    objectSelector:
+      matchExpressions:
+        - key: {{ printf "%stenant-project" .Values.managedPrefix | toJson }}
+          operator: Exists
+    resourceRules:
+      - apiGroups:
+          - rbac.authorization.k8s.io
+        apiVersions:
+          - "*"
+        operations:
+          - UPDATE
+          - DELETE
+        resources:
+          - rolebindings
+  variables:
+    - name: authorized
+      expression: >-
+        (has(request.userInfo.groups) && request.userInfo.groups.exists(g,
+          g == "system:serviceaccounts:kube-system")) ||
+        authorizer.group("").resource("namespaces").check("patch").allowed()
+  validations:
+    - expression: variables.authorized
+      message: This RoleBinding is managed by drover. Only an administrator can update or delete it.
+{{- end }}

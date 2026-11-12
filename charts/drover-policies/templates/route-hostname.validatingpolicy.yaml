@@ -93,21 +93,21 @@ spec:
     - expression: >-
         !variables.governed || variables.projectId != ""
       message: >-
-        The annotation field.cattle.io/projectId of the namespace does not name a project of this cluster.
+        This namespace is not in a project of this cluster. Only an administrator can correct its annotation field.cattle.io/projectId.
     - expression: >-
         !variables.governed || variables.hostnames.size() > 0
       message: >-
-        Gateway-parented routes must specify at least one hostname; a route without hostnames matches every hostname of its listener.
+        This route does not have a hostname. Set at least one hostname.
     - expression: >-
         !variables.governed || variables.hostnames.all(h, !h.startsWith('*.'))
       message: >-
-        Wildcard hostnames are not allowed on Gateway-parented routes.
+        This route has a wildcard hostname. Use a full hostname.
     - expression: >-
         !variables.governed || variables.conflictingRoutes.size() == 0
       messageExpression: >-
-        'One of the configured route hostnames is already configured in another project. Conflicting: ' + variables.conflictingRoutes.join(', ')
+        'This route uses a hostname that is in use by another project: ' + variables.conflictingRoutes.join(', ') + '. Use another hostname.'
     - expression: >-
         !variables.governed || variables.conflictingServices.size() == 0
       messageExpression: >-
-        'One of the configured route hostnames is already set as the external-dns hostname annotation of a platform Service. Conflicting: ' + variables.conflictingServices.join(', ')
+        'This route uses a hostname that is in use by a platform Service: ' + variables.conflictingServices.join(', ') + '. Use another hostname.'
 {{- end }}

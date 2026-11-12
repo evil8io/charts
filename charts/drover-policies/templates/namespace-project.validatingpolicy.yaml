@@ -122,7 +122,7 @@ spec:
   validations:
     - expression: variables.verified.size() == 0
       messageExpression: >-
-        'A namespace without the annotation field.cattle.io/projectId is in no Rancher project. Set the annotation to one of: ' +
+        'This namespace is not in a Rancher project. Set the annotation field.cattle.io/projectId to one of: ' +
         variables.choices.join(', ') +
-        '. The project id is in the Rancher URL of the project, and in the same annotation of every namespace of the project.'
+        '. The project id is in the Rancher URL of the project.'
 {{- end }}

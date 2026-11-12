@@ -76,6 +76,8 @@ policies:
     enabled: true
   managed-metadata:
     enabled: true
+  managed-rolebindings:
+    enabled: true
 
 # An entry without enabled follows the policies that read it.
 globalContextEntries:

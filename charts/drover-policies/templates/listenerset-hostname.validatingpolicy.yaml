@@ -60,13 +60,13 @@ spec:
     - expression: >-
         !variables.hasProject || variables.projectId != ""
       message: >-
-        The annotation field.cattle.io/projectId of the namespace does not name a project of this cluster.
+        This namespace is not in a project of this cluster. Only an administrator can correct its annotation field.cattle.io/projectId.
     - expression: >-
         !variables.hasProject || object.spec.listeners.all(l, l.?hostname.orValue('') != '')
       message: >-
-        ListenerSet listeners must specify a hostname; a listener without one is a catch-all on its port.
+        This ListenerSet has a listener without a hostname. Set a hostname on each listener.
     - expression: >-
         !variables.hasProject || variables.conflictingListenerSets.size() == 0
       messageExpression: >-
-        'One of the configured listener hostnames is already configured in another project. Conflicting: ' + variables.conflictingListenerSets.join(', ')
+        'This ListenerSet uses a hostname that is in use by another project: ' + variables.conflictingListenerSets.join(', ') + '. Use another hostname.'
 {{- end }}
