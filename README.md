@@ -10,6 +10,6 @@ helm install <release> oci://ghcr.io/evil8io/charts/<chart> --version <version>
 
 ## Charts
 
-Each chart is in its own directory under [`charts/`](charts). The README of a chart documents its values.
+Each chart is in its own directory under [`charts/`](charts).
 
 The published versions of each chart are on the [releases page](https://github.com/evil8io/charts/releases).
