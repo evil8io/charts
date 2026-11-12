@@ -1,7 +1,7 @@
 # drover-policies
 
-drover-policies is a Helm chart with multi-tenancy policies for
-[drover](https://github.com/evil8io/drover). Install the chart in the Rancher management
+Multi-tenancy policies for [drover](https://github.com/evil8io/drover), as Kyverno
+policies. Install the chart in the Rancher management
 cluster and in each downstream cluster. The chart needs Kyverno 1.19+ and Kubernetes
 1.30+.
 
@@ -9,76 +9,43 @@ cluster and in each downstream cluster. The chart needs Kyverno 1.19+ and Kubern
 
 | Policy | Kind | Rule |
 |---|---|---|
-| `drover.namespace-project` | MutatingPolicy, ValidatingPolicy | Kyverno assigns a new namespace of a tenant to the Rancher project of the tenant. When the tenant has more than one project, Kyverno denies the request. The deny message contains the projects to choose from. |
+| `drover.namespace-project` | MutatingPolicy, ValidatingPolicy | Kyverno adds a new namespace of a tenant to the Rancher project of the tenant. When the tenant has more than one project, Kyverno denies the request. The deny message contains the projects to choose from. |
 | `drover.namespace-quotas.<revision>` | GeneratingPolicy | Kyverno generates a ResourceQuota and a LimitRange in every namespace of a tenant. |
 | `drover.namespace-metadata` | ValidatingPolicy | A tenant cannot change the labels and the annotations that the drover project sync copies from a project to its namespaces. |
 | `drover.namespace-platform-metadata` | MutatingPolicy | Kyverno sets the platform labels and annotations on every platform namespace. |
-| `drover.namespace-platform-name` | ValidatingPolicy | A tenant cannot create a namespace with the name or the name prefix of a platform namespace. |
-| `drover.namespace-orphan` | ValidatingPolicy | A tenant cannot unassign a namespace from its project. |
-| `drover.route-hostname` | ValidatingPolicy | A route of a tenant must have a hostname. A tenant cannot use a wildcard hostname or a hostname of another project. |
+| `drover.namespace-platform-name` | ValidatingPolicy | A Rancher user cannot create a namespace with a name in `policies.namespace-platform-metadata.namespaces` or with a prefix in `policies.namespace-platform-name.deniedPrefixes`. |
+| `drover.namespace-orphan` | ValidatingPolicy | A tenant cannot remove a namespace from its project. |
+| `drover.route-hostname` | ValidatingPolicy | A route of a tenant needs a hostname when the route has a Gateway parent. A tenant cannot use a wildcard hostname or a hostname of another project on such a route. |
 | `drover.listenerset-hostname` | ValidatingPolicy | Every listener of a ListenerSet of a tenant must have a hostname. A tenant cannot use a hostname of a ListenerSet of another project. |
-| `drover.prometheus-monitors`, `drover.prometheus-monitors-existing` | MutatingPolicy | A PodMonitor or a ServiceMonitor of a tenant selects targets in its own namespace only. |
+| `drover.prometheus-monitors`, `drover.prometheus-monitors-existing` | MutatingPolicy | Kyverno sets the namespace selector of a PodMonitor or a ServiceMonitor of a tenant to its own namespace. |
 | `drover.generated-integrity` | ValidatingAdmissionPolicy | A tenant cannot change or delete an object that Kyverno generated. |
 | `drover.managed-metadata` | ValidatingAdmissionPolicy | A tenant cannot set, change, or remove a label or an annotation under `managedPrefix`. |
 | `drover.managed-rolebindings` | ValidatingAdmissionPolicy | A tenant cannot change or delete a RoleBinding that the drover project sync created. |
 
-## Project of a namespace
-
-Kyverno reads the project of a namespace from the annotation `field.cattle.io/projectId`,
-with the form `<cluster>:<project>`. Kyverno never reads the label
-`field.cattle.io/projectId`, because a project member can remove the label from its
-namespace. The cluster id is the prefix of the annotation on `kube-system`. The System
-project and the Default project are the projects of `kube-system` and `default`.
-
-| Annotation | Outcome |
-|---|---|
-| Absent or empty | The namespace is in no project. Kyverno skips the namespace. |
-| The prefix is the cluster id | The namespace is in the project after the prefix. |
-| Another prefix, or no colon | The namespace has no trusted project. Kyverno denies every route with a Gateway parent and every ListenerSet, restricts every monitor to its own namespace, and generates the quota objects. |
-
-When the cluster id is unknown, Kyverno skips every namespace. For example, the cluster id
-is unknown when `kube-system` has no annotation, or when the namespaces context entry is
-off. For the monitors and the quota objects, Kyverno also skips every namespace when the
-project of `default` is unknown.
-
 ## Tenant roles
 
 Tenants get access to the namespaced platform kinds, for example routes, monitors, and
-autoscalers, through three ClusterRoles: `drover:aggregate-to-view`,
-`drover:aggregate-to-edit`, and `drover:aggregate-to-admin`. Kubernetes aggregates the
-rules of these ClusterRoles into the built-in `view`, `edit`, and `admin` roles. Rancher
-binds those built-in roles for the Read-only, Project Member, and Project Owner roles of a
-project. A tenant thus gets the rules through its project role, in every namespace of the
-project.
+autoscalers, through `tenantRoles`. Each key of `tenantRoles` is a map from API group to
+resource plurals. A tenant gets the access of a key through its Rancher project role, in
+every namespace of the project:
 
-List the kinds of each role in `tenantRoles`, as a map from API group to resource plurals.
-Helm renders a ClusterRole only for a map that is not empty. The verbs of each role are
-fixed in the templates:
-
-| Role | Verbs |
-|---|---|
-| `view` | get, list, watch |
-| `edit` | create, update, patch, delete, deletecollection |
-| `admin` | create, update, patch, delete, deletecollection |
+| Key | Rancher project role | Verbs |
+|---|---|---|
+| `view` | Read-only | get, list, watch |
+| `edit` | Project Member | create, update, patch, delete, deletecollection |
+| `admin` | Project Owner | create, update, patch, delete, deletecollection |
 
 ### Rancher users
 
-When `rancherUsers.enabled` is `true`, Helm also installs the ClusterRole `drover:users`
-and binds it to the group `system:cattle:authenticated`. Every Rancher user can then get,
-list, and watch `principals` and `roletemplates`. The Rancher UI reads both when a project
-owner adds members to a project. The built-in Rancher role `user-base` does not include
-these reads.
-
-Enable the value in the Rancher management cluster only. Principals are not a CRD. The
-Rancher server answers a principal search, and it checks the RBAC of the management
-cluster. In a downstream cluster, Rancher never checks the binding.
+When `rancherUsers.enabled` is `true`, every Rancher user can get, list, and watch
+`principals` and `roletemplates`. The Rancher UI reads both when a project owner adds
+members to a project. Set the value to `true` in the Rancher management cluster only.
 
 ### Public reads
 
 Rancher binds the tenant roles only in the namespaces of a project. A kind in
 `tenantRoles` is thus readable only in those namespaces. Set `publicRead` for a kind that
 every Rancher user must read outside its project, for example the platform Gateways.
-
 `publicRead` contains two maps:
 
 ```yaml
@@ -93,65 +60,30 @@ publicRead:
         - configmaps
 ```
 
-`cluster` is a map from API group to resource plurals. From this map, Helm installs the
-ClusterRole `drover:public-read` with the verbs get, list, and watch. Helm binds the role
-to the group `system:cattle:authenticated` with a ClusterRoleBinding. This group contains
-every Rancher user. Every Rancher user can read every object of a listed kind,
-cluster-wide. Do not list a kind whose objects contain names or settings of one tenant,
-for example PolicyExceptions.
+`cluster` is a map from API group to resource plurals. Every Rancher user can get, list,
+and watch every object of a listed kind, cluster-wide. Do not list a kind whose objects
+contain names or settings of one tenant, for example PolicyExceptions.
 
-`namespaces` is a map from namespace name to a kind map, which is a map from API group to
-resource plurals. For each namespace with a kind map that is not empty, Helm installs the
-Role `drover:public-read` in that namespace. Helm binds the Role to the same group with a
-RoleBinding in that namespace. The Role contains the verbs get, list, and watch on the
-listed kinds in that namespace only, and `get` on the namespace object. In the example,
-every Rancher user can read the ConfigMaps of `kube-public`.
-
-The ClusterRole `drover:public-read` also contains a rule with `get` on `namespaces` and
-every listed namespace name in `resourceNames`. Helm installs this ClusterRole and its
-ClusterRoleBinding also when `cluster` is empty. A Rancher user then sees each listed
-namespace in its namespace list, and `kubectl get ns kube-public` succeeds. For a
-namespace with an empty kind map, this rule is the only rule of the chart for that
-namespace. Helm does not install an object in such a namespace, so the namespace does not
-need to exist at the install.
-
-When both maps are empty, Helm does not render any object.
-
-## Context entries
-
-The policies read GlobalContextEntries with the names `drover-<resource>`. A
-GlobalContextEntry is a Kyverno cache of one resource kind. When an entry has no `enabled`
-value, Helm renders the entry if a policy that reads it is enabled. When an entry has an
-explicit `enabled` value, Helm uses that value.
-
-## Quota revision
-
-`policies.namespace-quotas.revision` is part of the policy name and of the generated
-names. A change of a generated field that is immutable needs a new revision. The old
-policy is deleted together with its objects, and Kyverno generates the objects again for
-the new policy.
+`namespaces` is a map from namespace name to a kind map. A kind map is a map from API
+group to resource plurals. Every Rancher user can get, list, and watch the listed kinds in
+that namespace only. In the example, every Rancher user can read the ConfigMaps of
+`kube-public`.
 
 ## Values
 
 | Key | Default | Description |
 |---|---|---|
-| `platform` | `generic` | The platform that the cluster runs on: `generic`, `aws`, or `azure`. Helm uses the value to select the cloud-specific policies. At this time, no cloud-specific policy exists in this policy set. |
-| `managedPrefix` | `managed.drover.evil8.io/` | The prefix of the keys of drover itself, for example the records of the project sync. The keys that the project sync copies from a Rancher project are not under this prefix. The value must equal the constant `managedPrefix` in `internal/projectsync/keys.go` of drover. See `drover.managed-metadata` in the policy table. |
-| `kyverno.namespace` | `kyverno` | The namespace of the Kyverno controllers. Their ServiceAccounts can write generated objects. |
-| `rancher.namespace` | `cattle-system` | The namespace of the Rancher Deployment. The namespace-orphan policy skips the writes of its ServiceAccounts. |
-| `externalDns.annotationPrefix` | `external-dns.alpha.kubernetes.io/` | The annotation prefix that the route-hostname policy reads on Services. |
-| `tenantRoles.view` | `{}` | The kinds of the `view` role, as a map from API group to resource plurals. See Tenant roles. |
-| `tenantRoles.edit` | `{}` | The kinds of the `edit` role, as a map from API group to resource plurals. See Tenant roles. |
-| `tenantRoles.admin` | `{}` | The kinds of the `admin` role, as a map from API group to resource plurals. See Tenant roles. |
-| `publicRead.cluster` | `{}` | The kinds that every Rancher user can get, list, and watch cluster-wide, as a map from API group to resource plurals. See Public reads. |
-| `publicRead.namespaces` | `{}` | The kinds that every Rancher user can get, list, and watch in one namespace. The value is a map from namespace name to a map from API group to resource plurals. For a namespace with an empty kind map, every Rancher user can get only the namespace object. See Public reads. |
-| `rancherUsers.enabled` | `false` | When the value is `true`, Helm installs `drover:users` and binds it to `system:cattle:authenticated`. Enable the value in the Rancher management cluster only. See Rancher users. |
-| `policies.<name>.enabled` | `true` | When the value is `true`, Helm renders the policy. |
-| `policies.namespace-project.nameAnnotation` | `project.display_name` | The annotation key on a namespace that has the display name of its project. Kyverno shows the name next to the project id in the deny message. When the value is empty, Kyverno shows no name. |
-| `policies.namespace-quotas.revision` | `1` | See Quota revision. |
-| `policies.namespace-platform-metadata.namespaces` | `[]` | The names of the platform namespaces that have a project, for example the names that Rancher puts in its System project. A namespace without the project annotation is a platform namespace too. |
-| `policies.namespace-platform-metadata.labels` | `{}` | The labels that Kyverno sets on every platform namespace. |
-| `policies.namespace-platform-name.deniedPrefixes` | `[]` | The name prefixes that a Rancher user cannot use for a namespace, for example `kube-` and `cattle-`. |
-| `policies.namespace-platform-metadata.annotations` | `{}` | The annotations that Kyverno sets on every platform namespace. With empty labels and annotations, Helm renders no policy. |
+| `managedPrefix` | `managed.drover.evil8.io/` | The prefix of the labels and the annotations that drover manages. The value must equal the prefix that drover uses. |
+| `kyverno.namespace` | `kyverno` | The namespace of the Kyverno controllers. |
+| `rancher.namespace` | `cattle-system` | The namespace of the Rancher Deployment. |
+| `externalDns.annotationPrefix` | `external-dns.alpha.kubernetes.io/` | The prefix of the external-dns annotations that Kyverno reads on a Service for `drover.route-hostname`. |
+| `tenantRoles.view`, `tenantRoles.edit`, `tenantRoles.admin` | `{}` | See Tenant roles. |
+| `publicRead.cluster`, `publicRead.namespaces` | `{}` | See Public reads. |
+| `rancherUsers.enabled` | `false` | See Rancher users. |
+| `policies.<name>.enabled` | `true` | Set the value to `false` to turn off the policy `drover.<name>`. |
+| `policies.namespace-project.nameAnnotation` | `project.display_name` | The key of the namespace annotation with the display name of its project. Kyverno shows the name next to the project id in the deny message. Set the value to `""` to leave the name out. |
 | `policies.namespace-quotas.hard` | object counts | The `spec.hard` of the generated ResourceQuota. |
-| `globalContextEntries.<name>.enabled` | derived | When the value is `true`, Helm renders the entry. |
+| `policies.namespace-platform-metadata.namespaces` | `[]` | The names of the platform namespaces that have a project, for example the names that Rancher puts in its System project. A namespace without the project annotation is a platform namespace too. |
+| `policies.namespace-platform-metadata.labels`, `policies.namespace-platform-metadata.annotations` | `{}` | The labels and the annotations that Kyverno sets on every platform namespace. |
+| `policies.namespace-platform-name.deniedPrefixes` | `[]` | The name prefixes that a Rancher user cannot use for a namespace, for example `kube-` and `cattle-`. |
+| `globalContextEntries.<name>.enabled` | not set | By default, a Kyverno GlobalContextEntry is installed only when an enabled policy needs it. Set the value to `true` or `false` to override this default. |

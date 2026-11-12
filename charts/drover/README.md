@@ -1,22 +1,20 @@
 # drover
 
-drover ([evil8io/drover](https://github.com/evil8io/drover)) is a set of tenancy
-extensions for Rancher. Install the chart in the Rancher management cluster.
+[drover](https://github.com/evil8io/drover) is a set of tenancy extensions for Rancher.
+Install the chart in the Rancher management cluster.
 
 | Feature | Result | Values |
 |---|---|---|
 | [Namespace list](#namespace-list) | Through Rancher, a tenant sees only the namespaces of its own projects. | `apiFilter` |
 | [Cluster-wide reads](#cluster-wide-reads) | A tenant can read a namespaced kind in all its namespaces with one request, for example `kubectl get pods -A`. | `apiFilter.fanout` |
-| [Project metadata](#project-metadata) | Each namespace of a project gets the labels, the annotations, and the display name of the project. | `projectSync` |
-| [Required project metadata](#required-project-metadata) | Kyverno denies a project without the required keys. | `projectPolicy` |
-| [Unique display names](#unique-display-names) | Kyverno denies a project with the display name of another project of the same cluster. | `projectPolicy.uniqueDisplayName` |
-| [Project delete](#project-delete) | Kyverno denies the delete of a project that has namespaces. | `projectDeletePolicy` |
-| [Project ServiceAccounts](#project-serviceaccounts) | Each project gets three ServiceAccounts, one for each project role. | `projectSync.serviceAccounts` |
-| [Short-lived credentials](#short-lived-credentials) | A client of a tenant outside the cluster, for example a CI job, gets a short-lived token of a project ServiceAccount without a stored secret. | `global.broker`, `openbao` |
+| [Project metadata](#project-metadata) | The labels, the annotations, and the display name of a project are copied to each namespace of the project. | `projectSync` |
+| [Required project metadata](#required-project-metadata) | A project without the required keys is denied. | `projectPolicy` |
+| [Unique display names](#unique-display-names) | A project with the display name of another project in the same cluster is denied. | `projectPolicy.uniqueDisplayName` |
+| [Project delete](#project-delete) | The delete of a project that contains namespaces is denied. | `projectDeletePolicy` |
+| [Project ServiceAccounts](#project-serviceaccounts) | Each project has three ServiceAccounts, one for each project role. | `projectSync.serviceAccounts` |
+| [Short-lived credentials](#short-lived-credentials) | A tenant client outside the cluster, for example a CI job, gets a short-lived token of a project ServiceAccount without a stored secret. | `global.broker`, `openbao` |
 
 ## Requirements
-
-The chart needs these items in the cluster:
 
 - Kubernetes 1.30 or later, with Rancher in the same cluster.
 - Kyverno with its cleanup controller. Install the chart after Kyverno.
@@ -26,18 +24,11 @@ The chart needs these items in the cluster:
   false.
 - The `PodMonitor` kind of the Prometheus operator, when
   `projectSync.serviceAccounts.enabled` is true.
-- The drover-policies chart, for its policy `drover.managed-metadata`, with
-  `managedPrefix` at its default and `kyverno.namespace` set to the namespace of
+- The drover-policies chart, for its policy `drover.managed-metadata`. Install it with
+  `managedPrefix` at its default and with `kyverno.namespace` set to the namespace of
   Kyverno.
 
-## Install
-
-```sh
-helm install drover oci://ghcr.io/evil8io/charts/drover \
-  --namespace drover-system --create-namespace --values values.yaml
-```
-
-Two values are required: `rancher.url` and `httpRoute.parentRefs`.
+## Required values
 
 ```yaml
 rancher:
@@ -50,323 +41,159 @@ httpRoute:
     - rancher.example.com
 ```
 
-- `rancher.url` is the URL of the Rancher Service in the cluster, and it must be an
-  `https` URL. The certificate of Rancher contains the name `rancher.<namespace>`. It
-  does not contain the name `rancher.<namespace>.svc`. When drover cannot verify the
-  certificate, set `rancher.insecureSkipVerify` to true.
-- `httpRoute.parentRefs` is the gateway of Rancher. Set `httpRoute.hostnames` to the
-  hostname of Rancher, so that the routes of drover apply to that hostname only.
-
-## Service users
-
-drover logs in to Rancher as two service users. The API filter uses `u-drover`, and
-project-sync uses `u-drover-project-sync`. Helm creates both users and their Rancher
-roles.
-
-drover rotates the password of each user at every `serviceUser.password.refreshInterval`,
-and it renews the API token of each user before the token expires. The API filter and
-project-sync continue to work during these changes.
+In `rancher.url`, use the host name `rancher.<namespace>`, without `.svc`. drover
+verifies the certificate of Rancher, and the certificate does not contain the name
+`rancher.<namespace>.svc`.
 
 ## Namespace list
 
-In Rancher, a tenant cannot list the namespaces of a cluster. With drover, the tenant gets
-the namespaces of its own projects as the answer.
+In Rancher, a tenant cannot list the namespaces of a cluster. With drover, the answer to
+this request contains the namespaces of the projects of the tenant.
 
-For each Rancher cluster, Kyverno creates one `HTTPRoute` on the gateway in
-`httpRoute.parentRefs`. Through this route, the gateway sends the namespace list request
-of the cluster to the API filter.
+For each Rancher cluster, the chart adds one `HTTPRoute` to the gateway in
+`httpRoute.parentRefs`.
 
 ## Cluster-wide reads
 
 When `apiFilter.fanout.enabled` is true, a tenant can read a namespaced kind in all its
-namespaces with one request. The answer contains the objects of each namespace of the
-tenant in which the tenant can read that kind.
+namespaces with one request. The answer contains the objects of each namespace in which
+the tenant can read that kind.
 
 - When the API filter is not available, these reads fail.
 - Set `httpRoute.rancherBackendRef` to the Rancher Service. A Service in another
-  namespace needs a `ReferenceGrant` in that namespace, and Helm does not create it.
-- The keys under `apiFilter.fanout` and the rate keys under `apiFilter` are limits for
-  the load on the API filter and on Rancher. See [values.yaml](values.yaml).
+  namespace needs a `ReferenceGrant` in that namespace, which is not part of the chart.
+- The keys under `apiFilter.fanout` and the rate keys under `apiFilter` limit the load on
+  the API filter and on Rancher. See [values.yaml](values.yaml).
 
 ## ServiceAccount tokens
 
 With drover, Rancher accepts a ServiceAccount token of a downstream cluster on its
-cluster proxy. In the Rancher UI, the name of this setting is JWT Authentication. To
-enable it for each downstream cluster, Kyverno creates a `ClusterProxyConfig` in the
-cluster namespace. When `clusterProxyConfig.enabled` is false, Kyverno does not create a
-`ClusterProxyConfig` for a new cluster. Kyverno does not delete the `ClusterProxyConfig`
-objects that exist, also after an uninstall of the chart. Rancher accepts the tokens
-until you delete these objects.
+cluster proxy. In the Rancher UI, the name of this setting is JWT Authentication. To keep
+the setting off for new clusters, set `clusterProxyConfig.enabled` to false.
 
 ## Project metadata
 
-project-sync copies metadata from a Rancher project to each namespace of the project:
+These items are copied from a Rancher project to each namespace of the project:
 
 - The labels in `projectSync.labelKeys` and the annotations in
   `projectSync.annotationKeys`.
 - The display name of the project, into the annotation in `projectSync.nameAnnotation`.
-- A label-safe copy of the display name, into the label in `projectSync.nameLabel`. In
-  this copy, each character outside `[A-Za-z0-9._-]` is `-`, and the value has 63
-  characters at most.
+- A copy of the display name as a valid label value, into the label in
+  `projectSync.nameLabel`.
 
-project-sync removes a key from the namespace when the project no longer has it.
-project-sync does not change a key that it did not write.
+When a key is removed from the project, drover removes the key from the namespaces.
 
 ## Required project metadata
 
-List the keys that each project must have in `projectPolicy.requiredLabels` and
+List the required keys of a project in `projectPolicy.requiredLabels` and
 `projectPolicy.requiredAnnotations`. Each key must also be in `projectSync.labelKeys` or
 `projectSync.annotationKeys`.
 
-Kyverno denies a new project without one of these keys. Kyverno also denies an update
-that removes a required key or sets it to an empty value. A project that never had the
-key stays editable, for example the System project and the Default project.
-
-With `projectPolicy.failurePolicy: Fail`, the default, a project write is denied when
-Kyverno does not answer. With `Ignore`, the write is allowed.
+Kyverno denies a new project without one of these keys. Kyverno also denies an update in
+which a user removes a required key or sets it to an empty value.
 
 ## Unique display names
 
-The Rancher UI shows a project by its display name. With `projectSync.nameLabel` or
-`projectSync.nameAnnotation`, project-sync also copies the display name to the
-namespaces of the project. When `projectPolicy.uniqueDisplayName` is true,
-Kyverno denies a new project when another project of the same cluster has the same
-display name. Kyverno also denies a rename of a project to such a name.
+When `projectPolicy.uniqueDisplayName` is true, Kyverno denies a new project with the
+display name of another project in the same cluster. Kyverno also denies a rename of a
+project to such a name.
 
-- Kyverno ignores the case of the ASCII letters and the white space around the name. For
-  example, `Shop` and `shop` are the same name, also with a space before or after it.
-- Kyverno allows the same display name in another cluster.
-- The message contains the id of the existing project, for example
-  `A project with the display name Shop exists in this cluster: p-abc12. Choose another display name.`
-- Kyverno checks only the create of a project and the rename of a project. When two
-  projects have the same display name before you set `projectPolicy.uniqueDisplayName`
-  to true, Kyverno does not deny the updates that keep that name.
+- Kyverno ignores the case of the ASCII letters and the white space around the name.
 - When `projectSync.serviceAccounts.enabled` is true, each cluster has a hidden project
   with the display name `drover`. Kyverno then denies a tenant project with that name.
 
-The API server applies `projectPolicy.failurePolicy` to this policy too.
-
 ## Project delete
 
-When Rancher deletes a project, it removes the project from the namespaces of the project.
-These namespaces then are not in a project. When `projectDeletePolicy.enabled` is true,
-Kyverno denies the delete of a project that has namespaces. The message contains the
-number of namespaces, for example
-`The project has 2 namespaces. Delete each namespace first.`
+When you delete a Rancher project, Rancher keeps its namespaces. They stay in the cluster
+without a project. Set `projectDeletePolicy.enabled` to true to block the delete of a
+project that still has namespaces.
 
-To delete such a project, the tenant deletes each namespace of the project first. After
-the last namespace is gone, project-sync updates the namespace count of the project, and
-Kyverno then allows the delete.
-
-Kyverno denies the delete for every user, also for an admin. To delete a project that
-has namespaces, an admin sets `projectDeletePolicy.enabled` to false. When an admin
-deletes the cluster, Kyverno allows the delete of its projects.
-
-With `projectDeletePolicy.failurePolicy: Fail`, the default, the API server denies a
-project delete when Kyverno does not answer. With `Ignore`, the API server allows the
-delete.
+The block applies to every user, also to an admin. Delete the namespaces first, then the
+project.
 
 ## Project ServiceAccounts
 
-When `projectSync.serviceAccounts.enabled` is true, project-sync keeps three
-ServiceAccounts for each tenant project: `project-owner`, `project-member`, and
-`read-only`. The ServiceAccounts are in the namespace `drover-<cluster id>-<project id>`,
-for example `drover-c-m-4x2kq7bd-p-abc12`, in a hidden project of the cluster.
+When `projectSync.serviceAccounts.enabled` is true, each tenant project has three
+ServiceAccounts: `project-owner`, `project-member`, and `read-only`. The ServiceAccounts
+are in the namespace `drover-<cluster id>-<project id>`, for example
+`drover-c-m-4x2kq7bd-p-abc12`. Each ServiceAccount has the Kubernetes role `admin`,
+`edit`, or `view` in every namespace of the project.
 
-A token of such a ServiceAccount has the Kubernetes rights of its project role in every
-namespace of the project: `admin`, `edit`, or `view`. It also has the namespace rights of
-that role in the project. It does not have the extra rules of the Rancher role templates,
-for example the monitoring resources or the read of nodes.
+The service user of drover then has wide rights in every cluster. It can use every verb
+on namespaces. It can create ServiceAccounts, roles, and bindings. It can also create
+tokens of the project ServiceAccounts.
 
-With this value on, the service user of project-sync gets wide rights in every cluster.
-It gets every verb on namespaces. It can also create ServiceAccounts, roles, and
-bindings, and it can create tokens of the project ServiceAccounts.
-
-With `projectSync.serviceAccounts.bindings`, project-sync binds extra roles to every
-project ServiceAccount. An entry is `{clusterRole: <name>}` or
-`{role: <name>, namespace: <namespace>}`. A binding to a role that does not exist in a
-cluster is valid. For a Role entry, the namespace
-must exist in every cluster. When it does not exist, project-sync does not create the
-RoleBinding there, and it logs a warning in each run. One use is a ClusterRole with the
-reads that every Rancher user has, for example `drover:public-read` of the drover-policies
-chart.
+To bind extra roles to every project ServiceAccount, set
+`projectSync.serviceAccounts.bindings`. An entry is `{clusterRole: <name>}` or
+`{role: <name>, namespace: <namespace>}`. For a `role` entry, the namespace must exist
+in every cluster.
 
 ## Short-lived credentials
 
-A tenant can have automation outside the cluster that works in the namespaces of its
-project. Examples are a GitHub Actions workflow, a GitLab CI job, and an AWS Lambda
-function. Such a client needs a Kubernetes credential. Without drover, the tenant must
-store a long-lived secret in the client, for example a ServiceAccount token that does not
-expire.
+A tenant client outside the cluster, for example a GitHub Actions workflow, a GitLab CI
+job, or an AWS Lambda function, can get a token of a project ServiceAccount. The client
+does not need a stored secret. The client logs in to [OpenBao](https://openbao.org)
+with the identity that it already has: the JWT of its CI system, or its AWS IAM role.
+OpenBao then returns the token.
 
-With drover, the client needs no stored secret. The client proves its own identity to
-[OpenBao](https://openbao.org), and OpenBao gives it a token of a project ServiceAccount.
-By default, the token is valid for 15 minutes.
+When `projectSync.serviceAccounts.enabled` is true, the chart also installs OpenBao in
+the release namespace. A project owner lists the trusted identities in the annotation
+`drover.evil8.io/trust-policy` on the Rancher project. The format of the annotation and
+the token request are in the drover docs, sections
+[Login roles](https://github.com/evil8io/drover/blob/main/docs/project-sync.md#login-roles)
+and
+[Short-lived tokens](https://github.com/evil8io/drover/blob/main/docs/project-sync.md#short-lived-tokens).
 
-When `projectSync.serviceAccounts.enabled` is true, Helm installs OpenBao in the release
-namespace. A client then gets a token in three steps:
-
-1. The client logs in to OpenBao with the identity that it already has: the JWT of its
-   CI system, or its AWS IAM role. project-sync writes the login role from a statement in
-   the trust annotation of the project. See [Trust annotation](#trust-annotation).
-2. The client requests the credential
-   `kubernetes/<cluster id>/creds/<project id>-<role>`, with
-   `kubernetes_namespace=drover-<cluster id>-<project id>`.
-3. The client uses the token from the answer at
-   `<Rancher URL>/k8s/clusters/<cluster id>`, for example with `kubectl`.
-
-The role is `project-owner`, `project-member`, or `read-only`. After the delete of a
-project, a client cannot get a credential of that project. A credential is valid for
-`global.broker.credentials.ttl`. A client can request a longer time, up to
-`global.broker.credentials.maxTTL`.
-
-OpenBao reaches each cluster through the Rancher URL in `global.broker.rancherUrl`. When
-the value is empty, Helm uses the first entry of `httpRoute.hostnames`. OpenBao verifies
-the certificate of that URL, so a Rancher with a private CA needs the Rancher setting
-`cacerts`.
-
-### Trust annotation
-
-The trust annotation of a project contains the identities that can log in to OpenBao
-for the project, each with a project role. A project owner sets the annotation
-`drover.evil8.io/trust-policy` on its Rancher Project. A cluster owner and an admin can
-set it too, because the permission to update a Project depends on Rancher RBAC. The
-value is a JSON
-document with a list of statements:
-
-```json
-{
-  "statements": [
-    {
-      "name": "deploy-main",
-      "jwt": {
-        "issuer": "github",
-        "claims": {"repository_id": "123456789", "ref": "refs/heads/main"}
-      },
-      "role": "project-member"
-    },
-    {
-      "name": "rotator",
-      "aws": {"arn": "arn:aws:iam::123456789012:role/shop-rotator"},
-      "role": "read-only"
-    }
-  ]
-}
-```
-
-- `name` is the identifier of the statement in the project. project-sync writes the
-  login role `<cluster id>_<project id>_<name>` for it, for example
-  `c-m-4x2kq7bd_p-abc12_deploy-main`.
-- A `jwt` statement has an issuer of `global.broker.jwtIssuers` and the claims that the
-  JWT of the client must have. A claim value is a string or a list of strings.
-- An `aws` statement has the ARN of an IAM role.
-- `role` is the project role of the token: `project-owner`, `project-member`, or
-  `read-only`.
-
-Kyverno denies a document that is not valid under a rule of the platform. For a JSON
-document, the message contains the failed rule. For text that is not JSON, the message
-contains the error of the JSON parser. project-sync writes the outcome into the
-annotation `managed.drover.evil8.io/trust-policy-status` of the project, with `ready`
-and a reason for each statement. When a user removes a statement, project-sync removes
-its login role. The keys of both annotations and the limit of statements per project are
-in `global.broker.trust`.
+OpenBao verifies the certificate of the Rancher URL in `global.broker.rancherUrl`. For a
+Rancher with a private CA, set the Rancher setting `cacerts`.
 
 ### Login with a JWT
 
-A client in a CI system, for example a GitHub Actions workflow, gets a JWT from that
-system and logs in with it. For each entry of `global.broker.jwtIssuers`, OpenBao has a
-JWT auth mount at `auth/jwt/<name>`. The default entries are GitHub Actions and
-GitLab.com. When an entry is removed from the value, OpenBao removes the mount and its
-login roles at the next upgrade.
-
-In `requiredClaims` of each issuer, set the claims that every statement must contain,
-for example the ID of the repository. Add `allowedClaims` to limit the values of a
-claim in a statement, for example the branches of a repository. When a statement does
-not contain such a claim, project-sync binds the login role of the statement to the
-whole list of allowed values.
-
-For the OIDC issuer of a Kubernetes cluster, the `sub` claim names a ServiceAccount by
-its namespace and its name only. While that namespace does not exist, another tenant can
-create it and a ServiceAccount with that name. To bind the statement to one
-ServiceAccount object, also add the claim `/kubernetes.io/serviceaccount/uid`. OpenBao
-reads a claim name that starts with `/` as a JSON pointer (RFC 6901) into the JWT.
-
-For a JWT login role, OpenBao accepts only a JWT with the audience
-`global.broker.audience`. When the value is empty, the audience is `https://<first host of
-openbao.server.gateway.httpRoute.hosts>`. The client requests its JWT with that audience
-and logs in at `auth/jwt/<issuer>/login`:
-
-```json
-{"role": "c-m-4x2kq7bd_p-abc12_deploy-main", "jwt": "<JWT of the client>"}
-```
+Each entry of `global.broker.jwtIssuers` is a JWT issuer that a project owner can use.
+A client logs in at `auth/jwt/<name>/login`, with a JWT that has the audience in
+`global.broker.audience`.
 
 When OpenBao cannot reach the discovery URL of an issuer at an install or an upgrade,
-Helm does not fail. A new issuer then has no config, and each login with it fails until
-the next upgrade.
+Helm does not fail. Each login with a new issuer then fails until the next upgrade.
 
 ### Login with an AWS identity
 
 When `global.broker.aws.enabled` is true, a client with an AWS IAM role can log in at
-the auth mount `auth/aws`. The default is false. When the value goes back to false,
-OpenBao removes the mount and its login roles.
+`auth/aws/login`.
 
-- OpenBao needs egress to `ghcr.io` and to `sts.<region>.amazonaws.com`. Without egress
-  to `ghcr.io`, OpenBao does not start. Keep the value false in such a cluster.
-- `openbao.server.gateway.httpRoute.hosts` must contain the host name of OpenBao.
-
-For a login, a client signs an `sts:GetCallerIdentity` request with its AWS credentials
-and sends the signed request to `auth/aws/login`. The signed request must contain the
-header `X-Vault-AWS-IAM-Server-ID`, with the first host of
-`openbao.server.gateway.httpRoute.hosts` as its value. The client can sign the request
-for the AWS region of its choice.
-
-For the login role of an `aws` statement, OpenBao accepts the IAM role by its account
-ID and its name. OpenBao ignores the path of the ARN. When a tenant deletes an IAM role
-and creates it again with the same name, a client with the new IAM role can log in.
+- OpenBao needs egress on port 443 to `ghcr.io`, `pkg-containers.githubusercontent.com`,
+  and `sts.<region>.amazonaws.com`. Without egress to `ghcr.io`, OpenBao does not start.
+- `openbao.server.gateway.httpRoute.hosts` must contain the host name of OpenBao. The
+  signed request of a client must contain the header `X-Vault-AWS-IAM-Server-ID`, with
+  the first host of this list as its value.
 
 ### OpenBao administration
 
-OpenBao runs three replicas with a PersistentVolume each. Helm installs it from the
-[openbao chart](https://github.com/openbao/openbao-helm), with the values under the
-`openbao` key.
+OpenBao runs three replicas, with one PersistentVolume for each replica.
 
 - **Route.** Set the route of OpenBao in `openbao.server.gateway.httpRoute`. Clients and
   admins reach OpenBao through this route.
-- **Admin login.** OpenBao has no root token and no recovery key. An admin logs in with
-  a token of the ServiceAccount `<openbao fullname>-admin`:
+- **Admin login.** OpenBao does not have a root token or a recovery key. An admin logs in
+  with a token of the ServiceAccount `<openbao fullname>-admin`:
 
   ```sh
   bao write auth/kubernetes/login role=admin \
     jwt="$(kubectl -n <namespace> create token <openbao fullname>-admin)"
   ```
 
-- **Seal key.** OpenBao unseals its data with the key in the Secret `openbao-seal`. Helm
-  creates the Secret when it does not exist. Without the key, OpenBao cannot read its
-  data.
-- **Lost seal key.** When the Secret does not exist but a `data-*` PersistentVolumeClaim
-  of OpenBao exists, the install or the upgrade stops. Delete the `data-*`
-  PersistentVolumeClaims of OpenBao. OpenBao then starts with empty data.
-- **Lost volume of pod 0.** When pod 0 lost its volume but a `data-*` claim of another
-  pod exists, pod 0 stays not ready. Restore the volume, or delete all `data-*`
-  PersistentVolumeClaims.
-- **Metrics.** Helm creates a `PodMonitor` for OpenBao. The metrics are on port 8210,
-  and the route does not reach that port.
+- **Seal key.** OpenBao unseals its data with the key in the Secret `openbao-seal`.
+  Without the key, OpenBao cannot read its data.
 
 ## Network policies
 
-Helm creates a `CiliumNetworkPolicy` for each component. DNS traffic and the metric
-scrapes need a separate policy. For a cluster without Cilium, set
-`ciliumNetworkPolicy.enabled` to false.
+The chart contains a `CiliumNetworkPolicy` for each component. DNS traffic and metric
+scrapes need a separate policy.
 
-- Every component can reach the API server. The API filter, project-sync, and the token
-  rotation can also reach `rancher.namespace`.
 - The API filter and OpenBao accept traffic from the namespaces in
-  `ciliumNetworkPolicy.gatewayNamespaces`. Set this value to the namespaces of the
-  gateway pods.
-- OpenBao reaches the Rancher host and the hosts of `global.broker.jwtIssuers` on port
-  443. When `global.broker.aws.enabled` is true, OpenBao also reaches `ghcr.io`,
-  `pkg-containers.githubusercontent.com`, and the hosts `sts.*.amazonaws.com`. These
-  rules are rules by host name, so the cluster needs the Cilium DNS proxy.
+  `ciliumNetworkPolicy.gatewayNamespaces`.
+- OpenBao can reach the host of `global.broker.rancherUrl` and the hosts of
+  `global.broker.jwtIssuers` on port 443. Cilium matches these hosts by name, so the
+  cluster needs the Cilium DNS proxy.
 
 ## Uninstall
 
@@ -380,53 +207,31 @@ Helm does not delete these objects at an uninstall:
   the projects with the label `managed.drover.evil8.io/account-project`. Then delete the
   namespaces with the label `managed.drover.evil8.io/tenant-project` or the label
   `managed.drover.evil8.io/role`.
+- The `ClusterProxyConfig` objects. Rancher accepts the ServiceAccount tokens of the
+  downstream clusters until you delete these objects.
 
 ## Values
-
-See [values.yaml](values.yaml) for all keys. Helm stops with an error when a dependent
-value is not set. The keys with the value zero select the default of the drover service.
 
 | Key | Default | Description |
 |---|---|---|
 | `rancher.url` | none | Required. The `https` URL of the Rancher Service in the cluster. |
-| `rancher.insecureSkipVerify` | `false` | When true, drover does not verify the certificate of `rancher.url`. |
-| `rancher.namespace` | `cattle-system` | The namespace of the Rancher Deployment. |
+| `rancher.insecureSkipVerify` | `false` | Set the value to true when drover cannot verify the certificate of Rancher. |
 | `httpRoute.parentRefs` | `[]` | Required. The gateway of Rancher. |
-| `httpRoute.hostnames` | `[]` | The hostname of Rancher. |
-| `httpRoute.rancherBackendRef` | none | The Rancher Service. Required when `apiFilter.fanout.enabled` is true. |
-| `apiFilter.replicaCount` | `3` | The number of API filter pods. |
-| `apiFilter.fanout.enabled` | `false` | See [Cluster-wide reads](#cluster-wide-reads). |
-| `serviceUser.password.refreshInterval` | `2160h` | The time between two passwords of a service user. |
-| `tokenRotation.schedule` | `*/10 * * * *` | The schedule of the token rotation CronJob. |
+| `httpRoute.hostnames` | `[]` | The hostname of Rancher. The gateway uses the drover routes for this hostname only. |
+| `serviceUser.password.refreshInterval` | `2160h` | The time between two passwords of a drover service user in Rancher. |
 | `tokenRotation.ttl` | `48h` | The lifetime of an API token of a service user. |
-| `tokenRotation.renewBefore` | `24h` | A rotation run renews a token that expires within this time. It must be shorter than `tokenRotation.ttl`. |
-| `projectSync.interval` | `60s` | The time between two full runs of project-sync. |
-| `projectSync.labelKeys` | `[]` | The label keys that project-sync copies to the namespaces. |
-| `projectSync.annotationKeys` | `[]` | The annotation keys that project-sync copies to the namespaces. |
-| `projectSync.nameLabel` | `""` | The label key for the label-safe display name. An empty value turns it off. |
-| `projectSync.nameAnnotation` | `""` | The annotation key for the display name. An empty value turns it off. |
-| `projectSync.serviceAccounts.enabled` | `false` | See [Project ServiceAccounts](#project-serviceaccounts). When true, Helm also installs OpenBao. |
-| `projectSync.serviceAccounts.bindings` | `[]` | Extra roles for every project ServiceAccount. See [Project ServiceAccounts](#project-serviceaccounts). |
-| `projectPolicy.requiredLabels` | `[]` | See [Required project metadata](#required-project-metadata). |
-| `projectPolicy.requiredAnnotations` | `[]` | See [Required project metadata](#required-project-metadata). |
-| `projectPolicy.uniqueDisplayName` | `false` | See [Unique display names](#unique-display-names). |
-| `projectPolicy.failurePolicy` | `Fail` | `Fail` or `Ignore`, for the policy of the required keys and the display name policy only. For the [trust annotation](#trust-annotation), the value is always `Fail`. |
-| `projectDeletePolicy.enabled` | `false` | See [Project delete](#project-delete). |
-| `projectDeletePolicy.failurePolicy` | `Fail` | `Fail` or `Ignore`, for the project delete policy. |
-| `clusterProxyConfig.enabled` | `true` | See [ServiceAccount tokens](#serviceaccount-tokens). |
-| `ciliumNetworkPolicy.enabled` | `true` | See [Network policies](#network-policies). |
+| `tokenRotation.renewBefore` | `24h` | drover renews a token that expires within this time. It must be shorter than `tokenRotation.ttl`. |
+| `projectSync.interval` | `60s` | The time between two full runs of the project sync. |
+| `projectPolicy.failurePolicy` | `Fail` | `Fail` or `Ignore`. With `Fail`, the API server denies a project write when Kyverno does not answer. |
+| `projectDeletePolicy.failurePolicy` | `Fail` | `Fail` or `Ignore`. With `Fail`, the API server denies a project delete when Kyverno does not answer. |
 | `ciliumNetworkPolicy.gatewayNamespaces` | `[]` | The namespaces of the gateway pods. |
-| `global.broker.jwtIssuers` | GitHub Actions, GitLab.com | A map from a name to a JWT issuer, with `discoveryUrl`, `requiredClaims`, and the optional `allowedClaims`. See [Login with a JWT](#login-with-a-jwt). |
-| `global.broker.aws.enabled` | `false` | See [Login with an AWS identity](#login-with-an-aws-identity). |
-| `global.broker.aws.allowedAccounts` | `[]` | The AWS accounts that are valid in an `aws` statement. With an empty list, every account is valid. |
-| `global.broker.audience` | `""` | The audience of the JWT login roles. With an empty value, the audience is `https://<first host of openbao.server.gateway.httpRoute.hosts>`. Helm needs the value or a host in `openbao.server.gateway.httpRoute.hosts`. |
+| `global.broker.jwtIssuers` | GitHub Actions, GitLab.com | A map from a name to a JWT issuer, with `discoveryUrl`, `requiredClaims`, and the optional `allowedClaims`. |
+| `global.broker.aws.allowedAccounts` | `[]` | The AWS accounts that are valid in the trust annotation. With an empty list, every account is valid. |
+| `global.broker.audience` | `""` | The audience of a JWT login. With an empty value, the audience is `https://<first host of openbao.server.gateway.httpRoute.hosts>`. |
 | `global.broker.loginTokenTTL` | `5m` | The lifetime of the OpenBao token of a login, from 1m to 24h. |
-| `global.broker.trust.annotation` | `drover.evil8.io/trust-policy` | The key of the [trust annotation](#trust-annotation). It must not be under the domain `managed.drover.evil8.io` or a subdomain of it. |
-| `global.broker.trust.statusAnnotation` | `managed.drover.evil8.io/trust-policy-status` | The key of the status annotation. It must start with `managed.drover.evil8.io/`. |
 | `global.broker.trust.maxStatements` | `20` | The largest number of statements in a trust annotation, from 1 to 100. |
 | `global.broker.credentials.ttl` | `15m` | The lifetime of a credential. |
 | `global.broker.credentials.maxTTL` | `2h` | The longest lifetime that a client can request. |
-| `global.broker.rancherUrl` | `""` | The Rancher URL through which OpenBao reaches the clusters. |
-| `openbao` | | The values of the openbao chart. |
-| `otlp.endpoint` | `""` | The OTLP endpoint for the telemetry of drover. An empty value turns telemetry off. |
-| `logLevel` | `info` | The log level of the drover components. |
+| `global.broker.rancherUrl` | `""` | The Rancher URL through which OpenBao reaches the clusters. With an empty value, the URL is `https://<first entry of httpRoute.hostnames>`. |
+| `openbao` | | The values of the [openbao chart](https://github.com/openbao/openbao-helm). |
+| `otlp.endpoint` | `""` | The OTLP endpoint for the telemetry of drover. With an empty value, drover does not send telemetry. |

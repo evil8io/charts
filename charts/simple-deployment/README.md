@@ -1,18 +1,10 @@
 # simple-deployment
 
-> **Note:** This chart is automatically synced from a private repository. Do not edit it here directly.
-
-A Helm chart to deploy a Deployment that runs a simple script without end.
-
-## Usage
-
-```bash
-helm install my-deployment oci://ghcr.io/evil8io/charts/simple-deployment
-```
+Runs a script that does not stop, as a Deployment.
 
 ## Example
 
-Log the number of pods in the release namespace every minute:
+Log the number of pods in the release namespace each minute:
 
 ```yaml
 image: dtzar/helm-kubectl:latest
@@ -30,5 +22,3 @@ rbac:
       resources: ["pods"]
       verbs: ["list"]
 ```
-
-See [values.yaml](values.yaml) for all configurable values.

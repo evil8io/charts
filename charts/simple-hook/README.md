@@ -1,18 +1,10 @@
 # simple-hook
 
-> **Note:** This chart is automatically synced from a private repository. Do not edit it here directly.
-
-A Helm chart to run a single [Helm hook](https://helm.sh/docs/topics/charts_hooks/) as a Job.
-
-## Usage
-
-```bash
-helm install my-hook oci://ghcr.io/evil8io/charts/simple-hook
-```
+Runs a script as a Job in a [Helm hook](https://helm.sh/docs/topics/charts_hooks/).
 
 ## Example
 
-Wait for a CRD to be available before installing a release:
+Wait for a CRD before the install of the release:
 
 ```yaml
 image: dtzar/helm-kubectl:latest
@@ -34,5 +26,3 @@ rbac:
       resources: ["customresourcedefinitions"]
       verbs: ["get", "list", "watch"]
 ```
-
-See [values.yaml](values.yaml) for all configurable values.

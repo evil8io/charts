@@ -1,18 +1,10 @@
 # simple-cronjob
 
-> **Note:** This chart is automatically synced from a private repository. Do not edit it here directly.
-
-A Helm chart to deploy a CronJob that runs a simple script on a schedule.
-
-## Usage
-
-```bash
-helm install my-cronjob oci://ghcr.io/evil8io/charts/simple-cronjob
-```
+Runs a script on a schedule, as a CronJob.
 
 ## Example
 
-Clean up completed jobs older than 1 hour:
+Delete the successful Jobs in the release namespace each hour:
 
 ```yaml
 image: dtzar/helm-kubectl:latest
@@ -31,5 +23,3 @@ rbac:
       resources: ["jobs"]
       verbs: ["list", "delete"]
 ```
-
-See [values.yaml](values.yaml) for all configurable values.
