@@ -7,7 +7,7 @@ version: 0.1.21
 appVersion: "0.162.0"
 dependencies:
   - name: kube-state-metrics
-    version: 9.0.0
+    version: 9.0.1
     repository: https://prometheus-community.github.io/helm-charts
     condition: kubeStateMetrics.enabled
   - name: prometheus-node-exporter
