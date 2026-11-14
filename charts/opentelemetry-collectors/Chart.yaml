@@ -3,14 +3,14 @@ apiVersion: v2
 name: opentelemetry-collectors
 description: OpenTelemetry collectors for the logs, metrics, and events of a Kubernetes cluster, managed by the opentelemetry-operator
 type: application
-version: 0.1.22
+version: 0.1.23
 appVersion: "0.162.0"
 dependencies:
   - name: kube-state-metrics
-    version: 9.0.0
+    version: 9.0.1
     repository: https://prometheus-community.github.io/helm-charts
     condition: kubeStateMetrics.enabled
   - name: prometheus-node-exporter
-    version: 5.0.0
+    version: 5.1.0
     repository: https://prometheus-community.github.io/helm-charts
     condition: nodeExporter.enabled
