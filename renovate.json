@@ -1,6 +1,31 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "jdx/mise",
+      "description": "The mise version pin in .mise-version",
+      "extractVersionTemplate": "^v(?<version>.+)$",
+      "fileMatch": [
+        "^\\.mise-version$"
+      ],
+      "matchStrings": [
+        "^(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s*$"
+      ],
+      "versioningTemplate": "semver"
+    }
+  ],
   "ignorePaths": [
     "charts/**"
+  ],
+  "packageRules": [
+    {
+      "description": "Let a mise release age before Renovate moves the pin",
+      "matchDepNames": [
+        "jdx/mise"
+      ],
+      "minimumReleaseAge": "3 days"
+    }
   ]
 }
