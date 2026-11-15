@@ -32,6 +32,19 @@ jobs:
           version: ${{ steps.mise-version.outputs.version }}
           cache: false
 
+      - name: Add the subchart repositories
+        shell: bash
+        run: |
+          for chart in charts/*/; do
+            helm dependency list "$chart"
+          done |
+            awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^https?:/) print $i }' |
+            sort -u |
+            nl |
+            while read -r index url; do
+              helm repo add "subchart-${index}" "$url"
+            done
+
       - name: Run chart-releaser
         uses: helm/chart-releaser-action@92c6b97fa9f664492a2592e0d1d80bc6bf378957 # v1.9.0
         with:
