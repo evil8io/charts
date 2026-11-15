@@ -243,7 +243,7 @@ collectors:
       fsGroup: 10001
     securityContext:
       readOnlyRootFilesystem: true
-    priorityClassName: system-node-critical
+    priorityClassName: ""
     nodeSelector:
       kubernetes.io/os: linux
     tolerations: []
