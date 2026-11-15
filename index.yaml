@@ -3,6 +3,16 @@ entries:
   coredns:
   - apiVersion: v2
     appVersion: 1.14.3
+    created: "2026-11-15T16:13:51.553198231Z"
+    description: CoreDNS as the cluster DNS server, with the kube-dns Service
+    digest: ee1f9549a472d477588b9a84ccc1e373a61bd499bdc89cd4d6541f7b43cb4083
+    name: coredns
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/coredns-0.1.5/coredns-0.1.5.tgz
+    version: 0.1.5
+  - apiVersion: v2
+    appVersion: 1.14.3
     created: "2026-09-25T16:03:52.994887793Z"
     description: CoreDNS as the cluster DNS server, with the kube-dns Service
     digest: 7ded39495f358c06c47fbd01d42079a1497b3a052c7d457c2971ef601bc8482a
@@ -12,6 +22,25 @@ entries:
     - https://github.com/evil8io/charts/releases/download/coredns-0.1.0/coredns-0.1.0.tgz
     version: 0.1.0
   drover:
+  - apiVersion: v2
+    appVersion: 0.31.0
+    created: "2026-11-15T16:13:51.760166662Z"
+    dependencies:
+    - condition: projectSync.serviceAccounts.enabled
+      name: openbao
+      repository: https://openbao.github.io/openbao-helm
+      version: 0.30.7
+    description: Tenancy extensions for Rancher
+    digest: 4d8cfdbfa0a221127efbbf833090b80f688c50baa23a4057af356eb74206c5f5
+    home: https://github.com/evil8io/drover
+    kubeVersion: '>=1.30.0-0'
+    name: drover
+    sources:
+    - https://github.com/evil8io/drover
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/drover-0.37.0/drover-0.37.0.tgz
+    version: 0.37.0
   - apiVersion: v2
     appVersion: 0.18.0
     created: "2026-09-26T10:16:17.097478617Z"
@@ -98,6 +127,19 @@ entries:
     version: 0.18.0
   drover-policies:
   - apiVersion: v2
+    created: "2026-11-15T16:13:51.873381934Z"
+    description: Drover multi-tenancy policies
+    digest: cd188dbbd10d84d37ca9f1be5968f44ae3be5e55169b3b7d1001d712618c98eb
+    home: https://github.com/evil8io/drover
+    kubeVersion: '>=1.30.0-0'
+    name: drover-policies
+    sources:
+    - https://github.com/evil8io/drover
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/drover-policies-0.14.2/drover-policies-0.14.2.tgz
+    version: 0.14.2
+  - apiVersion: v2
     created: "2026-09-26T10:16:17.289668594Z"
     description: Drover multi-tenancy policies
     digest: 7e029da27cf0f30beafc51af95379c5c2720003c30cbee4610720ddc553cbba3
@@ -152,6 +194,16 @@ entries:
   idle:
   - apiVersion: v2
     appVersion: latest
+    created: "2026-11-15T16:13:52.046454734Z"
+    description: Pre-provision Kubernetes node capacity with spurin/idle pods
+    digest: 91e6f90ae76f55c2ee2a8156ed131c2eae9af0801fd4bf0908c09723521e271c
+    name: idle
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/idle-0.1.5/idle-0.1.5.tgz
+    version: 0.1.5
+  - apiVersion: v2
+    appVersion: latest
     created: "2026-09-16T06:28:28.732636418Z"
     description: Pre-provision Kubernetes node capacity with spurin/idle pods
     digest: a9c1771c32c98b815a1a66269f72f3d60044243d14d4e532243942dbd4815d24
@@ -193,6 +245,17 @@ entries:
   node-local-dns:
   - apiVersion: v2
     appVersion: 1.26.8
+    created: "2026-11-15T16:13:52.204755152Z"
+    description: NodeLocal DNSCache on each node, for traffic that a Cilium local
+      redirect policy sends to it
+    digest: 2378206bfb6ab9fcabfb32af2dffbfe01d77973e39708f75857ea0939145a924
+    name: node-local-dns
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/node-local-dns-0.1.4/node-local-dns-0.1.4.tgz
+    version: 0.1.4
+  - apiVersion: v2
+    appVersion: 1.26.8
     created: "2026-09-25T16:03:53.162005446Z"
     description: NodeLocal DNSCache on each node, for traffic that a Cilium local
       redirect policy sends to it
@@ -202,7 +265,39 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/node-local-dns-0.1.0/node-local-dns-0.1.0.tgz
     version: 0.1.0
+  opentelemetry-collectors:
+  - apiVersion: v2
+    appVersion: 0.162.0
+    created: "2026-11-15T16:13:52.368495236Z"
+    dependencies:
+    - condition: kubeStateMetrics.enabled
+      name: kube-state-metrics
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 9.0.1
+    - condition: nodeExporter.enabled
+      name: prometheus-node-exporter
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 5.1.0
+    description: OpenTelemetry collectors for the logs, metrics, and events of a Kubernetes
+      cluster, managed by the opentelemetry-operator
+    digest: b94d42d4033834e7b4f23b6485f3056d7db0a8b2c14c5675c64d6166e3020d17
+    name: opentelemetry-collectors
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/opentelemetry-collectors-0.1.24/opentelemetry-collectors-0.1.24.tgz
+    version: 0.1.24
   opentelemetry-gateway:
+  - apiVersion: v2
+    appVersion: 0.162.0
+    created: "2026-11-15T16:13:52.477946273Z"
+    description: OpenTelemetry gateway collectors, one per signal, managed by the
+      opentelemetry-operator
+    digest: 4f009723e7087c7cd14024ed194b8a1de7246d22d99abef30c49cb50880116ed
+    name: opentelemetry-gateway
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/opentelemetry-gateway-0.2.2/opentelemetry-gateway-0.2.2.tgz
+    version: 0.2.2
   - apiVersion: v2
     appVersion: 0.161.0
     created: "2026-09-25T16:03:53.357897785Z"
@@ -215,6 +310,16 @@ entries:
     - https://github.com/evil8io/charts/releases/download/opentelemetry-gateway-0.1.0/opentelemetry-gateway-0.1.0.tgz
     version: 0.1.0
   opentelemetry-syslog-collector:
+  - apiVersion: v2
+    created: "2026-11-15T16:13:52.594281343Z"
+    description: Syslog collector using syslog-ng and OpenTelemetry Collector, managed
+      by the opentelemetry-operator
+    digest: a257201e50a27909d24f891b3fe9ac848fc7bfe6a0a225a8a0bce1813f6c6117
+    name: opentelemetry-syslog-collector
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/opentelemetry-syslog-collector-0.5.32/opentelemetry-syslog-collector-0.5.32.tgz
+    version: 0.5.32
   - apiVersion: v2
     created: "2026-09-19T07:24:36.125635976Z"
     description: Syslog collector using syslog-ng and OpenTelemetry Collector, managed
@@ -488,6 +593,16 @@ entries:
     version: 0.1.0
   restart-controller:
   - apiVersion: v2
+    created: "2026-11-15T16:13:52.713667782Z"
+    description: Restart subscribed workloads when an API server leaves or a CRD is
+      created
+    digest: 5aa40ee4cd1b4a90db44377b4840f823a2470876b0533f892a189f38fc4d5421
+    name: restart-controller
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/restart-controller-0.1.2/restart-controller-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
     created: "2026-09-25T16:03:53.562606701Z"
     description: Restart subscribed workloads when an API server leaves or a CRD is
       created
@@ -498,6 +613,16 @@ entries:
     - https://github.com/evil8io/charts/releases/download/restart-controller-0.1.0/restart-controller-0.1.0.tgz
     version: 0.1.0
   simple-cronjob:
+  - apiVersion: v2
+    appVersion: 1.1.1
+    created: "2026-11-15T16:13:52.822553754Z"
+    description: Deploy a CronJob that runs a simple job
+    digest: 9f3eedaeb85d4e8b3c507f9ec6a1d9ad74a66b387e6d7f4d88ecf9702260d425
+    name: simple-cronjob
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/simple-cronjob-1.1.6/simple-cronjob-1.1.6.tgz
+    version: 1.1.6
   - apiVersion: v2
     appVersion: 1.1.1
     created: "2026-09-16T06:28:29.145610285Z"
@@ -541,6 +666,16 @@ entries:
   simple-deployment:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2026-11-15T16:13:52.927439479Z"
+    description: Deploy a Deployment that runs a simple script
+    digest: 64afc9cbca0ba810b3da5c79f0536912d6d119a22e94ba85c9b9936f94266378
+    name: simple-deployment
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/simple-deployment-0.1.2/simple-deployment-0.1.2.tgz
+    version: 0.1.2
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2026-09-14T16:51:30.884541766Z"
     description: Deploy a Deployment that runs a simple script
     digest: b0bf79ea69c577fc06b08af06465de1e261f1e3549daced3b3447ff4ea1d26fb
@@ -550,6 +685,16 @@ entries:
     - https://github.com/evil8io/charts/releases/download/simple-deployment-0.1.0/simple-deployment-0.1.0.tgz
     version: 0.1.0
   simple-hook:
+  - apiVersion: v2
+    appVersion: 1.1.1
+    created: "2026-11-15T16:13:53.102845273Z"
+    description: Run a single helm-hook
+    digest: e850a325cbeda53abe537804fdb511a1569fbe4cc29fa33a887fe8d3ba5168a6
+    name: simple-hook
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.5/simple-hook-1.1.5.tgz
+    version: 1.1.5
   - apiVersion: v2
     appVersion: 1.1.1
     created: "2026-09-16T06:28:29.418073617Z"
@@ -590,4 +735,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-09-26T10:16:17.289768661Z"
+generated: "2026-11-15T16:13:53.103021184Z"
