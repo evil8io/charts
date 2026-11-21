@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "affinity": {
+      "type": "object"
+    },
+    "annotations": {
+      "type": "object"
+    },
+    "corefile": {
+      "type": "string"
+    },
+    "dnsConfig": {
+      "type": "object"
+    },
+    "extraArgs": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "fullnameOverride": {
+      "type": "string"
+    },
+    "image": {
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string"
+        },
+        "tag": {
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      },
+      "required": [
+        "repository",
+        "tag"
+      ],
+      "type": "object"
+    },
+    "kubectl": {
+      "additionalProperties": false,
+      "properties": {
+        "image": {
+          "additionalProperties": false,
+          "properties": {
+            "repository": {
+              "type": "string"
+            },
+            "tag": {
+              "type": [
+                "string",
+                "number"
+              ]
+            }
+          },
+          "required": [
+            "repository",
+            "tag"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "image"
+      ],
+      "type": "object"
+    },
+    "labels": {
+      "type": "object"
+    },
+    "localIp": {
+      "type": "string"
+    },
+    "nameOverride": {
+      "type": "string"
+    },
+    "nodeRoleLabel": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "key"
+      ],
+      "type": "object"
+    },
+    "nodeSelector": {
+      "type": "object"
+    },
+    "podAnnotations": {
+      "type": "object"
+    },
+    "podMonitor": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "priorityClassName": {
+      "type": "string"
+    },
+    "resources": {
+      "type": "object"
+    },
+    "taintRemover": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "resources": {
+          "type": "object"
+        },
+        "taint": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "resources",
+        "taint"
+      ],
+      "type": "object"
+    },
+    "terminationGracePeriodSeconds": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "tolerations": {
+      "type": "array"
+    },
+    "updateStrategy": {
+      "type": "object"
+    },
+    "upstreamService": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "selector": {
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "selector"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "affinity",
+    "annotations",
+    "corefile",
+    "dnsConfig",
+    "extraArgs",
+    "fullnameOverride",
+    "image",
+    "kubectl",
+    "labels",
+    "localIp",
+    "nameOverride",
+    "nodeRoleLabel",
+    "nodeSelector",
+    "podAnnotations",
+    "podMonitor",
+    "priorityClassName",
+    "resources",
+    "taintRemover",
+    "terminationGracePeriodSeconds",
+    "tolerations",
+    "updateStrategy",
+    "upstreamService"
+  ],
+  "title": "node-local-dns values",
+  "type": "object"
+}

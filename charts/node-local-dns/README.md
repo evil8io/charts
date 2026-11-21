@@ -104,7 +104,8 @@ chart.
 
 | Key | Default | Description |
 |---|---|---|
-| `platform` | `generic` | `generic` or `aws`. With `aws`, the DaemonSet controller does not create a pod for an EKS Fargate node. EKS Fargate does not run DaemonSet pods. |
+| `affinity` | a node affinity for Linux nodes with the architecture `amd64` or `arm64` | The affinity of the cache pods. Helm replaces a list as a whole, so repeat the default expressions when you add an expression. On EKS with Fargate nodes, add `eks.amazonaws.com/compute-type NotIn fargate`, because EKS Fargate does not run DaemonSet pods. |
+| `nodeSelector` | `kubernetes.io/os: linux` | The node selector of the cache pods. |
 | `labels` | `{}` | Extra labels on the DaemonSet, the ConfigMap, the ServiceAccount, and the upstream Service. |
 | `extraArgs` | `-skipteardown=true`, `-setupiptables=false`, `-setupinterface=false` | Extra node-cache flags. The container arguments already contain `-localip`, `-conf`, and `-upstreamsvc`. |
 | `upstreamService.name` | `kube-dns-upstream` | The name of the Service in front of the upstream DNS server. |

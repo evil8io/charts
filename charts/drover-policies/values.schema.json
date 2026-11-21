@@ -98,14 +98,6 @@
       "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/$",
       "type": "string"
     },
-    "platform": {
-      "enum": [
-        "generic",
-        "aws",
-        "azure"
-      ],
-      "type": "string"
-    },
     "policies": {
       "additionalProperties": false,
       "properties": {
@@ -317,7 +309,6 @@
     "globalContextEntries",
     "kyverno",
     "managedPrefix",
-    "platform",
     "policies",
     "publicRead",
     "rancher",
