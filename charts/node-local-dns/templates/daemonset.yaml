@@ -27,8 +27,9 @@ metadata:
   {{- end }}
   labels:
     {{- include "node-local-dns.labels" . | nindent 4 }}
-    kubernetes.io/cluster-service: "true"
-    addonmanager.kubernetes.io/mode: Reconcile
+    {{- with .Values.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
   {{- with .Values.updateStrategy }}
   updateStrategy:

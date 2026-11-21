@@ -7,6 +7,8 @@ to the upstream DNS Service `kube-dns-upstream`.
 Install the chart in the namespace of the cluster DNS Service. The cache reads the stub
 domains of the cluster from the optional ConfigMap `kube-dns` in that namespace.
 
+The labels `kubernetes.io/cluster-service` and `addonmanager.kubernetes.io/mode` of the upstream NodeLocal DNSCache manifest are not in the chart defaults. Set them through `labels` when an installation needs them. Do not set them on AKS, because there an object with these labels is deleted.
+
 ## Cilium local redirect mode
 
 The chart is for Cilium local redirect mode only. In this mode, Cilium sends the traffic
@@ -103,9 +105,10 @@ chart.
 | Key | Default | Description |
 |---|---|---|
 | `platform` | `generic` | `generic` or `aws`. With `aws`, the DaemonSet controller does not create a pod for an EKS Fargate node. EKS Fargate does not run DaemonSet pods. |
+| `labels` | `{}` | Extra labels on the DaemonSet, the ConfigMap, the ServiceAccount, and the upstream Service. |
 | `extraArgs` | `-skipteardown=true`, `-setupiptables=false`, `-setupinterface=false` | Extra node-cache flags. The container arguments already contain `-localip`, `-conf`, and `-upstreamsvc`. |
 | `upstreamService.name` | `kube-dns-upstream` | The name of the Service in front of the upstream DNS server. |
-| `upstreamService.selector` | `app.kubernetes.io/name: coredns` | The pod labels of the upstream DNS server. |
+| `upstreamService.selector` | `app.kubernetes.io/name: coredns` | The pod labels of the upstream DNS server. To remove the default label, set it to `null`. For the CoreDNS that AKS manages, set `k8s-app: kube-dns`. |
 | `corefile` | a cache for `cluster.local`, `in-addr.arpa`, `ip6.arpa`, and `.`, with a forward to the upstream Service | node-cache replaces `__PILLAR__CLUSTER__DNS__` with the address of the upstream Service. |
 | `terminationGracePeriodSeconds` | `125` | Keep the value above the `lameduck` time of the `health` plugin in `corefile` (120 s). |
 | `updateStrategy` | `type: OnDelete` | With the default, the DaemonSet controller does not replace a running pod at an upgrade. The controller creates a pod with the new spec only after the old pod is deleted, or on a new node. |
