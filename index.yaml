@@ -127,6 +127,19 @@ entries:
     version: 0.18.0
   drover-policies:
   - apiVersion: v2
+    created: "2026-11-21T20:24:06.348260693Z"
+    description: Drover multi-tenancy policies
+    digest: afccd7c0a35b0c55773c2fda12697f339f347d04131716a05b2a783ee58f1931
+    home: https://github.com/evil8io/drover
+    kubeVersion: '>=1.30.0-0'
+    name: drover-policies
+    sources:
+    - https://github.com/evil8io/drover
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/drover-policies-0.15.0/drover-policies-0.15.0.tgz
+    version: 0.15.0
+  - apiVersion: v2
     created: "2026-11-15T16:13:51.873381934Z"
     description: Drover multi-tenancy policies
     digest: cd188dbbd10d84d37ca9f1be5968f44ae3be5e55169b3b7d1001d712618c98eb
@@ -243,6 +256,17 @@ entries:
     - https://github.com/evil8io/charts/releases/download/idle-0.1.0/idle-0.1.0.tgz
     version: 0.1.0
   node-local-dns:
+  - apiVersion: v2
+    appVersion: 1.26.8
+    created: "2026-11-21T20:24:06.600884375Z"
+    description: NodeLocal DNSCache on each node, for traffic that a Cilium local
+      redirect policy sends to it
+    digest: ed59759bdfc7b95b1a6b36b11795360fb1f69305e86f2752c9ba1f9cf9dd7cd5
+    name: node-local-dns
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/node-local-dns-0.2.0/node-local-dns-0.2.0.tgz
+    version: 0.2.0
   - apiVersion: v2
     appVersion: 1.26.8
     created: "2026-11-21T14:57:12.6835805Z"
@@ -746,4 +770,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-11-21T14:57:12.683685218Z"
+generated: "2026-11-21T20:24:06.601069012Z"
