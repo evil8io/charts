@@ -223,6 +223,16 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/drover-policies-0.1.0/drover-policies-0.1.0.tgz
     version: 0.1.0
+  gvisor:
+  - apiVersion: v2
+    created: "2026-11-23T15:22:07.871732274Z"
+    description: Install gVisor on each selected node and add its runtime to containerd
+    digest: ea0ba8636815d5cbac4b9a176ae005189e240583468267cc1c4eaa8d9aaf2589
+    name: gvisor
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/gvisor-0.1.0/gvisor-0.1.0.tgz
+    version: 0.1.0
   idle:
   - apiVersion: v2
     appVersion: latest
@@ -859,4 +869,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-11-23T10:41:36.720053421Z"
+generated: "2026-11-23T15:22:07.87184487Z"
