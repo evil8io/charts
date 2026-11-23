@@ -1,0 +1,6 @@
+The pods of the DaemonSet {{ include "gvisor.fullname" . }} install gVisor {{ .Values.gvisor.version }} on each selected node.
+
+The chart does not contain a RuntimeClass. Create a RuntimeClass with the handler runsc. An example is in the chart README.
+
+Show the pods:
+  kubectl --namespace {{ .Release.Namespace }} get pods --selector {{ include "gvisor.selectorLabels" . | replace ": " "=" }}

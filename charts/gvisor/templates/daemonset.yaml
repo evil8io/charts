@@ -1,0 +1,127 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "gvisor.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  labels:
+    {{- include "gvisor.labels" . | nindent 4 }}
+    {{- with .Values.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "gvisor.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "gvisor.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      serviceAccountName: {{ include "gvisor.fullname" . }}
+      automountServiceAccountToken: {{ .Values.taintRemover.enabled }}
+      # The pod must start before the CNI plugin of a new node is ready
+      hostNetwork: true
+      hostPID: true
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: install
+          image: {{ include "gvisor.image" . }}
+          # The script runs in the namespaces of the node
+          command:
+            - nsenter
+            - -t
+            - "1"
+            - -m
+            - -u
+            - -i
+            - -n
+            - -p
+            - --
+            - bash
+            - -c
+            - |
+              {{- .Files.Get "files/install.sh" | nindent 14 }}
+          env:
+            - name: GVISOR_VERSION
+              value: {{ required "gvisor.version is required" .Values.gvisor.version | quote }}
+            - name: CONTAINERD_CONFIG
+              value: {{ .Values.containerd.configPath | quote }}
+          securityContext:
+            privileged: true
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- if .Values.taintRemover.enabled }}
+        - name: taint-remover
+          image: {{ include "gvisor.image" . }}
+          command:
+            - /bin/sh
+            - -euc
+            - |
+              for attempt in $(seq 1 60); do
+                out="$(kubectl taint node "$K8S_NODE_NAME" {{ printf "%s-" .Values.taintRemover.taint | quote }} 2>&1)" && exit 0
+                echo "$out"
+                case "$out" in
+                  *"not found"*) exit 0 ;;
+                esac
+                sleep 5
+              done
+              exit 1
+          env:
+            - name: K8S_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          {{- with .Values.taintRemover.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
+      containers:
+        - name: pause
+          image: {{ include "gvisor.image" . }}
+          command:
+            - sleep
+            - infinity
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          resources:
+            requests:
+              cpu: 1m
+              memory: 16Mi
+            limits:
+              memory: 16Mi

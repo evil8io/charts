@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "affinity": {
+      "type": "object"
+    },
+    "annotations": {
+      "type": "object"
+    },
+    "containerd": {
+      "additionalProperties": false,
+      "properties": {
+        "configPath": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "configPath"
+      ],
+      "type": "object"
+    },
+    "fullnameOverride": {
+      "type": "string"
+    },
+    "gvisor": {
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "version"
+      ],
+      "type": "object"
+    },
+    "image": {
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "type": "string"
+        },
+        "tag": {
+          "type": [
+            "string",
+            "number"
+          ]
+        }
+      },
+      "required": [
+        "repository",
+        "tag"
+      ],
+      "type": "object"
+    },
+    "labels": {
+      "type": "object"
+    },
+    "nameOverride": {
+      "type": "string"
+    },
+    "nodeSelector": {
+      "type": "object"
+    },
+    "podAnnotations": {
+      "type": "object"
+    },
+    "priorityClassName": {
+      "type": "string"
+    },
+    "resources": {
+      "type": "object"
+    },
+    "taintRemover": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "resources": {
+          "type": "object"
+        },
+        "taint": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "resources",
+        "taint"
+      ],
+      "type": "object"
+    },
+    "tolerations": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "affinity",
+    "annotations",
+    "containerd",
+    "fullnameOverride",
+    "gvisor",
+    "image",
+    "labels",
+    "nameOverride",
+    "nodeSelector",
+    "podAnnotations",
+    "priorityClassName",
+    "resources",
+    "taintRemover",
+    "tolerations"
+  ],
+  "title": "gvisor values",
+  "type": "object"
+}

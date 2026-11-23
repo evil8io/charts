@@ -1,0 +1,6 @@
+---
+apiVersion: v2
+name: gvisor
+description: Install gVisor on each selected node and add its runtime to containerd
+type: application
+version: 0.1.0

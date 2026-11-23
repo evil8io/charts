@@ -1,0 +1,44 @@
+---
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: dtzar/helm-kubectl
+  tag: "4.3.0"
+
+gvisor:
+  version: ""
+
+containerd:
+  configPath: /etc/containerd/config.toml
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 256Mi
+
+labels: {}
+annotations: {}
+podAnnotations: {}
+
+tolerations:
+  - operator: Exists
+
+affinity: {}
+
+nodeSelector:
+  kubernetes.io/os: linux
+
+priorityClassName: system-node-critical
+
+taintRemover:
+  enabled: false
+  taint: startup-taint.cluster-autoscaler.kubernetes.io/gvisor-not-ready
+  resources:
+    requests:
+      cpu: 25m
+      memory: 128Mi
+    limits:
+      memory: 128Mi
