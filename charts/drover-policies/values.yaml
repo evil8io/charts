@@ -11,7 +11,7 @@ rancher:
   namespace: cattle-system
 
 externalDns:
-  annotationPrefix: external-dns.alpha.kubernetes.io/
+  annotationPrefix: external-dns.kubernetes.io/
 
 # The namespaced kinds that tenants get through the Kubernetes view, edit, and admin roles, as a map from API group to resource plurals. The verbs are fixed in the templates: get, list, and watch for view; create, update, patch, delete, and deletecollection for edit and admin. List each kind of edit or admin under view too, because the verb lists of edit and admin include no read verb. Helm renders no ClusterRole for an empty map.
 tenantRoles:

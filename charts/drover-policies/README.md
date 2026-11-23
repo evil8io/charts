@@ -76,7 +76,7 @@ that namespace only. In the example, every Rancher user can read the ConfigMaps 
 | `managedPrefix` | `managed.drover.evil8.io/` | The prefix of the labels and the annotations that drover manages. The value must equal the prefix that drover uses. |
 | `kyverno.namespace` | `kyverno` | The namespace of the Kyverno controllers. |
 | `rancher.namespace` | `cattle-system` | The namespace of the Rancher Deployment. |
-| `externalDns.annotationPrefix` | `external-dns.alpha.kubernetes.io/` | The prefix of the external-dns annotations that Kyverno reads on a Service for `drover.route-hostname`. |
+| `externalDns.annotationPrefix` | `external-dns.kubernetes.io/` | The prefix of the external-dns annotations that Kyverno reads on a Service for `drover.route-hostname`. |
 | `tenantRoles.view`, `tenantRoles.edit`, `tenantRoles.admin` | `{}` | See Tenant roles. |
 | `publicRead.cluster`, `publicRead.namespaces` | `{}` | See Public reads. |
 | `rancherUsers.enabled` | `false` | See Rancher users. |
