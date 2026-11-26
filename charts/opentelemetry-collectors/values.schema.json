@@ -236,6 +236,12 @@
       "type": "object"
     },
     "azure": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      },
       "type": "object"
     },
     "ciliumNetworkPolicy": {

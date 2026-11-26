@@ -135,8 +135,10 @@ aws:
     # -- Deep-merged on top of the cloudwatch collector config.
     configOverrides: {}
 
-# -- Platform settings for Azure. Reserved.
-azure: {}
+# -- Platform settings for Azure.
+azure:
+  # -- Adds the aks and azure resource detectors to the node, cluster, and events collectors.
+  enabled: false
 
 collectors:
   # -- The node collector, a DaemonSet. It receives OTLP from the pods of its node, reads the

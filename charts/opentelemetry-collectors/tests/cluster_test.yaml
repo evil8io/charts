@@ -174,3 +174,17 @@ tests:
     asserts:
       - matchSnapshot:
           path: spec.config
+  - it: adds resource_detection/env with the aks and azure detectors when azure.enabled is true
+    set:
+      azure.enabled: true
+    asserts:
+      - equal:
+          path: spec.config.processors["resource_detection/env"].detectors
+          value:
+            - aks
+            - azure
+      - equal:
+          path: spec.config.processors["resource_detection/env"].azure.resource_attributes["host.id"].enabled
+          value: false
+      - notExists:
+          path: spec.config.processors["resource_detection/env"].azure.resource_attributes["cloud.availability_zone"]

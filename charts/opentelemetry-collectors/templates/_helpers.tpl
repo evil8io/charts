@@ -317,6 +317,10 @@ attributes only. An empty result omits the processor.
 {{- if .root.Values.aws.enabled }}
 {{- $detectors = append $detectors "eks" }}
 {{- end }}
+{{- if .root.Values.azure.enabled }}
+{{- $detectors = append $detectors "aks" }}
+{{- $detectors = append $detectors "azure" }}
+{{- end }}
 {{- if eq .scope "node" }}
 {{- $detectors = append $detectors "k8s_api" }}
 {{- end }}
@@ -355,6 +359,25 @@ eks:
     {{- end }}
     k8s.cluster.name:
       enabled: true
+{{- end }}
+{{- if .root.Values.azure.enabled }}
+azure:
+  resource_attributes:
+    {{- if eq .scope "node" }}
+    cloud.availability_zone:
+      enabled: true
+    {{- else }}
+    azure.vm.name:
+      enabled: false
+    azure.vm.scaleset.name:
+      enabled: false
+    azure.vm.size:
+      enabled: false
+    host.id:
+      enabled: false
+    host.name:
+      enabled: false
+    {{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

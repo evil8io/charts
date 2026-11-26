@@ -291,3 +291,21 @@ tests:
       - template: templates/node/opentelemetrycollector.yaml
         matchSnapshot:
           path: spec.config
+  - it: adds the aks and azure detectors between env and k8s_api when azure.enabled is true
+    set:
+      azure.enabled: true
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.config.processors["resource_detection/env"].detectors
+          value:
+            - env
+            - aks
+            - azure
+            - k8s_api
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.config.processors["resource_detection/env"].azure.resource_attributes
+          value:
+            cloud.availability_zone:
+              enabled: true

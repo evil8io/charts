@@ -14,7 +14,7 @@ Five [OpenTelemetry Collectors](https://opentelemetry.io/docs/collector/) for a 
 
 The node, cluster, and events collectors are on by default. To turn off one of these collectors, set `collectors.<collector>.enabled` to false. To turn on the profiler collector, set `collectors.profiler.enabled` to true. To turn on the cloudwatch collector, set `aws.enabled` and `aws.cloudwatch.enabled` to true.
 
-The node collector receives OTLP on port 4317 (gRPC and OTel Arrow) and port 4318 (HTTP) of the Service `<fullname>-node-collector`. It also scrapes the targets of each ServiceMonitor, PodMonitor, Probe, and ScrapeConfig object that does not have the labels of `collectors.cluster.targetAllocator.matchLabels`. A target allocator, a component of the opentelemetry-operator, finds these targets. To turn off one source of the node collector, set its key to false:
+The node collector receives OTLP on port 4317 (gRPC and OTel Arrow) and port 4318 (HTTP) of the Service `<fullname>-node-collector`. It also scrapes the targets of each ServiceMonitor, PodMonitor, Probe, and ScrapeConfig object that does not have the labels of `collectors.cluster.targetAllocator.matchLabels`. To turn off one source of the node collector, set its key to false:
 
 - `collectors.node.logs.enabled`: the container logs.
 - `collectors.node.kubelet.enabled`: the kubelet metrics.
@@ -48,11 +48,11 @@ Set `aws.roleArn` to the ARN of an IAM role for the node, cluster, and events co
 
 Set `aws.fargate.enabled` to true to keep the collectors off the Fargate nodes. The cluster collector then scrapes the kubelet and the cAdvisor of the Fargate nodes.
 
+Set `azure.enabled` to true to add the `aks` and `azure` resource detectors to the node, cluster, and events collectors. The detectors read the subscription ID and the cloud region. On the node collector, they also read the zone and the attributes of the VM. The detectors read the instance metadata service, so the pods of these collectors need network access to `169.254.169.254`.
+
 On a platform without a resource detector, set `resourceAttributes` to static resource attributes. The node, cluster, and events collectors add these attributes to every signal.
 
 ## Subcharts
-
-kube-state-metrics and prometheus-node-exporter are subcharts of this chart. Both are off by default.
 
 Set `kubeStateMetrics.enabled` to true to install kube-state-metrics. Put its values under the `kube-state-metrics` key. The cluster collector scrapes kube-state-metrics.
 
@@ -96,7 +96,7 @@ For a cluster without Cilium, set `networkPolicy.enabled` to true. Helm then cre
 | `aws.cloudwatch.fileStorage.maxSize` | `268435456` | Maximum size of each storage file in the PersistentVolumeClaim, in bytes. Keep it at a quarter of `storage.size`, because the collector writes a second copy of a file during compaction. |
 | `aws.cloudwatch.sources.controlPlane` | `enabled: true` | The control plane log group of an EKS cluster. Set `logGroup` to its name, `/aws/eks/<cluster>/cluster`. |
 | `aws.cloudwatch.sources.fargate` | `enabled: true` | The Fargate pod log group. Set `logGroup` to its name, `/aws/eks/<cluster>/fargate`. |
-| `aws.cloudwatch.sources.cloudfront` | `enabled: false`, `region: us-east-1` | A CloudFront standard log group. Set `logGroup` to its name. CloudFront writes these logs in `us-east-1`. |
+| `aws.cloudwatch.sources.cloudfront` | `enabled: false`, `region: us-east-1` | A CloudFront standard log group. Set `logGroup` to its name. |
 | `aws.cloudwatch.sources.cloudfront.geoip` | `enabled: false` | Client geolocation attributes from the GeoLite2-City database. An init container downloads the database from the URL prefix in `mirror`. `mirror` is required. |
 | `aws.cloudwatch.logGroups` | `{}` | Other log groups, one entry per key. See `values.yaml` for the entry shape. |
 | `collectors.node.fileStorage.maxSize` | `1073741824` | Maximum size of each storage file on the root volume of the node, in bytes. |
