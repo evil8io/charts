@@ -344,6 +344,26 @@ entries:
     version: 0.1.0
   opentelemetry-collectors:
   - apiVersion: v2
+    appVersion: 0.166.0
+    created: "2026-11-26T13:37:29.819917604Z"
+    dependencies:
+    - condition: kubeStateMetrics.enabled
+      name: kube-state-metrics
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 9.1.0
+    - condition: nodeExporter.enabled
+      name: prometheus-node-exporter
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 6.0.0
+    description: OpenTelemetry collectors for the logs, metrics, and events of a Kubernetes
+      cluster, managed by the opentelemetry-operator
+    digest: 0837188316e35c282df49555afba66f5f564e621cab95601ced1542bcf6b5a8d
+    name: opentelemetry-collectors
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/opentelemetry-collectors-0.1.28/opentelemetry-collectors-0.1.28.tgz
+    version: 0.1.28
+  - apiVersion: v2
     appVersion: 0.162.0
     created: "2026-11-23T10:41:36.719683079Z"
     dependencies:
@@ -425,6 +445,17 @@ entries:
     version: 0.1.24
   opentelemetry-gateway:
   - apiVersion: v2
+    appVersion: 0.166.0
+    created: "2026-11-26T13:37:29.973728162Z"
+    description: OpenTelemetry gateway collectors, one per signal, managed by the
+      opentelemetry-operator
+    digest: 06648571a5ae05bcb216dd3f747c783842443dc942319f16ccf606207b0d1a01
+    name: opentelemetry-gateway
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/opentelemetry-gateway-0.2.3/opentelemetry-gateway-0.2.3.tgz
+    version: 0.2.3
+  - apiVersion: v2
     appVersion: 0.162.0
     created: "2026-11-15T16:13:52.477946273Z"
     description: OpenTelemetry gateway collectors, one per signal, managed by the
@@ -447,6 +478,16 @@ entries:
     - https://github.com/evil8io/charts/releases/download/opentelemetry-gateway-0.1.0/opentelemetry-gateway-0.1.0.tgz
     version: 0.1.0
   opentelemetry-syslog-collector:
+  - apiVersion: v2
+    created: "2026-11-26T13:37:30.10373452Z"
+    description: Syslog collector using syslog-ng and OpenTelemetry Collector, managed
+      by the opentelemetry-operator
+    digest: c68fbdde7eb8c52b456a9a37945edcad0d76eff1e6903c00b5b5236a943c9850
+    name: opentelemetry-syslog-collector
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/opentelemetry-syslog-collector-0.5.35/opentelemetry-syslog-collector-0.5.35.tgz
+    version: 0.5.35
   - apiVersion: v2
     created: "2026-11-23T18:28:22.510536879Z"
     description: Syslog collector using syslog-ng and OpenTelemetry Collector, managed
@@ -892,4 +933,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-11-23T18:28:22.510720829Z"
+generated: "2026-11-26T13:37:30.104048243Z"
