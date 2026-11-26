@@ -24,6 +24,25 @@ entries:
   drover:
   - apiVersion: v2
     appVersion: 0.31.0
+    created: "2026-11-26T14:05:29.64322447Z"
+    dependencies:
+    - condition: projectSync.serviceAccounts.enabled
+      name: openbao
+      repository: https://openbao.github.io/openbao-helm
+      version: 0.30.8
+    description: Tenancy extensions for Rancher
+    digest: e2492242ea8bb992a1e39318e575907f13796f7f8df772910b00a5893aa658a1
+    home: https://github.com/evil8io/drover
+    kubeVersion: '>=1.30.0-0'
+    name: drover
+    sources:
+    - https://github.com/evil8io/drover
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/drover-0.37.2/drover-0.37.2.tgz
+    version: 0.37.2
+  - apiVersion: v2
+    appVersion: 0.31.0
     created: "2026-11-22T06:53:22.503874056Z"
     dependencies:
     - condition: projectSync.serviceAccounts.enabled
@@ -933,4 +952,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-11-26T13:37:30.104048243Z"
+generated: "2026-11-26T14:05:29.643306664Z"
