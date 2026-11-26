@@ -89,6 +89,7 @@ receivers:
     storage: file_storage
     logs:
       poll_interval: {{ $v.pollInterval }}
+      delay: {{ $v.logsDelay }}
       groups:
         named:
           {{ required "aws.cloudwatch.sources.controlPlane.logGroup is required" $v.sources.controlPlane.logGroup }}: {}
@@ -99,6 +100,7 @@ receivers:
     storage: file_storage
     logs:
       poll_interval: {{ $v.pollInterval }}
+      delay: {{ $v.logsDelay }}
       groups:
         named:
           {{ required "aws.cloudwatch.sources.fargate.logGroup is required" $v.sources.fargate.logGroup }}: {}
@@ -109,6 +111,7 @@ receivers:
     storage: file_storage
     logs:
       poll_interval: {{ $v.pollInterval }}
+      delay: {{ $v.logsDelay }}
       groups:
         named:
           {{ required "aws.cloudwatch.sources.cloudfront.logGroup is required" $v.sources.cloudfront.logGroup }}: {}
@@ -119,6 +122,7 @@ receivers:
     storage: file_storage
     logs:
       poll_interval: {{ $v.pollInterval }}
+      delay: {{ $v.logsDelay }}
       groups:
         {{- if $group.name }}
         named:

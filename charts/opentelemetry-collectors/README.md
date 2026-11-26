@@ -88,6 +88,7 @@ For a cluster without Cilium, set `networkPolicy.enabled` to true. Helm then cre
 | `aws.fargate.nodeSelector` | `eks.amazonaws.com/compute-type: fargate` | The node label that identifies a Fargate node. |
 | `aws.cloudwatch.roleArn` | `""` | IAM role for the cloudwatch collector (IRSA). The collector calls `logs:FilterLogEvents` and `logs:DescribeLogGroups` with this role. |
 | `aws.cloudwatch.region`, `pollInterval` | `""`, `1m` | AWS region of the log groups, except the CloudFront log group. Poll interval of every log group. |
+| `aws.cloudwatch.logsDelay` | `60s` | Time between the end of each poll window and now. |
 | `aws.cloudwatch.storage.size`, `className` | `1Gi`, `""` | PersistentVolumeClaim for the receiver checkpoints and the exporter queue. |
 | `aws.cloudwatch.fileStorage.maxSize` | `268435456` | Maximum size of each storage file in the PersistentVolumeClaim, in bytes. Keep it at a quarter of `storage.size`, because the collector writes a second copy of a file during compaction. |
 | `aws.cloudwatch.sources.controlPlane` | `enabled: true` | The control plane log group of an EKS cluster. Set `logGroup` to its name, `/aws/eks/<cluster>/cluster`. |

@@ -69,6 +69,7 @@ aws:
     roleArn: ""
     region: ""
     pollInterval: 1m
+    logsDelay: 60s
     resources:
       limits:
         memory: 250Mi

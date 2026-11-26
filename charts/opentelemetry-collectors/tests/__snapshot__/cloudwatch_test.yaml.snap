@@ -124,6 +124,7 @@ matches the snapshot with both sources enabled:
     receivers:
       aws_cloudwatch/cluster:
         logs:
+          delay: 60s
           groups:
             named:
               /aws/eks/test/cluster: {}
@@ -132,6 +133,7 @@ matches the snapshot with both sources enabled:
         storage: file_storage
       aws_cloudwatch/fargate:
         logs:
+          delay: 60s
           groups:
             named:
               /aws/eks/test/fargate: {}

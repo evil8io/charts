@@ -82,6 +82,9 @@
               },
               "type": "object"
             },
+            "logsDelay": {
+              "type": "string"
+            },
             "nodeSelector": {
               "additionalProperties": {
                 "type": "string"
