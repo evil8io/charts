@@ -503,6 +503,39 @@
           },
           "type": "object"
         },
+        "manageUsersSubjects": {
+          "description": "The RBAC subjects of the ClusterRoleBinding with the Rancher verb manage-users on users.management.cattle.io.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "apiGroup": {
+                "enum": [
+                  "rbac.authorization.k8s.io"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "User",
+                  "Group"
+                ],
+                "type": "string"
+              },
+              "name": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "apiGroup"
+            ],
+            "type": "object"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
         "password": {
           "additionalProperties": false,
           "properties": {

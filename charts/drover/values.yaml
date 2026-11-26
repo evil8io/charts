@@ -35,6 +35,13 @@ serviceUser:
         memory: 256Mi
       limits:
         memory: 256Mi
+  # The RBAC subjects of the identities that run Helm, each with kind, name, and apiGroup. We bind
+  # each entry to a ClusterRole with the Rancher verb manage-users on users.management.cattle.io.
+  # Without that verb, the Rancher webhook can deny the update of the service users at an upgrade.
+  manageUsersSubjects: []
+  # - kind: Group
+  #   name: helm-operators
+  #   apiGroup: rbac.authorization.k8s.io
 
 apiFilter:
   replicaCount: 3

@@ -1,0 +1,71 @@
+---
+suite: service user manage-users rbac
+
+templates:
+  - templates/serviceuser-manage-users-rbac.yaml
+
+release:
+  name: drover
+  namespace: cattle-system
+
+set:
+  rancher.url: https://rancher.cattle-system.svc
+
+tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: gives the cluster role the verb manage-users on the Rancher users
+    set:
+      serviceUser.manageUsersSubjects:
+        - kind: Group
+          name: helm-operators
+          apiGroup: rbac.authorization.k8s.io
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ClusterRole
+      - equal:
+          path: metadata.name
+          value: drover-manage-users
+      - equal:
+          path: rules
+          value:
+            - apiGroups:
+                - management.cattle.io
+              resources:
+                - users
+              verbs:
+                - manage-users
+  - it: binds the cluster role to each subject of the value
+    set:
+      serviceUser.manageUsersSubjects:
+        - kind: Group
+          name: helm-operators
+          apiGroup: rbac.authorization.k8s.io
+        - kind: User
+          name: helm-runner
+          apiGroup: rbac.authorization.k8s.io
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: ClusterRoleBinding
+      - equal:
+          path: metadata.name
+          value: drover-manage-users
+      - equal:
+          path: roleRef
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: drover-manage-users
+      - equal:
+          path: subjects
+          value:
+            - kind: Group
+              name: helm-operators
+              apiGroup: rbac.authorization.k8s.io
+            - kind: User
+              name: helm-runner
+              apiGroup: rbac.authorization.k8s.io
