@@ -37,6 +37,7 @@ spec:
     filterStrategy: relabel-config
     prometheusCR:
       enabled: true
+      denyFSAccessThroughSMs: true
       scrapeInterval: {{ .Values.targetAllocator.scrapeInterval | quote }}
       allowNamespaces:
         - {{ .Release.Namespace }}

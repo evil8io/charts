@@ -231,6 +231,12 @@ tests:
         notContains:
           path: spec.config.service.extensions
           content: basicauth
+  - it: sets denyFSAccessThroughSMs on the node target allocator
+    asserts:
+      - template: templates/node/opentelemetrycollector.yaml
+        equal:
+          path: spec.targetAllocator.prometheusCR.denyFSAccessThroughSMs
+          value: true
   - it: sets the resources of the node target allocator
     asserts:
       - template: templates/node/opentelemetrycollector.yaml

@@ -23,6 +23,8 @@ The node collector receives OTLP on port 4317 (gRPC and OTel Arrow) and port 431
 
 The cluster collector scrapes the targets of each ServiceMonitor, PodMonitor, Probe, and ScrapeConfig object that has the labels of `collectors.cluster.targetAllocator.matchLabels`. The default label is `target: opentelemetry-cluster-collector`. A target allocator divides these targets over the replicas of the cluster collector. To turn off these scrapes, set `collectors.cluster.targetAllocator.enabled` to false.
 
+The collectors do not scrape a ServiceMonitor endpoint that has `bearerTokenFile`, or that has `caFile`, `certFile`, or `keyFile` in `tlsConfig`. A collector reads such a file from its own pod. A user who can create a ServiceMonitor could thus read a file of the collector, for example its ServiceAccount token. The collectors scrape the other endpoints of the monitor.
+
 The cluster collector also scrapes the kube-apiserver. To turn off this scrape, set `collectors.cluster.scrapes.apiserver.enabled` to false.
 
 The events collector watches the Kubernetes events and sends them as logs with the service name `kubernetes-events`.
@@ -81,6 +83,7 @@ For a cluster without Cilium, set `networkPolicy.enabled` to true. Helm then cre
 | `featureGates` | `""` | Comma-separated feature gates for every collector. |
 | `exporter.endpoint` | `""` (required) | OTLP/HTTP endpoint of the backend, for example an OpenTelemetry gateway. |
 | `exporter.tenant` | `""` | Value of the `X-Scope-OrgID` header. With an empty value, the collectors do not send the header. |
+| `exporter.insecureSkipVerify` | `false` | When it is true, the collectors do not verify the TLS certificate of the endpoint. |
 | `exporter.basicAuth.username`, `password` | `""` | Basic auth for the endpoint. With an empty username, the collectors do not use basic auth. |
 | `selfTelemetry.endpoint` | `""` | OTLP gRPC endpoint (`host:port`) for the spans and metrics of the collectors. When it is set, the node collector sends them to itself instead. With an empty value, the collectors do not export them. |
 | `selfTelemetry.tracesSampleRatio` | `0.01` | Sample ratio for the root spans of the collectors. |

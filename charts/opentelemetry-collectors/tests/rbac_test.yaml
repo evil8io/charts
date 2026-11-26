@@ -32,6 +32,11 @@ tests:
             verbs:
               - list
               - watch
+  - it: never grants access to nodes/proxy
+    asserts:
+      - notContains:
+          path: rules[*].resources
+          content: nodes/proxy
   - it: never grants access to secrets
     asserts:
       - notContains:

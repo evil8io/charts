@@ -98,6 +98,11 @@ tests:
           value:
             - opentelemetry-collector
             - extra-ns
+  - it: sets denyFSAccessThroughSMs on the cluster target allocator
+    asserts:
+      - equal:
+          path: spec.targetAllocator.prometheusCR.denyFSAccessThroughSMs
+          value: true
   - it: sets the resources of the cluster target allocator
     asserts:
       - equal:

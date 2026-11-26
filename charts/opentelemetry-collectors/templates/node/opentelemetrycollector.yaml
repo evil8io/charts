@@ -61,6 +61,7 @@ spec:
     allocationStrategy: per-node
     prometheusCR:
       enabled: true
+      denyFSAccessThroughSMs: true
       scrapeInterval: {{ .Values.targetAllocator.scrapeInterval | quote }}
       {{- range $selector := list "podMonitorSelector" "serviceMonitorSelector" "probeSelector" "scrapeConfigSelector" }}
       {{ $selector }}:
