@@ -3,7 +3,7 @@ apiVersion: v2
 name: drover
 description: Tenancy extensions for Rancher
 type: application
-version: 0.37.1
+version: 0.37.2
 appVersion: "0.31.0"
 kubeVersion: '>=1.30.0-0'
 home: https://github.com/evil8io/drover

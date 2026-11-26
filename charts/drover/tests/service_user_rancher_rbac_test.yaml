@@ -5,6 +5,7 @@ templates:
   - templates/serviceuser-rancher-rbac.yaml
   - templates/serviceuser-rancher-rbac-job.yaml
   - templates/serviceuser-rancher-rbac-delete-job.yaml
+  - templates/serviceuser-rancher-rbac-users-job.yaml
 
 release:
   name: drover
@@ -14,14 +15,14 @@ set:
   rancher.url: https://rancher.cattle-system.svc
 
 tests:
-  - it: keeps the hook rbac for the install hook and for the delete hook
+  - it: keeps the hook rbac for the install hook, the upgrade hook, and the delete hook
     asserts:
       - template: templates/serviceuser-rancher-rbac.yaml
         documentIndex: 0
         equal:
           path: metadata.annotations
           value: &hookRbacAnnotations
-            helm.sh/hook: pre-delete,post-install,post-upgrade
+            helm.sh/hook: pre-upgrade,pre-delete,post-install,post-upgrade
             helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
             helm.sh/hook-weight: "0"
       - template: templates/serviceuser-rancher-rbac.yaml
@@ -116,6 +117,23 @@ tests:
               verbs:
                 - bind
                 - escalate
+            - apiGroups:
+                - management.cattle.io
+              resources:
+                - users
+              resourceNames:
+                - u-drover
+                - u-drover-project-sync
+              verbs:
+                - get
+                - patch
+                - delete
+            - apiGroups:
+                - management.cattle.io
+              resources:
+                - users
+              verbs:
+                - manage-users
   - it: lets project-sync get the Rancher clusters through its role template when it keeps ServiceAccounts
     template: templates/serviceuser-rancher-rbac-job.yaml
     set:
@@ -360,6 +378,32 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: '(?s)clusterName: local\nroleTemplateName: drover-project-sync\nuserName: u-drover-project-sync\nuserPrincipalName: local://u-drover-project-sync'
+  - it: runs the users hook before an upgrade of the chart objects
+    template: templates/serviceuser-rancher-rbac-users-job.yaml
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: drover-rancher-rbac-users
+      - equal:
+          path: metadata.annotations
+          value:
+            helm.sh/hook: pre-upgrade
+            helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+            helm.sh/hook-weight: "1"
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: drover-rancher-rbac
+  - it: gives both service users the manifest of the chart objects before the upgrade
+    template: templates/serviceuser-rancher-rbac-users-job.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)^set -eu\nuser=\$\(kubectl get user\.management\.cattle\.io u-drover --ignore-not-found --output name\)\nif \[ -n "\$user" \]; then\n  kubectl patch user\.management\.cattle\.io u-drover --type merge --patch-file /dev/stdin <<.EOF.\napiVersion: management\.cattle\.io/v3\nkind: User\nmetadata:\n  name: u-drover\n  labels:\n    helm\.sh/chart: drover-[0-9.]+\n.*principalIds:\n  - local://u-drover\nEOF\nfi\n'
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)\nfi\nuser=\$\(kubectl get user\.management\.cattle\.io u-drover-project-sync --ignore-not-found --output name\)\nif \[ -n "\$user" \]; then\n  kubectl patch user\.management\.cattle\.io u-drover-project-sync --type merge --patch-file /dev/stdin <<.EOF.\n.*username: drover-project-sync\n.*principalIds:\n  - local://u-drover-project-sync\nEOF\nfi\n$'
   - it: runs the delete hook before the release goes
     template: templates/serviceuser-rancher-rbac-delete-job.yaml
     asserts:
@@ -400,7 +444,7 @@ tests:
             drover --ignore-not-found --wait=false'
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
-          pattern: '(?s)delete globalrole\.management\.cattle\.io drover-project-sync --ignore-not-found --wait=false\ndeadline='
+          pattern: '(?s)delete globalrole\.management\.cattle\.io drover-project-sync --ignore-not-found --wait=false\nkubectl delete user\.management\.cattle\.io u-drover --ignore-not-found --wait=false\nkubectl delete user\.management\.cattle\.io u-drover-project-sync --ignore-not-found --wait=false\ndeadline='
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: '(?s)deadline=\$\(\(\$\(date \+%s\) \+ 120\)\)\nuntil kubectl delete roletemplate\.management\.cattle\.io drover --ignore-not-found --wait=false; do'
@@ -410,6 +454,12 @@ tests:
       - matchRegex:
           path: spec.template.spec.containers[0].command[2]
           pattern: '(?s)until kubectl delete roletemplate\.management\.cattle\.io drover-project-sync --ignore-not-found --wait=false; do.*sleep 5'
+  - it: waits until both service users are deleted
+    template: templates/serviceuser-rancher-rbac-delete-job.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.spec.containers[0].command[2]
+          pattern: '(?s)deadline=\$\(\(\$\(date \+%s\) \+ 120\)\)\nuntil users=\$\(kubectl get user\.management\.cattle\.io u-drover u-drover-project-sync --ignore-not-found --output name\) && \[ -z "\$users" \]; do.*a service user still exists after 120s: \$users.*exit 1.*sleep 5\ndone\n$'
   - it: gives both hook Jobs the same pod spec
     asserts:
       - template: templates/serviceuser-rancher-rbac-job.yaml

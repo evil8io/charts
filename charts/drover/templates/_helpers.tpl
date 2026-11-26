@@ -233,6 +233,28 @@ helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 helm.sh/hook-weight: {{ .weight | quote }}
 {{- end }}
 
+{{- define "drover.serviceUser.user" -}}
+apiVersion: management.cattle.io/v3
+kind: User
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "drover.labels" .root | nindent 4 }}
+username: {{ .username }}
+displayName: {{ .username }}
+enabled: true
+mustChangePassword: false
+principalIds:
+  - local://{{ .name }}
+{{- end }}
+
+{{- define "drover.serviceUser.users" -}}
+- name: u-drover
+  username: drover
+- name: {{ include "drover.projectSync.user" . }}
+  username: drover-project-sync
+{{- end }}
+
 {{- define "drover.celLiteral" -}}
 {{- if kindIs "slice" . -}}
 {{- $items := list -}}

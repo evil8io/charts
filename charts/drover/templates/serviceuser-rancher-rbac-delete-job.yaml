@@ -2,6 +2,7 @@
 {{- $name := include "drover.serviceUser.rancherRbac.fullname" . }}
 {{- $fullname := include "drover.fullname" . }}
 {{- $projectSync := include "drover.projectSync.fullname" . }}
+{{- $projectSyncUser := include "drover.projectSync.user" . }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -45,6 +46,8 @@ spec:
               kubectl delete globalrolebinding.management.cattle.io {{ $projectSync }}-user-base --ignore-not-found --wait=false
               kubectl delete globalrole.management.cattle.io {{ $fullname }} --ignore-not-found --wait=false
               kubectl delete globalrole.management.cattle.io {{ $projectSync }} --ignore-not-found --wait=false
+              kubectl delete user.management.cattle.io u-drover --ignore-not-found --wait=false
+              kubectl delete user.management.cattle.io {{ $projectSyncUser }} --ignore-not-found --wait=false
               deadline=$(($(date +%s) + 120))
               until kubectl delete roletemplate.management.cattle.io {{ $fullname }} --ignore-not-found --wait=false; do
                 if [ "$(date +%s)" -ge "$deadline" ]; then
@@ -57,6 +60,14 @@ spec:
               until kubectl delete roletemplate.management.cattle.io {{ $projectSync }} --ignore-not-found --wait=false; do
                 if [ "$(date +%s)" -ge "$deadline" ]; then
                   echo "the role template {{ $projectSync }} still has an inherited binding after 120s"
+                  exit 1
+                fi
+                sleep 5
+              done
+              deadline=$(($(date +%s) + 120))
+              until users=$(kubectl get user.management.cattle.io u-drover {{ $projectSyncUser }} --ignore-not-found --output name) && [ -z "$users" ]; do
+                if [ "$(date +%s)" -ge "$deadline" ]; then
+                  echo "a service user still exists after 120s: $users"
                   exit 1
                 fi
                 sleep 5
