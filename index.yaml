@@ -383,6 +383,26 @@ entries:
   opentelemetry-collectors:
   - apiVersion: v2
     appVersion: 0.166.0
+    created: "2026-11-28T08:17:01.67834199Z"
+    dependencies:
+    - condition: kubeStateMetrics.enabled
+      name: kube-state-metrics
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 9.1.0
+    - condition: nodeExporter.enabled
+      name: prometheus-node-exporter
+      repository: https://prometheus-community.github.io/helm-charts
+      version: 6.0.0
+    description: OpenTelemetry collectors for the logs, metrics, and events of a Kubernetes
+      cluster, managed by the opentelemetry-operator
+    digest: b3f7bb47c47d6888e36f6126f739f3c42210bf2a2c3edcb4baaa3c416a3fe0a6
+    name: opentelemetry-collectors
+    type: application
+    urls:
+    - https://github.com/evil8io/charts/releases/download/opentelemetry-collectors-0.1.31/opentelemetry-collectors-0.1.31.tgz
+    version: 0.1.31
+  - apiVersion: v2
+    appVersion: 0.166.0
     created: "2026-11-26T23:01:32.442054366Z"
     dependencies:
     - condition: kubeStateMetrics.enabled
@@ -1011,4 +1031,4 @@ entries:
     urls:
     - https://github.com/evil8io/charts/releases/download/simple-hook-1.1.0/simple-hook-1.1.0.tgz
     version: 1.1.0
-generated: "2026-11-26T23:01:32.442222058Z"
+generated: "2026-11-28T08:17:01.678489099Z"
