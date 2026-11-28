@@ -1,5 +1,5 @@
 ---
-# The prefix of the keys of drover itself: the records of the project sync, the labels of the project ServiceAccounts and their bindings, the route revision label, and the trust status annotation. The keys that the project sync copies from a Rancher project are not under this prefix. The value must equal the constant managedPrefix in internal/projectsync/keys.go of drover. Through the managed-metadata policy, the API server denies a write to a key under this prefix. A ServiceAccount of the Kyverno namespace and a requester with permission to patch every namespace are exempt.
+# The prefix of the keys that drover writes for itself, for example the records of the project sync. The keys that the project sync copies from a Rancher project are not under it. It must equal the constant managedPrefix in internal/projectsync/keys.go of drover. We deny a write to a key under it, except by the Kyverno ServiceAccounts and by a requester who can patch every namespace, so that a tenant cannot change the keys of drover.
 managedPrefix: managed.drover.evil8.io/
 
 kyverno:
@@ -9,29 +9,34 @@ kyverno:
 rancher:
   # The namespace of the Rancher Deployment. The namespace-orphan policy skips the writes of its ServiceAccounts.
   namespace: cattle-system
+  # The RBAC subjects of the cluster administrators. We give each subject the Rancher verbs manage-namespaces and updatepsa on every project. Without the verbs, Rancher denies an administrator who puts a namespace in a project or sets a Pod Security label on a namespace. Set it on AKS with Azure RBAC, because the Azure role of an administrator does not include the verbs.
+  manageNamespacesSubjects: []
+  # - kind: Group
+  #   name: cluster-admins
+  #   apiGroup: rbac.authorization.k8s.io
 
 externalDns:
   annotationPrefix: external-dns.kubernetes.io/
 
-# The namespaced kinds that tenants get through the Kubernetes view, edit, and admin roles, as a map from API group to resource plurals. The verbs are fixed in the templates: get, list, and watch for view; create, update, patch, delete, and deletecollection for edit and admin. List each kind of edit or admin under view too, because the verb lists of edit and admin include no read verb. Helm renders no ClusterRole for an empty map.
+# The namespaced kinds that tenants get through the Kubernetes view, edit, and admin roles, as a map from API group to resource plurals. The verbs are fixed in the templates: get, list, and watch for view; create, update, patch, delete, and deletecollection for edit and admin. List each kind of edit or admin under view too, because the verb lists of edit and admin do not include a read verb.
 tenantRoles:
   view: {}
   edit: {}
   admin: {}
 
-# The kinds that every Rancher user can get, list, and watch. The key cluster is a map from API group to resource plurals, and the users read these kinds cluster-wide. The key namespaces is a map from namespace name to such a map, and the users read these kinds in that namespace only. Helm renders the ClusterRole drover:public-read and binds it to the group system:cattle:authenticated. The ClusterRole also contains get on each namespace of the key namespaces. For each namespace with a map that is not empty, Helm renders a Role and a RoleBinding. The Role also contains the verb get on the namespace object itself. For a namespace with an empty map, Helm does not render a Role. The users can get that namespace object through the ClusterRole only. When both maps are empty, Helm does not render any object.
+# The kinds that every Rancher user can get, list, and watch. Under cluster, as a map from API group to resource plurals, the users read the kinds cluster-wide. Under namespaces, as a map from namespace name to such a map, the users read the kinds in that namespace only, and they can get the namespace object. We do not create a Role in a namespace with an empty map, so that the install does not fail for a namespace that another component creates later.
 publicRead:
   cluster: {}
   namespaces: {}
 
-# When true, Helm installs the ClusterRole drover:users and binds it to the group system:cattle:authenticated, so that every Rancher user can read principals and roletemplates. The Rancher UI reads both when a project owner adds members to a project. Rancher checks this access in the Rancher management cluster only, so enable it there.
+# When true, we let every Rancher user read the principals and the roletemplates of Rancher. The Rancher UI reads both when a project owner adds members to a project. Rancher checks this access in the Rancher management cluster only, so enable it there.
 rancherUsers:
   enabled: false
 
 policies:
   namespace-project:
     enabled: true
-    # Annotation key on a namespace that has the display name of its project. The deny message shows the name next to the project id. Empty turns the hint off.
+    # The key of the namespace annotation with the project display name. We add the name to each project id in the deny message, unless the key is empty.
     nameAnnotation: project.display_name
   namespace-quotas:
     enabled: true

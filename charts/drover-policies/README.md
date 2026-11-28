@@ -1,9 +1,8 @@
 # drover-policies
 
-Multi-tenancy policies for [drover](https://github.com/evil8io/drover), as Kyverno
-policies. Install the chart in the Rancher management
-cluster and in each downstream cluster. The chart needs Kyverno 1.19+ and Kubernetes
-1.30+.
+Multi-tenancy policies and roles for [drover](https://github.com/evil8io/drover). Install
+the chart in the Rancher management cluster and in each downstream cluster. The chart needs
+Kyverno 1.19+ and Kubernetes 1.30+.
 
 ## Policies
 
@@ -66,8 +65,25 @@ contain names or settings of one tenant, for example PolicyExceptions.
 
 `namespaces` is a map from namespace name to a kind map. A kind map is a map from API
 group to resource plurals. Every Rancher user can get, list, and watch the listed kinds in
-that namespace only. In the example, every Rancher user can read the ConfigMaps of
-`kube-public`.
+that namespace only.
+
+## Cluster administrators
+
+On AKS with Azure RBAC, Rancher denies some namespace changes of a cluster administrator.
+The administrator cannot create a namespace in a project, move a namespace to another
+project, or set a Pod Security label on a namespace. The Azure role of an administrator
+does not include the Rancher rights for these changes.
+
+List the RBAC subjects of the cluster administrators in
+`rancher.manageNamespacesSubjects`. They can then make these changes in every project:
+
+```yaml
+rancher:
+  manageNamespacesSubjects:
+    - kind: Group
+      name: cluster-admins
+      apiGroup: rbac.authorization.k8s.io
+```
 
 ## Values
 
@@ -76,6 +92,7 @@ that namespace only. In the example, every Rancher user can read the ConfigMaps 
 | `managedPrefix` | `managed.drover.evil8.io/` | The prefix of the labels and the annotations that drover manages. The value must equal the prefix that drover uses. |
 | `kyverno.namespace` | `kyverno` | The namespace of the Kyverno controllers. |
 | `rancher.namespace` | `cattle-system` | The namespace of the Rancher Deployment. |
+| `rancher.manageNamespacesSubjects` | `[]` | See Cluster administrators. |
 | `externalDns.annotationPrefix` | `external-dns.kubernetes.io/` | The prefix of the external-dns annotations that Kyverno reads on a Service for `drover.route-hostname`. |
 | `tenantRoles.view`, `tenantRoles.edit`, `tenantRoles.admin` | `{}` | See Tenant roles. |
 | `publicRead.cluster`, `publicRead.namespaces` | `{}` | See Public reads. |

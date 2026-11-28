@@ -1,0 +1,69 @@
+---
+suite: manage-namespaces rbac
+
+templates:
+  - templates/manage-namespaces.yaml
+
+release:
+  name: drover-policies
+  namespace: kyverno
+
+tests:
+  - it: renders nothing by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: grants manage-namespaces and updatepsa on every Rancher project
+    set:
+      rancher.manageNamespacesSubjects:
+        - kind: Group
+          name: cluster-admins
+          apiGroup: rbac.authorization.k8s.io
+    documentIndex: 0
+    asserts:
+      - isKind:
+          of: ClusterRole
+      - equal:
+          path: metadata.name
+          value: drover:manage-namespaces
+      - equal:
+          path: rules
+          value:
+            - apiGroups:
+                - management.cattle.io
+              resources:
+                - projects
+              verbs:
+                - manage-namespaces
+                - updatepsa
+  - it: binds the cluster role to each subject of the value
+    set:
+      rancher.manageNamespacesSubjects:
+        - kind: Group
+          name: cluster-admins
+          apiGroup: rbac.authorization.k8s.io
+        - kind: User
+          name: cluster-admin
+          apiGroup: rbac.authorization.k8s.io
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: ClusterRoleBinding
+      - equal:
+          path: metadata.name
+          value: drover:manage-namespaces
+      - equal:
+          path: roleRef
+          value:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: drover:manage-namespaces
+      - equal:
+          path: subjects
+          value:
+            - kind: Group
+              name: cluster-admins
+              apiGroup: rbac.authorization.k8s.io
+            - kind: User
+              name: cluster-admin
+              apiGroup: rbac.authorization.k8s.io

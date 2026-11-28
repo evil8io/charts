@@ -1,0 +1,30 @@
+{{- if .Values.rancher.manageNamespacesSubjects }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: drover:manage-namespaces
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+rules:
+  - apiGroups:
+      - management.cattle.io
+    resources:
+      - projects
+    verbs:
+      - manage-namespaces
+      - updatepsa
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: drover:manage-namespaces
+  labels:
+    {{- include "drover-policies.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: drover:manage-namespaces
+subjects:
+  {{- toYaml .Values.rancher.manageNamespacesSubjects | nindent 2 }}
+{{- end }}

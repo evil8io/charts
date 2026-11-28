@@ -259,19 +259,53 @@
     "rancher": {
       "additionalProperties": false,
       "properties": {
+        "manageNamespacesSubjects": {
+          "description": "The RBAC subjects that get the Rancher verbs manage-namespaces and updatepsa on every project.",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "apiGroup": {
+                "enum": [
+                  "rbac.authorization.k8s.io"
+                ],
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "User",
+                  "Group"
+                ],
+                "type": "string"
+              },
+              "name": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "apiGroup"
+            ],
+            "type": "object"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
         "namespace": {
           "minLength": 1,
           "type": "string"
         }
       },
       "required": [
+        "manageNamespacesSubjects",
         "namespace"
       ],
       "type": "object"
     },
     "rancherUsers": {
       "additionalProperties": false,
-      "description": "When enabled is true, Helm installs the ClusterRole drover:users and binds it to the group system:cattle:authenticated. Enable it in the Rancher management cluster only.",
+      "description": "When enabled is true, every Rancher user can read the Rancher principals and roletemplates. Enable it in the Rancher management cluster only.",
       "properties": {
         "enabled": {
           "type": "boolean"
